@@ -76,15 +76,6 @@ const QUICK_LINKS = [
   { icon: IconWebhook, title: 'Webhooks', desc: 'Signed events to your backend.', view: 'webhooks', tone: 'var(--purple)' },
 ];
 
-// Map the real API yield-history payload to the shape the portal renders.
-function mapRealYield(d) {
-  if (!d) return null;
-  const hist = Array.isArray(d.history) ? d.history : [];
-  const last30 = hist.slice(-30).map((p) => p.apy);
-  const avg30 = last30.length ? last30.reduce((a, b) => a + b, 0) / last30.length : d.blend_apy;
-  return { asset: d.asset, best_apy: d.blend_apy, blend_apy: d.blend_apy, blended_30d: avg30 };
-}
-
 export default function Overview({ go, apiKey }) {
   const [yieldData, setYieldData] = useState(null);
   const [vaults, setVaults] = useState(null);
@@ -143,9 +134,7 @@ export default function Overview({ go, apiKey }) {
   const yieldList = Array.isArray(yieldData) ? yieldData : yieldData ? [yieldData] : [];
   const bestApy = yieldList.length ? Math.max(...yieldList.map((y) => y.best_apy || 0)) : 0;
   const vaultList = Array.isArray(vaults) ? vaults : [];
-  const totalTvl = IS_REAL
-    ? (summary && summary.tvl ? summary.tvl.total : 0)
-    : vaultList.reduce((a, v) => a + (v.tvl_usd || 0), 0);
+  const totalTvl = vaultList.reduce((a, v) => a + (v.tvl_usd || 0), 0);
   const activeVaults = vaultList.filter((v) => v.status === 'active').length;
   const networkName = dash && dash.networkInfo ? dash.networkInfo.networkName : null;
   const totalRequests = usage && usage.totals ? usage.totals.requests : 0;
