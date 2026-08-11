@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, post, timeAgo, shortAddr, fmtUsd, fmtApy } from '../lib/api';
+import { get, post, timeAgo, shortAddr, fmtUsd, fmtApy, IS_REAL, REAL_BASE } from '../lib/api';
 import { Badge, Modal, Empty, Spinner } from '../ui/primitives';
 import { IconUsers, IconPlus, IconArrowRight } from '../lib/icons';
 
@@ -15,8 +15,11 @@ export default function Users({ apiKey }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // Real mode reads attributed users from the Partner API (partner-scoped);
+  // user creation and per-user ledgers are sandbox-only features.
   const load = useCallback(() => {
-    get('/users?limit=100', { key: apiKey })
+    const path = IS_REAL ? '/partner/users?limit=100' : '/users?limit=100';
+    get(path, { key: apiKey, base: IS_REAL ? REAL_BASE : undefined })
       .then(({ data }) => setUsers(Array.isArray(data) ? data : []))
       .catch((e) => setError(e.message));
   }, [apiKey]);
@@ -30,11 +33,19 @@ export default function Users({ apiKey }) {
       setSelected(user);
       setDetail(null);
       try {
-        const [pos, led] = await Promise.all([
-          get(`/users/${user.id}/positions`, { key: apiKey }).then((r) => r.data),
-          get(`/users/${user.id}/ledger?limit=50`, { key: apiKey }).then((r) => r.data),
-        ]);
-        setDetail({ positions: pos, ledger: led });
+        if (IS_REAL) {
+          const pos = await get(`/partner/user/${user.id}/positions`, {
+            key: apiKey,
+            base: REAL_BASE,
+          }).then((r) => r.data);
+          setDetail({ positions: pos, ledger: [] });
+        } else {
+          const [pos, led] = await Promise.all([
+            get(`/users/${user.id}/positions`, { key: apiKey }).then((r) => r.data),
+            get(`/users/${user.id}/ledger?limit=50`, { key: apiKey }).then((r) => r.data),
+          ]);
+          setDetail({ positions: pos, ledger: led });
+        }
       } catch (e) {
         setError(e.message);
       }
@@ -86,9 +97,11 @@ export default function Users({ apiKey }) {
             their wallets, then query positions and the reconciliation ledger per user.
           </p>
         </div>
-        <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setCreateOpen(true)}>
-          <IconPlus size={14} /> Create user
-        </button>
+        {IS_REAL ? null : (
+          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setCreateOpen(true)}>
+            <IconPlus size={14} /> Create user
+          </button>
+        )}
       </div>
 
       {error ? (
@@ -203,6 +216,8 @@ export default function Users({ apiKey }) {
                   <div className={s.empty}>No positions for this user.</div>
                 )}
 
+                {IS_REAL ? null : (
+                <>
                 <div className={s.panelHead}>
                   <span className={s.h3} style={{ fontSize: 13 }}>Ledger</span>
                   <Badge tone="gray">{detail.ledger.length}</Badge>
@@ -234,6 +249,8 @@ export default function Users({ apiKey }) {
                   </table>
                 ) : (
                   <div className={s.empty}>No ledger activity.</div>
+                )}
+                </>
                 )}
               </>
             )}

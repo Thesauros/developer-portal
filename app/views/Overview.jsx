@@ -2,7 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react';
 import s from '../platform.module.css';
-import { get, fmtUsd, fmtPct, fmtApy, fmtMs, fmtNum } from '../lib/api';
+import {
+  get,
+  fmtUsd,
+  fmtPct,
+  fmtApy,
+  fmtMs,
+  fmtNum,
+  IS_REAL,
+  MONITOR_BASE,
+  mapMonitorVaults,
+  mapMonitorYield,
+} from '../lib/api';
 import { Badge } from '../ui/primitives';
 import { Sparkline } from '../ui/charts';
 import {
@@ -70,13 +81,18 @@ export default function Overview({ go, apiKey }) {
   const [vaults, setVaults] = useState(null);
   const [usage, setUsage] = useState(null);
   const [status, setStatus] = useState(null);
+  const [dash, setDash] = useState(null); // real mode: monitoring dashboard payload
+  const [dashErr, setDashErr] = useState(null);
   const [liveResponse, setLiveResponse] = useState(null);
   const [respMs, setRespMs] = useState(null);
+
+  const livePath = IS_REAL ? '/dashboard' : '/yield/USDC';
+  const liveBase = IS_REAL ? MONITOR_BASE : undefined;
 
   useEffect(() => {
     let alive = true;
     const t0 = performance.now();
-    get('/yield/USDC', { key: apiKey })
+    get(livePath, { key: apiKey, base: liveBase })
       .then(({ data }) => {
         if (!alive) return;
         setLiveResponse(data);
@@ -86,17 +102,30 @@ export default function Overview({ go, apiKey }) {
     return () => {
       alive = false;
     };
-  }, [apiKey]);
+  }, [apiKey, livePath, liveBase]);
 
   useEffect(() => {
     let alive = true;
-    Promise.all([
-      get('/yield/USDC', { key: apiKey }).then(({ data }) => data).catch(() => null),
-      get('/yield/USDT', { key: apiKey }).then(({ data }) => data).catch(() => null),
-    ]).then((rows) => alive && setYieldData(rows.filter(Boolean)));
-    get('/vaults', { key: apiKey }).then(({ data }) => alive && setVaults(data)).catch(() => {});
-    get('/usage?range=30d', { key: apiKey }).then(({ data }) => alive && setUsage(data)).catch(() => {});
-    get('/status').then(({ data }) => alive && setStatus(data)).catch(() => {});
+    if (IS_REAL) {
+      // On-chain protocol metrics from the monitoring service (public API).
+      get('/dashboard', { key: null, base: MONITOR_BASE })
+        .then(({ data }) => {
+          if (!alive) return;
+          setDash(data);
+          setDashErr(null);
+          setVaults(mapMonitorVaults(data));
+          setYieldData(mapMonitorYield(data));
+        })
+        .catch((e) => alive && setDashErr(e.message));
+    } else {
+      Promise.all([
+        get('/yield/USDC', { key: apiKey }).then(({ data }) => data).catch(() => null),
+        get('/yield/USDT', { key: apiKey }).then(({ data }) => data).catch(() => null),
+      ]).then((rows) => alive && setYieldData(rows.filter(Boolean)));
+      get('/vaults', { key: apiKey }).then(({ data }) => alive && setVaults(data)).catch(() => {});
+      get('/usage?range=30d', { key: apiKey }).then(({ data }) => alive && setUsage(data)).catch(() => {});
+      get('/status').then(({ data }) => alive && setStatus(data)).catch(() => {});
+    }
     return () => {
       alive = false;
     };
@@ -107,6 +136,7 @@ export default function Overview({ go, apiKey }) {
   const vaultList = Array.isArray(vaults) ? vaults : [];
   const totalTvl = vaultList.reduce((a, v) => a + (v.tvl_usd || 0), 0);
   const activeVaults = vaultList.filter((v) => v.status === 'active').length;
+  const networkName = dash && dash.networkInfo ? dash.networkInfo.networkName : null;
   const totalRequests = usage && usage.totals ? usage.totals.requests : 0;
   const p99 = usage && usage.totals ? usage.totals.p99_ms : 0;
   const reqSeries = usage && usage.series ? usage.series.map((p) => p.requests) : [];
@@ -130,7 +160,7 @@ export default function Overview({ go, apiKey }) {
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <span className={`${s.kicker} ${s.kickerTeal}`}>
             <span className={s.liveDot} style={{ display: 'inline-block', marginRight: 8, verticalAlign: 1 }} />
-            Developer Platform · Sandbox live
+            {IS_REAL ? 'Developer Platform · Production data' : 'Developer Platform · Sandbox live'}
           </span>
           <h1 className={s.viewTitle} style={{ fontSize: 34 }}>
             Yield infrastructure,
@@ -140,8 +170,10 @@ export default function Overview({ go, apiKey }) {
           <p className={s.viewLead}>
             Route your users’ idle stablecoins across audited DeFi venues — Aave, Morpho, Compound
             and tokenized treasuries — without taking custody. Typed SDKs, signed webhooks, full
-            observability. This console runs a deterministic, single-instance sandbox: every
-            endpoint is real, but no funds move.
+            observability.{' '}
+            {IS_REAL
+              ? 'This console is connected to the production Partner API: yield, users, TVL and revenue below are live.'
+              : 'This console runs a deterministic, single-instance sandbox: every endpoint is real, but no funds move.'}
           </p>
           <div className={s.row} style={{ marginTop: 22 }}>
             <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => go('quickstart')}>
@@ -164,7 +196,7 @@ export default function Overview({ go, apiKey }) {
           <div style={{ padding: '14px 16px 4px' }}>
             <div className={s.mono} style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.8 }}>
               <span style={{ color: 'var(--teal)' }}>GET</span>{' '}
-              <span style={{ color: 'var(--ink)' }}>/api/v1/yield/USDC</span>
+              <span style={{ color: 'var(--ink)' }}>/api/v1{livePath}</span>
               <br />
               <span>Authorization: Bearer tsk_test_····</span>
             </div>
@@ -176,17 +208,29 @@ export default function Overview({ go, apiKey }) {
                 style={{ fontSize: 11.5, lineHeight: 1.7, color: '#c3cee2', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
               >
                 {JSON.stringify(
-                  liveResponse && liveResponse.breakdown
+                  liveResponse && Array.isArray(liveResponse.vaults)
                     ? {
-                        object: 'yield',
+                        object: 'monitor_dashboard',
                         data: {
-                          asset: liveResponse.asset,
-                          best_apy: liveResponse.best_apy,
-                          blend_apy: liveResponse.blend_apy,
-                          venues: (liveResponse.breakdown || []).length,
+                          network: liveResponse.network,
+                          vaults: liveResponse.vaults.length,
+                          tvl_usd: liveResponse.vaults.reduce((a, v) => a + (Number(v.tvl) || 0), 0),
+                          best_apy_pct: Math.max(
+                            ...liveResponse.vaults.map((v) => Number(v.providerInfo && v.providerInfo.apy) || 0),
+                          ),
                         },
                       }
-                    : liveResponse,
+                    : liveResponse && liveResponse.breakdown
+                      ? {
+                          object: 'yield',
+                          data: {
+                            asset: liveResponse.asset,
+                            best_apy: liveResponse.best_apy,
+                            blend_apy: liveResponse.blend_apy,
+                            venues: (liveResponse.breakdown || []).length,
+                          },
+                        }
+                      : liveResponse,
                   null,
                   2,
                 )}
@@ -210,34 +254,79 @@ export default function Overview({ go, apiKey }) {
           sparkColor="#4dead8"
           delay={0}
         />
-        <Stat
-          label="TVL routed"
-          value={fmtUsd(tvlDisplay, { compact: true })}
-          delta="+12.4% 30d"
-          deltaTone="up"
-          spark={[22, 26, 25, 30, 34, 33, 38, 42]}
-          sparkColor="#3a7fff"
-          delay={60}
-        />
-        <Stat
-          label="Active vaults"
-          value={activeVaults ? String(activeVaults) : '—'}
-          delta={`${vaultList.length} total venues`}
-          deltaTone="up"
-          spark={[5, 6, 6, 7, 7, 7, 8, activeVaults || 8]}
-          sparkColor="#ae82ff"
-          delay={120}
-        />
-        <Stat
-          label="API p99 latency"
-          value={p99 ? fmtMs(p99) : '—'}
-          delta={`${fmtNum(totalRequests)} req / 30d`}
-          deltaTone="up"
-          spark={reqSeries.length > 2 ? reqSeries.slice(-12) : [10, 12, 11, 14, 13, 15, 14, 16]}
-          sparkColor="#ffa24d"
-          delay={180}
-        />
+        {IS_REAL ? (
+          <>
+            <Stat
+              label="TVL routed"
+              value={fmtUsd(tvlDisplay, { compact: true })}
+              delta={networkName ? `${networkName} · on-chain` : 'on-chain'}
+              deltaTone="up"
+              spark={[22, 26, 25, 30, 34, 33, 38, 42]}
+              sparkColor="#3a7fff"
+              delay={60}
+            />
+            <Stat
+              label="Active vaults"
+              value={activeVaults ? String(activeVaults) : '—'}
+              delta={`${vaultList.length} venues on-chain`}
+              deltaTone="up"
+              spark={[5, 6, 6, 7, 7, 7, 8, activeVaults || 8]}
+              sparkColor="#ae82ff"
+              delay={120}
+            />
+            <Stat
+              label="Network"
+              value={networkName || '—'}
+              delta={
+                dash && dash.networkInfo
+                  ? `block ${fmtNum(Number(dash.networkInfo.blockNumber))} · gas ${dash.networkInfo.gasPrice} gwei`
+                  : 'connecting…'
+              }
+              deltaTone="up"
+              spark={[10, 12, 11, 14, 13, 15, 14, 16]}
+              sparkColor="#ffa24d"
+              delay={180}
+            />
+          </>
+        ) : (
+          <>
+            <Stat
+              label="TVL routed"
+              value={fmtUsd(tvlDisplay, { compact: true })}
+              delta="+12.4% 30d"
+              deltaTone="up"
+              spark={[22, 26, 25, 30, 34, 33, 38, 42]}
+              sparkColor="#3a7fff"
+              delay={60}
+            />
+            <Stat
+              label="Active vaults"
+              value={activeVaults ? String(activeVaults) : '—'}
+              delta={`${vaultList.length} total venues`}
+              deltaTone="up"
+              spark={[5, 6, 6, 7, 7, 7, 8, activeVaults || 8]}
+              sparkColor="#ae82ff"
+              delay={120}
+            />
+            <Stat
+              label="API p99 latency"
+              value={p99 ? fmtMs(p99) : '—'}
+              delta={`${fmtNum(totalRequests)} req / 30d`}
+              deltaTone="up"
+              spark={reqSeries.length > 2 ? reqSeries.slice(-12) : [10, 12, 11, 14, 13, 15, 14, 16]}
+              sparkColor="#ffa24d"
+              delay={180}
+            />
+          </>
+        )}
       </div>
+
+      {IS_REAL && dashErr ? (
+        <div className={`${s.card} ${s.cardPad}`} style={{ marginTop: 16, fontSize: 13, color: 'var(--ink-2)', borderLeft: '3px solid var(--orange)' }}>
+          On-chain metrics unavailable ({dashErr}). The monitoring service is unreachable —
+          protocol stats fall back to empty until it recovers.
+        </div>
+      ) : null}
 
       <div style={{ marginTop: 34 }}>
         <div className={s.row} style={{ justifyContent: 'space-between', marginBottom: 14 }}>

@@ -4,6 +4,15 @@
 
 export const BASE = process.env.NEXT_PUBLIC_API_BASE || '/api/v1';
 
+// Real-data mode: the portal reads live data from the Thesauros Partner API,
+// proxied same-origin through Next.js rewrites (/api/v1/real/* -> PARTNER_API_URL).
+// Enable with NEXT_PUBLIC_DATA_SOURCE=real (see .env.example).
+export const DATA_SOURCE = process.env.NEXT_PUBLIC_DATA_SOURCE === 'real' ? 'real' : 'sandbox';
+export const IS_REAL = DATA_SOURCE === 'real';
+export const REAL_BASE = '/api/v1/real';
+// On-chain protocol metrics, proxied to the monitoring service.
+export const MONITOR_BASE = '/api/v1/monitor';
+
 export const BOOTSTRAP_KEY = 'tsk_test_thesauros_sandbox_0000000000000000';
 
 export class PortalApiError extends Error {
@@ -15,17 +24,20 @@ export class PortalApiError extends Error {
 }
 
 /**
- * Perform a request against the sandbox API.
+ * Perform a request against the portal API.
  * Returns the unwrapped `data` payload; attaches `meta` + headers info
  * on the returned object's non-enumerable props for the few callers that
  * need envelopes. Most callers just want `data`.
+ *
+ * `base` selects the API surface: BASE (built-in sandbox, default) or
+ * REAL_BASE (same-origin proxy to the real Partner API).
  */
-export async function api(path, { method = 'GET', key = BOOTSTRAP_KEY, body } = {}) {
+export async function api(path, { method = 'GET', key = BOOTSTRAP_KEY, body, base = BASE } = {}) {
   const headers = { Accept: 'application/json' };
   if (key) headers.Authorization = `Bearer ${key}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -52,6 +64,59 @@ export async function api(path, { method = 'GET', key = BOOTSTRAP_KEY, body } = 
 export const get = (path, opts) => api(path, { ...opts, method: 'GET' });
 export const post = (path, body, opts) => api(path, { ...opts, method: 'POST', body });
 export const del = (path, opts) => api(path, { ...opts, method: 'DELETE' });
+
+/* ---------- monitoring service mapping ---------- */
+
+const PROVIDER_KEYS = ['aave', 'morpho', 'compound', 'dolomite', 'treasury'];
+
+// Map the monitoring service dashboard payload (on-chain data) to the
+// sandbox vault shape the portal views render. Monitoring APYs are percent
+// strings ("9.2057" == 9.2057%); the portal uses decimal fractions.
+export function mapMonitorVaults(dash) {
+  if (!dash || !Array.isArray(dash.vaults)) return [];
+  const chain = dash.networkInfo ? dash.networkInfo.networkName : '';
+  const series =
+    dash.apyAnalytics && Array.isArray(dash.apyAnalytics.series) ? dash.apyAnalytics.series : [];
+  const totalTvl = dash.vaults.reduce((a, v) => a + (Number(v.tvl) || 0), 0);
+  return dash.vaults.map((v) => {
+    const providerLabel = v.providerInfo && v.providerInfo.name ? v.providerInfo.name : '';
+    const lower = providerLabel.toLowerCase();
+    const apyPct = v.providerInfo && v.providerInfo.apy != null ? Number(v.providerInfo.apy) : null;
+    const s = series.find((x) => x.vaultAddress === v.address);
+    const tvlUsd = Number(v.tvl) || 0;
+    return {
+      id: v.address,
+      name: v.name,
+      provider: PROVIDER_KEYS.find((k) => lower.includes(k)) || 'morpho',
+      providerName: providerLabel || null,
+      chain,
+      asset: v.token || v.symbol,
+      apy: apyPct != null && Number.isFinite(apyPct) ? apyPct / 100 : null,
+      apy_7d_avg: null,
+      tvl_usd: tvlUsd,
+      allocation_pct: totalTvl > 0 ? tvlUsd / totalTvl : 0,
+      risk_tier: 'on-chain',
+      status: v.status || 'active',
+    };
+  });
+}
+
+// Map monitoring apyData to the portal yield-snapshot row shape.
+export function mapMonitorYield(dash) {
+  if (!dash || !Array.isArray(dash.apyData)) return [];
+  const series =
+    dash.apyAnalytics && Array.isArray(dash.apyAnalytics.series) ? dash.apyAnalytics.series : [];
+  return dash.apyData.map((a) => {
+    const apyPct = Number(a.apy);
+    const s = series.find((x) => x.vaultAddress === a.vaultAddress);
+    return {
+      asset: a.token,
+      best_apy: Number.isFinite(apyPct) ? apyPct / 100 : null,
+      blend_apy: Number.isFinite(apyPct) ? apyPct / 100 : null,
+      blended_30d: s && s.netYieldAfterFees != null ? s.netYieldAfterFees / 100 : null,
+    };
+  });
+}
 
 /* ---------- formatting ---------- */
 
