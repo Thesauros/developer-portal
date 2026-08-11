@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, fmtUsd, fmtApy, timeAgo, shortAddr, IS_REAL, REAL_BASE } from '../lib/api';
+import { get, getRetry, fmtUsd, fmtApy, timeAgo, shortAddr, IS_REAL, REAL_BASE } from '../lib/api';
 import { Badge, Empty, Spinner } from '../ui/primitives';
 import { IconSpark, IconScale, IconArrowUpRight } from '../lib/icons';
 
@@ -21,7 +21,7 @@ export default function Analytics({ apiKey }) {
   useEffect(() => {
     if (!IS_REAL) return undefined;
     let alive = true;
-    get('/partner/summary', { key: apiKey, base: REAL_BASE })
+    getRetry('/partner/summary', { key: apiKey, base: REAL_BASE })
       .then(({ data }) => {
         if (!alive) return;
         setSummary(data);

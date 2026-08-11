@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, fmtUsd, fmtApy, IS_REAL, MONITOR_BASE, mapMonitorVaults } from '../lib/api';
+import { get, getRetry, fmtUsd, fmtApy, IS_REAL, MONITOR_BASE, mapMonitorVaults } from '../lib/api';
 import { Badge, Spinner, Empty } from '../ui/primitives';
 import { BarList } from '../ui/charts';
 import { IconVault, IconLayers } from '../lib/icons';
@@ -24,7 +24,7 @@ export default function Vaults({ apiKey }) {
     let alive = true;
     if (IS_REAL) {
       // On-chain vault state from the monitoring service.
-      get('/dashboard', { key: null, base: MONITOR_BASE })
+      getRetry('/dashboard', { key: null, base: MONITOR_BASE })
         .then(({ data }) => alive && setVaults(mapMonitorVaults(data)))
         .catch(() => alive && setVaults([]));
     } else {

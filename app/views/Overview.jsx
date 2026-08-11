@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import s from '../platform.module.css';
 import {
   get,
+  getRetry,
   fmtUsd,
   fmtPct,
   fmtApy,
@@ -92,7 +93,7 @@ export default function Overview({ go, apiKey }) {
   useEffect(() => {
     let alive = true;
     const t0 = performance.now();
-    get(livePath, { key: apiKey, base: liveBase })
+    getRetry(livePath, { key: apiKey, base: liveBase })
       .then(({ data }) => {
         if (!alive) return;
         setLiveResponse(data);
@@ -108,7 +109,7 @@ export default function Overview({ go, apiKey }) {
     let alive = true;
     if (IS_REAL) {
       // On-chain protocol metrics from the monitoring service (public API).
-      get('/dashboard', { key: null, base: MONITOR_BASE })
+      getRetry('/dashboard', { key: null, base: MONITOR_BASE })
         .then(({ data }) => {
           if (!alive) return;
           setDash(data);
@@ -323,8 +324,8 @@ export default function Overview({ go, apiKey }) {
 
       {IS_REAL && dashErr ? (
         <div className={`${s.card} ${s.cardPad}`} style={{ marginTop: 16, fontSize: 13, color: 'var(--ink-2)', borderLeft: '3px solid var(--orange)' }}>
-          On-chain metrics unavailable ({dashErr}). The monitoring service is unreachable —
-          protocol stats fall back to empty until it recovers.
+          On-chain metrics unavailable ({dashErr}) even after retries — the monitoring service
+          may be waking from idle. Reload in a minute; protocol stats stay empty until then.
         </div>
       ) : null}
 

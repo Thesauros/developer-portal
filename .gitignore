@@ -5,3 +5,9 @@ out
 .env
 .vscode
 .DS_Store
+.cto-skill
+.qa-skill
+.product-squad-skill
+.orchestrator-skill
+.security-engineer-skill
+.biz-dev-skill

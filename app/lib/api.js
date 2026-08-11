@@ -72,6 +72,22 @@ export const get = (path, opts) => api(path, { ...opts, method: 'GET' });
 export const post = (path, body, opts) => api(path, { ...opts, method: 'POST', body });
 export const del = (path, opts) => api(path, { ...opts, method: 'DELETE' });
 
+// The monitoring backend sleeps when idle; the first request after a cold
+// start can outlive the edge proxy timeout. Retry with backoff so the second
+// attempt lands on the warmed instance.
+export async function getRetry(path, opts, { retries = 2, delayMs = 2000 } = {}) {
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await get(path, opts);
+    } catch (e) {
+      lastErr = e;
+      if (i < retries) await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 /* ---------- monitoring service mapping ---------- */
 
 const PROVIDER_KEYS = ['aave', 'morpho', 'compound', 'dolomite', 'treasury'];
