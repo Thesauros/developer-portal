@@ -14,6 +14,10 @@ export const REAL_BASE = '/api/v1/real';
 export const MONITOR_BASE = '/api/v1/monitor';
 
 export const BOOTSTRAP_KEY = 'tsk_test_thesauros_sandbox_0000000000000000';
+// Real mode needs keys:admin + partner:read out of the box; the seeded master
+// key carries every scope (test environment only).
+export const REAL_BOOTSTRAP_KEY = 'tsk_test_master_full_access_000000000000000';
+export const DEFAULT_KEY = IS_REAL ? REAL_BOOTSTRAP_KEY : BOOTSTRAP_KEY;
 
 export class PortalApiError extends Error {
   constructor(status, code, message) {

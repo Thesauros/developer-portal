@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, post, del, maskKey, timeAgo, BOOTSTRAP_KEY, IS_REAL, REAL_BASE } from '../lib/api';
+import { get, post, del, maskKey, timeAgo, DEFAULT_KEY, IS_REAL, REAL_BASE } from '../lib/api';
 import { Badge, Modal, CopyButton, Empty, Spinner } from '../ui/primitives';
 import { IconKey, IconPlus, IconTrash, IconShield } from '../lib/icons';
 
@@ -89,9 +89,9 @@ export default function ApiKeys({ apiKey, setApiKey }) {
           <div className={s.row}>
             <code className={`${s.mono}`} style={{ fontSize: 12, color: 'var(--ink)' }}>{maskKey(apiKey)}</code>
             <CopyButton text={apiKey} label="Copy" />
-            {apiKey !== BOOTSTRAP_KEY ? (
-              <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} onClick={() => setApiKey(BOOTSTRAP_KEY)}>
-                Reset to sandbox
+            {apiKey !== DEFAULT_KEY ? (
+              <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} onClick={() => setApiKey(DEFAULT_KEY)}>
+                {IS_REAL ? 'Reset to default' : 'Reset to sandbox'}
               </button>
             ) : null}
           </div>

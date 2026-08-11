@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import s from '../platform.module.css';
 import { CodeBlock, Badge, CopyButton } from '../ui/primitives';
-import { BOOTSTRAP_KEY } from '../lib/api';
+import { DEFAULT_KEY, IS_REAL } from '../lib/api';
 import {
   QUICKSTART_INSTALL,
   QUICKSTART_INIT,
@@ -99,12 +99,14 @@ export default function Quickstart({ go }) {
       >
         <IconKey size={18} style={{ color: 'var(--teal)', flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className={s.h3} style={{ fontSize: 13.5 }}>Shared sandbox key</div>
+          <div className={s.h3} style={{ fontSize: 13.5 }}>
+            {IS_REAL ? 'Default portal key' : 'Shared sandbox key'}
+          </div>
           <div className={`${s.mono} ${s.faint}`} style={{ fontSize: 12, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {BOOTSTRAP_KEY}
+            {DEFAULT_KEY}
           </div>
         </div>
-        <CopyButton text={BOOTSTRAP_KEY} label="Copy key" />
+        <CopyButton text={DEFAULT_KEY} label="Copy key" />
         <Badge tone="teal">test mode</Badge>
       </div>
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from './platform.module.css';
-import { BOOTSTRAP_KEY, maskKey, IS_REAL } from './lib/api';
+import { DEFAULT_KEY, maskKey, IS_REAL } from './lib/api';
 import {
   BrandMark,
   IconHome,
@@ -77,12 +77,13 @@ const VIEW_META = {
   status: 'Status',
 };
 
-const STORAGE_KEY = 'thesauros.portal.key';
+// Per-mode storage so a key saved in sandbox mode never leaks into real mode.
+const STORAGE_KEY = `thesauros.portal.key.${process.env.NEXT_PUBLIC_DATA_SOURCE || 'sandbox'}`;
 
 export default function PlatformPage() {
   const [view, setView] = useState('overview');
   const [env, setEnv] = useState('test');
-  const [apiKey, setApiKeyState] = useState(BOOTSTRAP_KEY);
+  const [apiKey, setApiKeyState] = useState(DEFAULT_KEY);
 
   // Restore a previously chosen portal key.
   useEffect(() => {
