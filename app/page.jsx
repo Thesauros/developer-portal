@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from './platform.module.css';
-import { BOOTSTRAP_KEY, maskKey } from './lib/api';
+import { BOOTSTRAP_KEY, maskKey, IS_REAL } from './lib/api';
 import {
   BrandMark,
   IconHome,
@@ -181,7 +181,7 @@ export default function PlatformPage() {
               </button>
               <span className={s.statusPill}>
                 <i aria-hidden="true" />
-                {env === 'test' ? 'Sandbox' : 'Live'} · operational
+                {IS_REAL ? 'Production data' : env === 'test' ? 'Sandbox' : 'Live'} · operational
               </span>
               <a className={s.btnGhost} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--ink-2)', padding: '6px 8px', borderRadius: 8 }} href="/api/v1/openapi.json" target="_blank" rel="noreferrer">
                 OpenAPI <IconExternal size={12} />

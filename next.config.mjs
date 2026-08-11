@@ -6,6 +6,13 @@ const nextConfig = {
   async rewrites() {
     const apiBase = process.env.PARTNER_API_URL || 'http://localhost:3001';
     return [
+      // Real-data proxy: the portal calls /api/v1/real/* same-origin and Next
+      // forwards to the deployed Partner API. Same-origin means no browser
+      // CORS and no extra CORS config on the backend.
+      {
+        source: '/api/v1/real/:path*',
+        destination: `${apiBase}/api/v1/:path*`,
+      },
       {
         source: '/api/v1/partners/:path*',
         destination: `${apiBase}/api/v1/partners/:path*`,

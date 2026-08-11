@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, fmtUsd, fmtApy, timeAgo, shortAddr } from '../lib/api';
+import { get, fmtUsd, fmtApy, timeAgo, shortAddr, IS_REAL, REAL_BASE } from '../lib/api';
 import { Badge, Empty, Spinner } from '../ui/primitives';
 import { IconSpark, IconScale, IconArrowUpRight } from '../lib/icons';
 
@@ -15,6 +15,23 @@ export default function Analytics({ apiKey }) {
   const [signals, setSignals] = useState(null);
   const [decisions, setDecisions] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(null); // real mode: partner economics
+  const [summaryErr, setSummaryErr] = useState(null);
+
+  useEffect(() => {
+    if (!IS_REAL) return undefined;
+    let alive = true;
+    get('/partner/summary', { key: apiKey, base: REAL_BASE })
+      .then(({ data }) => {
+        if (!alive) return;
+        setSummary(data);
+        setSummaryErr(null);
+      })
+      .catch((e) => alive && setSummaryErr(e.message));
+    return () => {
+      alive = false;
+    };
+  }, [apiKey]);
 
   useEffect(() => {
     let alive = true;
@@ -54,6 +71,47 @@ export default function Analytics({ apiKey }) {
         <div className={s.empty}><Spinner /></div>
       ) : (
         <>
+          {/* real-data partner economics */}
+          {IS_REAL ? (
+            summaryErr ? (
+              <div className={`${s.card} ${s.cardPad}`} style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-2)', borderLeft: '3px solid var(--orange)' }}>
+                Partner economics unavailable with the current key ({summaryErr}). Use a
+                partner-scoped key to load live revenue-share data.
+              </div>
+            ) : summary && summary.revenue ? (
+              <div className={`${s.card} ${s.revealItem}`} style={{ marginTop: 24, overflow: 'hidden' }}>
+                <div className={s.panelHead}>
+                  <span className={s.h3}>Partner economics</span>
+                  <Badge tone="teal" dot>production</Badge>
+                </div>
+                <div className={s.statGrid} style={{ padding: '16px 16px 18px', marginTop: 0 }}>
+                  {[
+                    { label: 'Attributed TVL', value: fmtUsd(summary.tvl ? summary.tvl.total : 0, { compact: true }) },
+                    { label: 'Protocol blend APY', value: fmtApy(summary.revenue.protocol_blend_apy) },
+                    { label: 'Annual yield', value: fmtUsd(summary.revenue.annual.yield, { compact: true }) },
+                    { label: 'Protocol fees / yr', value: fmtUsd(summary.revenue.annual.protocol_fees, { compact: true }) },
+                    { label: 'Partner revenue / yr', value: fmtUsd(summary.revenue.annual.partner_revenue, { compact: true }) },
+                    { label: 'Revenue share', value: fmtApy(summary.revenue.revenue_share_pct, 1) },
+                  ].map((st) => (
+                    <div key={st.label} className={`${s.card} ${s.stat}`} style={{ margin: 0 }}>
+                      <div className={s.statLabel}>{st.label}</div>
+                      <div className={s.statValue} style={{ fontSize: 21 }}>{st.value}</div>
+                    </div>
+                  ))}
+                </div>
+                {summary.partner ? (
+                  <div className={s.cardPad} style={{ borderTop: '1px solid var(--stroke)', paddingTop: 12, paddingBottom: 12 }}>
+                    <span className={s.faint} style={{ fontSize: 12 }}>
+                      Partner <span className={s.strong}>{summary.partner.name}</span>{' '}
+                      <span className={`${s.mono} ${s.faint}`} style={{ fontSize: 11 }}>({summary.partner.id})</span>
+                      {summary.as_of ? <> · as of <span className={s.strong}>{new Date(summary.as_of).toUTCString()}</span></> : null}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null
+          ) : null}
+
           {/* advisor banner */}
           {advisor ? (
             <div

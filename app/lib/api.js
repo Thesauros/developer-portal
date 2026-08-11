@@ -4,6 +4,13 @@
 
 export const BASE = process.env.NEXT_PUBLIC_API_BASE || '/api/v1';
 
+// Real-data mode: the portal reads live data from the Thesauros Partner API,
+// proxied same-origin through Next.js rewrites (/api/v1/real/* -> PARTNER_API_URL).
+// Enable with NEXT_PUBLIC_DATA_SOURCE=real (see .env.example).
+export const DATA_SOURCE = process.env.NEXT_PUBLIC_DATA_SOURCE === 'real' ? 'real' : 'sandbox';
+export const IS_REAL = DATA_SOURCE === 'real';
+export const REAL_BASE = '/api/v1/real';
+
 export const BOOTSTRAP_KEY = 'tsk_test_thesauros_sandbox_0000000000000000';
 
 export class PortalApiError extends Error {
@@ -15,17 +22,20 @@ export class PortalApiError extends Error {
 }
 
 /**
- * Perform a request against the sandbox API.
+ * Perform a request against the portal API.
  * Returns the unwrapped `data` payload; attaches `meta` + headers info
  * on the returned object's non-enumerable props for the few callers that
  * need envelopes. Most callers just want `data`.
+ *
+ * `base` selects the API surface: BASE (built-in sandbox, default) or
+ * REAL_BASE (same-origin proxy to the real Partner API).
  */
-export async function api(path, { method = 'GET', key = BOOTSTRAP_KEY, body } = {}) {
+export async function api(path, { method = 'GET', key = BOOTSTRAP_KEY, body, base = BASE } = {}) {
   const headers = { Accept: 'application/json' };
   if (key) headers.Authorization = `Bearer ${key}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,

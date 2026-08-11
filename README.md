@@ -61,17 +61,32 @@ APY values are decimal fractions (`0.052` == 5.2%).
 
 ## Integrating with real data
 
-The portal is wired to swap data sources without code changes:
+Two mechanisms, both configured in `.env` (see `.env.example`):
 
-1. **Client calls** (`app/lib/api.js`) read `NEXT_PUBLIC_API_BASE`
-   (default `/api/v1` — the built-in sandbox). Point it at a real Thesauros
-   API deployment to show live data.
-2. **Partner endpoints** are proxied by Next.js rewrites
-   (`/api/v1/partners/*`, `/api/v1/partner/*`) to `PARTNER_API_URL`
-   (default `http://localhost:3001`) — the NestJS backend from
+1. **Real-data mode** — `NEXT_PUBLIC_DATA_SOURCE=real`. The portal reads live
+   data from the Thesauros Partner API through a same-origin proxy
+   (`/api/v1/real/*` -> `PARTNER_API_URL/api/v1/*`), so there is no browser
+   CORS and no extra CORS config on the backend. Wired views:
+   - Overview — blended APY history, attributed TVL / users / partner revenue
+   - API Keys — real key list / create / revoke
+   - Users — attributed users and their positions (partner-scoped)
+   - Analytics — partner economics (TVL, yield, fees, revenue share)
+
+   Views without a production counterpart (Webhooks, Reconciliation, Usage,
+   Status, Vaults, API Reference Try-it) keep running on the built-in sandbox.
+
+   Keys: any valid `tsk_*` key works for protocol-wide endpoints
+   (`yield/history`); partner-scoped views need a partner key
+   (`partner:read`), key management needs `keys:admin`. Paste the key into the
+   portal session key field (API Keys view).
+
+   `NEXT_PUBLIC_DATA_SOURCE` is inlined at build time — set it in the deploy
+   environment before `next build`.
+
+2. **Partner endpoint proxy** — `/api/v1/partners/*` and `/api/v1/partner/*`
+   are always proxied to `PARTNER_API_URL` (default
+   `http://localhost:3001`) — the NestJS backend from
    `Thesauros/developer.thesauros.io`.
-
-Both are set in `.env` (see `.env.example`).
 
 ## API surface (sandbox v1)
 
