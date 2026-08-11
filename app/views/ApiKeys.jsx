@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, post, del, maskKey, timeAgo, DEFAULT_KEY, IS_REAL, REAL_BASE } from '../lib/api';
+import { get, post, del, maskKey, timeAgo, DEFAULT_KEY, IS_REAL, REAL_BASE, REAL_ADMIN_KEY } from '../lib/api';
 import { Badge, Modal, CopyButton, Empty, Spinner } from '../ui/primitives';
 import { IconKey, IconPlus, IconTrash, IconShield } from '../lib/icons';
 
@@ -16,16 +16,19 @@ export default function ApiKeys({ apiKey, setApiKey }) {
   const [newSecret, setNewSecret] = useState(null); // shown once after create
   const [error, setError] = useState(null);
 
-  // Real mode manages keys against the production Partner API.
+  // Real mode manages keys against the production Partner API. Key
+  // management needs keys:admin, which the partner-scoped session key lacks —
+  // so the admin surface runs on the seeded admin key.
   const API_BASE = IS_REAL ? REAL_BASE : undefined;
+  const adminKey = IS_REAL ? REAL_ADMIN_KEY : apiKey;
 
   const load = useCallback(() => {
     setLoading(true);
-    get('/keys', { key: apiKey, base: API_BASE })
+    get('/keys', { key: adminKey, base: API_BASE })
       .then(({ data }) => setKeys(Array.isArray(data) ? data : []))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [apiKey, API_BASE]);
+  }, [adminKey, API_BASE]);
 
   useEffect(() => {
     load();
@@ -39,7 +42,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
       const { data } = await post(
         '/keys',
         { label: label || 'Untitled key', environment: env },
-        { key: apiKey, base: API_BASE },
+        { key: adminKey, base: API_BASE },
       );
       setNewSecret(data);
       setLabel('');
@@ -54,7 +57,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
   async function revoke(id) {
     setError(null);
     try {
-      await del(`/keys/${id}`, { key: apiKey, base: API_BASE });
+      await del(`/keys/${id}`, { key: adminKey, base: API_BASE });
       load();
     } catch (err) {
       setError(err.message);
@@ -70,6 +73,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
           <p className={s.viewLead}>
             Keys authenticate every request. Test keys hit the sandbox; live keys route production
             flow. Secrets are shown exactly once — store them in a secret manager.
+            {IS_REAL ? ' Key management runs on the seeded admin key (keys:admin).' : ''}
           </p>
         </div>
         <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => { setNewSecret(null); setCreateOpen(true); }}>
