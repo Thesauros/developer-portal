@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import s from '../platform.module.css';
-import { api, BASE } from '../lib/api';
+import { api, BASE, IS_REAL } from '../lib/api';
 import { Badge, MethodBadge, CopyButton } from '../ui/primitives';
 import { ENDPOINT_GROUPS, findEndpoint } from '../data/endpoints';
 import { IconSend, IconChevronDown, IconCheck } from '../lib/icons';
@@ -88,6 +88,23 @@ function TryIt({ endpoint, apiKey }) {
   const { full } = useMemo(() => buildUrl(endpoint, values), [endpoint, values]);
 
   async function send() {
+    if (IS_REAL) {
+      // No mock execution in real mode: the console is a sandbox playground.
+      setState({ status: 'done' });
+      setResult({
+        ok: false,
+        status: 0,
+        ms: 0,
+        body: {
+          error: {
+            code: 'sandbox_only',
+            message:
+              'Try-it executes against the built-in sandbox. Switch the portal to sandbox mode to run requests; production try-it arrives with the P1 backend endpoints.',
+          },
+        },
+      });
+      return;
+    }
     setState({ status: 'loading' });
     const { path } = buildUrl(endpoint, values);
     const qs = new URLSearchParams();
@@ -139,7 +156,7 @@ function TryIt({ endpoint, apiKey }) {
           <MethodBadge method={endpoint.method} />
           <span className={`${s.mono} ${s.h3}`} style={{ fontSize: 13 }}>{endpoint.path}</span>
         </div>
-        <Badge tone="teal" dot>sandbox</Badge>
+        <Badge tone="teal" dot>{IS_REAL ? 'sandbox-only' : 'sandbox'}</Badge>
       </div>
 
       <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>

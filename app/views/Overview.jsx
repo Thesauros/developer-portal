@@ -190,7 +190,7 @@ export default function Overview({ go, apiKey }) {
           <div className={s.panelHead}>
             <div className={s.row}>
               <IconPulse size={15} style={{ color: 'var(--teal)' }} />
-              <span className={s.h3}>Live sandbox request</span>
+              <span className={s.h3}>{IS_REAL ? 'Live production request' : 'Live sandbox request'}</span>
             </div>
             {respMs ? <Badge tone="teal" dot>{respMs}ms</Badge> : <Badge tone="gray">connecting…</Badge>}
           </div>
@@ -249,9 +249,9 @@ export default function Overview({ go, apiKey }) {
         <Stat
           label="Best live APY"
           value={fmtApy(apyDisplay)}
-          delta="vs 4.1% avg"
+          delta={IS_REAL ? `${yieldList.length} live venues` : 'vs 4.1% avg'}
           deltaTone="up"
-          spark={[4.2, 4.8, 5.1, 5.6, 5.4, 6.0, 6.3, bestApy ? bestApy * 100 : 6.4]}
+          spark={IS_REAL ? undefined : [4.2, 4.8, 5.1, 5.6, 5.4, 6.0, 6.3, bestApy ? bestApy * 100 : 6.4]}
           sparkColor="#4dead8"
           delay={0}
         />
@@ -262,8 +262,6 @@ export default function Overview({ go, apiKey }) {
               value={fmtUsd(tvlDisplay, { compact: true })}
               delta={networkName ? `${networkName} · on-chain` : 'on-chain'}
               deltaTone="up"
-              spark={[22, 26, 25, 30, 34, 33, 38, 42]}
-              sparkColor="#3a7fff"
               delay={60}
             />
             <Stat
@@ -271,8 +269,6 @@ export default function Overview({ go, apiKey }) {
               value={activeVaults ? String(activeVaults) : '—'}
               delta={`${vaultList.length} venues on-chain`}
               deltaTone="up"
-              spark={[5, 6, 6, 7, 7, 7, 8, activeVaults || 8]}
-              sparkColor="#ae82ff"
               delay={120}
             />
             <Stat
@@ -284,8 +280,6 @@ export default function Overview({ go, apiKey }) {
                   : 'connecting…'
               }
               deltaTone="up"
-              spark={[10, 12, 11, 14, 13, 15, 14, 16]}
-              sparkColor="#ffa24d"
               delay={180}
             />
           </>
@@ -332,9 +326,11 @@ export default function Overview({ go, apiKey }) {
       <div style={{ marginTop: 34 }}>
         <div className={s.row} style={{ justifyContent: 'space-between', marginBottom: 14 }}>
           <h2 className={s.h2}>Build with Thesauros</h2>
-          <span className={s.faint} style={{ fontSize: 12.5 }}>
-            90-day uptime <span className={s.mono} style={{ color: 'var(--teal)' }}>{fmtPct(uptime)}</span>
-          </span>
+          {IS_REAL ? null : (
+            <span className={s.faint} style={{ fontSize: 12.5 }}>
+              90-day uptime <span className={s.mono} style={{ color: 'var(--teal)' }}>{fmtPct(uptime)}</span>
+            </span>
+          )}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
           {QUICK_LINKS.map((q, i) => (

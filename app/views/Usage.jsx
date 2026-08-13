@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, fmtNum, fmtMs } from '../lib/api';
+import { get, fmtNum, fmtMs, IS_REAL } from '../lib/api';
 import { Badge, Spinner } from '../ui/primitives';
 import { LineChart } from '../ui/charts';
 
@@ -24,6 +24,10 @@ export default function Usage({ apiKey }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (IS_REAL) {
+      setLoading(false);
+      return undefined; // no production usage telemetry endpoint yet
+    }
     let alive = true;
     setLoading(true);
     get(`/usage?range=${range}`, { key: apiKey })
@@ -34,6 +38,20 @@ export default function Usage({ apiKey }) {
       alive = false;
     };
   }, [range, apiKey]);
+
+  if (IS_REAL) {
+    return (
+      <div className={s.view}>
+        <span className={`${s.kicker} ${s.kickerTeal}`}>Telemetry</span>
+        <h1 className={s.viewTitle}>API usage</h1>
+        <div className={`${s.card} ${s.cardPad}`} style={{ marginTop: 18, fontSize: 13.5, color: 'var(--ink-2)', borderLeft: '3px solid var(--orange)' }}>
+          Production usage telemetry is not live yet (see
+          spec/portal-real-data-backend-requirements.md, backend repo). Switch the portal to
+          sandbox mode to explore simulated usage analytics.
+        </div>
+      </div>
+    );
+  }
 
   const totals = usage && usage.totals ? usage.totals : {};
   const series = usage && usage.series ? usage.series : [];

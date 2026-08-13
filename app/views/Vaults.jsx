@@ -111,7 +111,13 @@ export default function Vaults({ apiKey }) {
                   <td className={`${s.num} ${s.pos}`}>{fmtApy(v.apy)}</td>
                   <td className={s.num}>{fmtApy(v.apy_7d_avg)}</td>
                   <td className={s.num}>{fmtUsd(v.tvl_usd, { compact: true })}</td>
-                  <td><Badge tone={RISK_TONE[v.risk_tier] || 'gray'}>{v.risk_tier}</Badge></td>
+                  <td>
+                    {v.risk_tier ? (
+                      <Badge tone={RISK_TONE[v.risk_tier] || 'gray'}>{v.risk_tier}</Badge>
+                    ) : (
+                      <span className={s.faint}>—</span>
+                    )}
+                  </td>
                   <td>{v.status === 'active' ? <Badge tone="green" dot>active</Badge> : <Badge tone="orange">paused</Badge>}</td>
                 </tr>
               ))}

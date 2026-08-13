@@ -118,7 +118,7 @@ export function mapMonitorVaults(dash) {
       apy_7d_avg: null,
       tvl_usd: tvlUsd,
       allocation_pct: totalTvl > 0 ? tvlUsd / totalTvl : 0,
-      risk_tier: 'on-chain',
+      risk_tier: null, // monitoring has no risk classification yet — show "—", not a fake tier
       status: v.status || 'active',
     };
   });

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, post, del, timeAgo, fmtMs, shortHash } from '../lib/api';
+import { get, post, del, timeAgo, fmtMs, shortHash, IS_REAL } from '../lib/api';
 import { Badge, Modal, CodeBlock, Empty, Spinner, CopyButton } from '../ui/primitives';
 import { WEBHOOK_EVENTS } from '../data/endpoints';
 import { WEBHOOK_VERIFY } from '../data/code';
@@ -28,6 +28,10 @@ export default function Webhooks({ apiKey }) {
   const [error, setError] = useState(null);
 
   const load = useCallback(() => {
+    if (IS_REAL) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     Promise.all([
       get('/webhooks', { key: apiKey }).then(({ data }) => setHooks(Array.isArray(data) ? data : [])),
@@ -40,6 +44,20 @@ export default function Webhooks({ apiKey }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  if (IS_REAL) {
+    return (
+      <div className={s.view}>
+        <span className={`${s.kicker} ${s.kickerTeal}`}>Events</span>
+        <h1 className={s.viewTitle}>Webhooks</h1>
+        <div className={`${s.card} ${s.cardPad}`} style={{ marginTop: 18, fontSize: 13.5, color: 'var(--ink-2)', borderLeft: '3px solid var(--orange)' }}>
+          Signed webhook delivery is not live in production yet — the required endpoints are
+          specified in spec/portal-real-data-backend-requirements.md (backend repo). Switch the
+          portal to sandbox mode to explore the simulated webhook surface.
+        </div>
+      </div>
+    );
+  }
 
   const toggleEvent = (ev) =>
     setSelEvents((prev) => (prev.includes(ev) ? prev.filter((x) => x !== ev) : [...prev, ev]));

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, fmtPct, fmtMs, timeAgo } from '../lib/api';
+import { get, fmtPct, fmtMs, timeAgo, IS_REAL } from '../lib/api';
 import { Badge, Spinner, Empty } from '../ui/primitives';
 import { UptimeBars } from '../ui/charts';
 import { IconPulse, IconCheck } from '../lib/icons';
@@ -31,12 +31,27 @@ export default function Status() {
   const [status, setStatus] = useState(null);
 
   useEffect(() => {
+    if (IS_REAL) return undefined; // no production status endpoint yet
     let alive = true;
     get('/status').then(({ data }) => alive && setStatus(data)).catch(() => {});
     return () => {
       alive = false;
     };
   }, []);
+
+  if (IS_REAL) {
+    return (
+      <div className={s.view}>
+        <span className={`${s.kicker} ${s.kickerTeal}`}>Platform</span>
+        <h1 className={s.viewTitle}>System status</h1>
+        <div className={`${s.card} ${s.cardPad}`} style={{ marginTop: 18, fontSize: 13.5, color: 'var(--ink-2)', borderLeft: '3px solid var(--orange)' }}>
+          A public production status endpoint is not live yet (see
+          spec/portal-real-data-backend-requirements.md, backend repo). Switch the portal to
+          sandbox mode to see the simulated status board.
+        </div>
+      </div>
+    );
+  }
 
   const components = status && status.components ? status.components : [];
   const incidents = status && status.incidents ? status.incidents : [];

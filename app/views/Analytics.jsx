@@ -34,6 +34,11 @@ export default function Analytics({ apiKey }) {
   }, [apiKey]);
 
   useEffect(() => {
+    if (IS_REAL) {
+      // Sandbox analytics have no production source; show partner economics only.
+      setLoading(false);
+      return undefined;
+    }
     let alive = true;
     setLoading(true);
     Promise.all([
@@ -112,6 +117,9 @@ export default function Analytics({ apiKey }) {
             ) : null
           ) : null}
 
+          {/* sandbox-only analytics widgets; real mode shows partner economics above */}
+          {IS_REAL ? null : (
+          <>
           {/* advisor banner */}
           {advisor ? (
             <div
@@ -285,6 +293,8 @@ export default function Analytics({ apiKey }) {
               <Empty>No decisions recorded.</Empty>
             )}
           </div>
+          </>
+          )}
         </>
       )}
     </div>

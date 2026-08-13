@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, fmtUsd, timeAgo, shortAddr } from '../lib/api';
+import { get, fmtUsd, timeAgo, shortAddr, IS_REAL } from '../lib/api';
 import { Badge, Empty, Spinner } from '../ui/primitives';
 import { LineChart } from '../ui/charts';
 import { IconScale, IconCheck, IconRefresh } from '../lib/icons';
@@ -18,6 +18,10 @@ export default function Reconciliation({ apiKey }) {
   const [typeFilter, setTypeFilter] = useState('');
 
   useEffect(() => {
+    if (IS_REAL) {
+      setLoading(false);
+      return undefined; // no production reconciliation endpoint yet
+    }
     let alive = true;
     setLoading(true);
     Promise.all([
@@ -38,6 +42,20 @@ export default function Reconciliation({ apiKey }) {
       alive = false;
     };
   }, [apiKey]);
+
+  if (IS_REAL) {
+    return (
+      <div className={s.view}>
+        <span className={`${s.kicker} ${s.kickerTeal}`}>Trust</span>
+        <h1 className={s.viewTitle}>Reconciliation</h1>
+        <div className={`${s.card} ${s.cardPad}`} style={{ marginTop: 18, fontSize: 13.5, color: 'var(--ink-2)', borderLeft: '3px solid var(--orange)' }}>
+          On-chain vs internal accounting reconciliation is not live yet (see
+          spec/portal-real-data-backend-requirements.md, backend repo). Switch the portal to
+          sandbox mode to explore the simulated reconciliation surface.
+        </div>
+      </div>
+    );
+  }
 
   const reload = () => {
     setLoading(true);
