@@ -42,6 +42,7 @@ function ParamInput({ p, value, onChange }) {
   if (p.in === 'body' && p.type === 'array') {
     return (
       <input
+        aria-label={p.name}
         className={base}
         value={value ?? ''}
         placeholder={p.example}
@@ -51,7 +52,7 @@ function ParamInput({ p, value, onChange }) {
   }
   if (p.type === 'enum' && p.options) {
     return (
-      <select className={`${s.select} ${s.inputMono}`} value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+      <select aria-label={p.name} className={`${s.select} ${s.inputMono}`} value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">—</option>
         {p.options.map((o) => (
           <option key={o} value={o}>{o}</option>
@@ -61,7 +62,7 @@ function ParamInput({ p, value, onChange }) {
   }
   if (p.type === 'boolean') {
     return (
-      <select className={`${s.select} ${s.inputMono}`} value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+      <select aria-label={p.name} className={`${s.select} ${s.inputMono}`} value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">—</option>
         <option value="true">true</option>
         <option value="false">false</option>
@@ -70,6 +71,7 @@ function ParamInput({ p, value, onChange }) {
   }
   return (
     <input
+      aria-label={p.name}
       className={base}
       value={value ?? ''}
       placeholder={p.example || p.name}
@@ -219,7 +221,7 @@ function TryIt({ endpoint, apiKey }) {
             onClick={send}
             disabled={state.status === 'loading'}
           >
-            {state.status === 'loading' ? <span className={s.spinner} /> : <IconSend size={13} />}
+            {state.status === 'loading' ? <span className={s.spinner} /> : null}
             Send
           </button>
         </div>
@@ -241,7 +243,7 @@ function TryIt({ endpoint, apiKey }) {
               style={{
                 fontSize: 11.5,
                 lineHeight: 1.65,
-                color: result.ok ? '#c3cee2' : 'var(--red)',
+                color: result.ok ? 'var(--ink)' : 'var(--red)',
                 background: 'var(--bg-inset)',
                 border: '1px solid var(--stroke)',
                 borderRadius: 8,
@@ -263,6 +265,8 @@ function TryIt({ endpoint, apiKey }) {
 
 export default function ApiReference({ apiKey }) {
   const [selectedId, setSelectedId] = useState('create-position');
+  const [query, setQuery] = useState('');
+  const visibleGroups = useMemo(() => ENDPOINT_GROUPS.map(group => ({...group, endpoints: group.endpoints.filter(endpoint => (endpoint.method+' '+endpoint.path+' '+endpoint.summary+' '+group.label).toLowerCase().includes(query.trim().toLowerCase()))})).filter(group => group.endpoints.length), [query]);
   const [openGroups, setOpenGroups] = useState(() => new Set(ENDPOINT_GROUPS.map((g) => g.id)));
   const found = findEndpoint(selectedId);
   const endpoint = found ? found.endpoint : ENDPOINT_GROUPS[0].endpoints[0];
@@ -284,11 +288,15 @@ export default function ApiReference({ apiKey }) {
         response — including rate-limit headers and request ids.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: 26, marginTop: 30, alignItems: 'start' }}>
+      <div className={s.sectionLinks}><a href="/docs/api/partner/">Partner API reference</a><a href="/docs/api/sandbox/">Full sandbox contract</a><a href="/docs/sdks/">SDK guides</a></div>
+      <label className={s.endpointSearch}><span>Find a sandbox method</span><input type="search" className={s.input} placeholder="Search by method, path or task" value={query} onChange={event=>setQuery(event.target.value)}/></label>
+
+      <div className={s.apiGrid} style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: 26, marginTop: 30, alignItems: 'start' }}>
         {/* endpoint nav */}
         <aside className={s.card} style={{ position: 'sticky', top: 76, overflow: 'hidden' }}>
           <div style={{ padding: '8px 0', maxHeight: '70vh', overflowY: 'auto' }}>
-            {ENDPOINT_GROUPS.map((g) => (
+            {visibleGroups.length === 0 ? <p className={s.cardPad}>No matching methods.</p> : null}
+            {visibleGroups.map((g) => (
               <div key={g.id}>
                 <button
                   type="button"

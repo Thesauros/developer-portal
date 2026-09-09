@@ -120,7 +120,7 @@ function buildDoc() {
         'Enterprise yield-infrastructure sandbox API. Deterministic simulation of the Thesauros routing engine: vaults, aggregated yield, positions with live accrual, rebalances, webhooks and usage telemetry. All APY values are decimal fractions (0.052 = 5.2%).',
       contact: { name: 'Thesauros', url: 'https://developer.thesauros.io' },
     },
-    servers: [{ url: '/api/v1', description: 'Sandbox (relative to deployed host)' }],
+    servers: [{ url: (process.env.NEXT_PUBLIC_BASE_PATH || '') + '/api/v1', description: 'Earn sandbox' }],
     tags: [
       { name: 'keys', description: 'API key management' },
       { name: 'users', description: 'Partner end-users' },
@@ -164,7 +164,7 @@ function buildDoc() {
           summary: 'Revoke an API key',
           description: 'Revokes a key. The shared sandbox key (key_bootstrap) cannot be revoked.',
           parameters: [pathId('Key id')],
-          responses: withErrors({ 200: single('ApiKey', 'Key revoked') }, [400, 401, 404, 429, 500]),
+          responses: withErrors({ 200: single('RevokedKey', 'Key revoked') }, [400, 401, 404, 429, 500]),
         },
       },
       '/users': {
@@ -366,7 +366,7 @@ function buildDoc() {
           tags: ['webhooks'],
           summary: 'Delete a webhook endpoint',
           parameters: [pathId('Webhook id')],
-          responses: withErrors({ 200: single('Webhook', 'Endpoint deleted') }, [401, 404, 429, 500]),
+          responses: withErrors({ 200: single('DeletedWebhook', 'Endpoint deleted') }, [401, 404, 429, 500]),
         },
       },
       '/webhooks/{id}/test': {
@@ -517,6 +517,8 @@ function buildDoc() {
         },
       },
       schemas: {
+        RevokedKey: { type: 'object', required: ['id','object','revoked'], properties: { id: {type:'string'}, object: {type:'string',const:'api_key'}, revoked: {type:'boolean'} } },
+        DeletedWebhook: { type: 'object', required: ['id','object','deleted'], properties: { id: {type:'string'}, object: {type:'string',const:'webhook'}, deleted: {type:'boolean'} } },
         ListMeta: {
           type: 'object',
           properties: {

@@ -76,10 +76,9 @@ export default function Quickstart({ go }) {
   return (
     <div className={s.view}>
       <span className={s.kicker}>Quickstart</span>
-      <h1 className={s.viewTitle}>First yield position in 5 minutes</h1>
+      <h1 className={s.viewTitle}>Build your first Earn flow</h1>
       <p className={s.viewLead}>
-        Everything below runs against the live sandbox — no account, no contract deployment. The
-        requests you see are the exact ones the SDK makes for you.
+        Use the sandbox to create a customer position, read its activity and model a withdrawal. Download the local SDK release to run these examples from your backend.
       </p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '22px 0 30px' }}>
@@ -87,7 +86,7 @@ export default function Quickstart({ go }) {
         <span className={s.faint} style={{ fontSize: 12.5 }}>
           Sandbox key is pre-filled.{' '}
           <button type="button" className={s.btnGhost} style={{ minHeight: 'auto', padding: '0 4px', color: 'var(--blue-strong)' }} onClick={() => go('keys')}>
-            Create your own →
+            Create your own
           </button>
         </span>
       </div>
@@ -110,6 +109,7 @@ export default function Quickstart({ go }) {
         <Badge tone="teal">test mode</Badge>
       </div>
 
+      <p className={s.sectionLinks}><a href="/docs/sdks/downloads/">Download SDK 1.1.0</a><a href="/docs/start/quickstart/">Partner API quickstart</a></p>
       <Step
         n="1"
         title="Install the SDK"
@@ -122,7 +122,7 @@ export default function Quickstart({ go }) {
       <Step
         n="2"
         title="Initialize the client"
-        desc="Authenticate with your API key. Test keys (tsk_test_) and live keys (tsk_live_) are both accepted; live keys carry a higher rate ceiling. In this sandbox both run the same deterministic simulation — no real funds move."
+        desc="Authenticate with your API key. Use this sandbox’s base URL and test credential. The API URL selects the environment."
         delay={90}
       >
         <CodeBlock {...QUICKSTART_INIT[lang]} />
@@ -158,7 +158,7 @@ export default function Quickstart({ go }) {
         </div>
         <div className={s.row}>
           <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => go('reference')}>
-            API Reference <IconArrowRight size={14} />
+            API Reference
           </button>
           <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => go('webhooks')}>
             Webhooks

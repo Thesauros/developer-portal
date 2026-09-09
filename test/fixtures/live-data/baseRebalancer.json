@@ -1,0 +1,197 @@
+{
+  "network": "baseRebalancer",
+  "networkName": "Base Rebalancer",
+  "vaults": [
+    {
+      "name": "Thesauros USDC Vault",
+      "symbol": "USDC",
+      "shareSymbol": "tUSDC",
+      "address": "0x3C7739173cca612B6394EE57131458185A5beC44",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "tvl": "4.214289",
+      "totalShares": "4.196187",
+      "shareDecimals": 6,
+      "activeProvider": "0x7EbD3E69954f0Af98Adbfe80B8f28c0B82B3b74C",
+      "providerInfo": {
+        "address": "0x7EbD3E69954f0Af98Adbfe80B8f28c0B82B3b74C",
+        "name": "Blended across 3 providers",
+        "apy": "5.0754"
+      },
+      "providerAllocations": [
+        {
+          "address": "0x9c35b8a92Fc3a305712b9dD8a1C34310eA09C61c",
+          "name": "Steakhouse High Yield Morpho \u2022 0x9c35...C61c",
+          "balance": "2.213361",
+          "share": 52.52
+        },
+        {
+          "address": "0xDDf2C1f8EAf567c084dEE07658Ed3906029395b1",
+          "name": "Steakhouse Prime Morpho \u2022 0xDDf2...95b1",
+          "balance": "1.000877",
+          "share": 23.74
+        },
+        {
+          "address": "0x7EbD3E69954f0Af98Adbfe80B8f28c0B82B3b74C",
+          "name": "Compound V3 \u2022 0x7EbD...b74C",
+          "balance": "1.000051",
+          "share": 23.73
+        },
+        {
+          "address": "0xDDAA9700c0Da1020AE5dabC7AA0A0bb750DD317c",
+          "name": "Aave V3 \u2022 0xDDAA...317c",
+          "balance": "0",
+          "share": 0
+        },
+        {
+          "address": "0x51B8BdCdA5E41893737C9C3A08f528C97fCc1b8b",
+          "name": "Gauntlet Core Morpho \u2022 0x51B8...1b8b",
+          "balance": "0",
+          "share": 0
+        }
+      ],
+      "token": "USDC",
+      "status": "active",
+      "apy_7d_avg": null
+    }
+  ],
+  "providers": [
+    {
+      "name": "Aave V3 \u2022 0xDDAA...317c",
+      "baseName": "Aave V3",
+      "address": "0xDDAA9700c0Da1020AE5dabC7AA0A0bb750DD317c",
+      "venue": "0xddaa9700c0da1020ae5dabc7aa0a0bb750dd317c",
+      "riskTier": "core",
+      "depositRates": {
+        "USDC": "3.7166"
+      },
+      "activeVaults": [],
+      "status": "available"
+    },
+    {
+      "name": "Compound V3 \u2022 0x7EbD...b74C",
+      "baseName": "Compound V3",
+      "address": "0x7EbD3E69954f0Af98Adbfe80B8f28c0B82B3b74C",
+      "venue": "0x7ebd3e69954f0af98adbfe80b8f28c0b82b3b74c",
+      "riskTier": "core",
+      "depositRates": {
+        "USDC": "5.2632"
+      },
+      "activeVaults": [
+        "USDC"
+      ],
+      "status": "active"
+    },
+    {
+      "name": "Gauntlet Core Morpho \u2022 0x51B8...1b8b",
+      "baseName": "Gauntlet Core Morpho",
+      "address": "0x51B8BdCdA5E41893737C9C3A08f528C97fCc1b8b",
+      "venue": "0x51b8bdcda5e41893737c9c3a08f528c97fcc1b8b",
+      "riskTier": "satellite",
+      "depositRates": {
+        "USDC": "3.8594"
+      },
+      "activeVaults": [],
+      "status": "available"
+    },
+    {
+      "name": "Steakhouse High Yield Morpho \u2022 0x9c35...C61c",
+      "baseName": "Steakhouse High Yield Morpho",
+      "address": "0x9c35b8a92Fc3a305712b9dD8a1C34310eA09C61c",
+      "venue": "0x9c35b8a92fc3a305712b9dd8a1c34310ea09c61c",
+      "riskTier": "satellite",
+      "depositRates": {
+        "USDC": "5.4478"
+      },
+      "activeVaults": [
+        "USDC"
+      ],
+      "status": "active"
+    },
+    {
+      "name": "Steakhouse Prime Morpho \u2022 0xDDf2...95b1",
+      "baseName": "Steakhouse Prime Morpho",
+      "address": "0xDDf2C1f8EAf567c084dEE07658Ed3906029395b1",
+      "venue": "0xddf2c1f8eaf567c084dee07658ed3906029395b1",
+      "riskTier": "satellite",
+      "depositRates": {
+        "USDC": "4.0642"
+      },
+      "activeVaults": [
+        "USDC"
+      ],
+      "status": "active"
+    }
+  ],
+  "apyData": [
+    {
+      "token": "USDC",
+      "vaultAddress": "0x3C7739173cca612B6394EE57131458185A5beC44",
+      "assetAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "apy": "5.0754",
+      "provider": "Blended across 3 providers",
+      "providerAddress": "0x9c35b8a92Fc3a305712b9dD8a1C34310eA09C61c",
+      "source": "blockchain"
+    }
+  ],
+  "apyAnalytics": {
+    "series": [
+      {
+        "token": "USDC",
+        "vaultAddress": "0x3C7739173cca612B6394EE57131458185A5beC44",
+        "provider": "Blended across 3 providers",
+        "providerAddress": "0x9c35b8a92Fc3a305712b9dD8a1C34310eA09C61c",
+        "currentApy": 5.0754,
+        "change24h": null,
+        "change7d": null,
+        "change30d": null,
+        "volatility30d": null,
+        "netYieldAfterFees": 5.0754,
+        "points": []
+      }
+    ],
+    "allocationChanges": [
+      {
+        "token": "USDC",
+        "fromProvider": null,
+        "toProvider": "Steakhouse Prime Morpho \u2022 0xDDf2...95b1",
+        "timestamp": null,
+        "current": true
+      },
+      {
+        "token": "USDC",
+        "fromProvider": null,
+        "toProvider": "Steakhouse High Yield Morpho \u2022 0x9c35...C61c",
+        "timestamp": null,
+        "current": true
+      },
+      {
+        "token": "USDC",
+        "fromProvider": null,
+        "toProvider": "Compound V3 \u2022 0x7EbD...b74C",
+        "timestamp": null,
+        "current": true
+      }
+    ]
+  },
+  "events": [],
+  "alerts": {
+    "total": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "byType": {},
+    "recent": [],
+    "lastUpdate": "2026-09-07T15:47:40.110Z"
+  },
+  "vaultLifetimeStats": [],
+  "networkInfo": {
+    "network": "baseRebalancer",
+    "networkName": "Base Rebalancer",
+    "chainId": "8453",
+    "blockNumber": 51003356,
+    "gasPrice": "0.006",
+    "explorer": "https://basescan.org",
+    "lastUpdate": "2026-09-07T15:47:40.404Z"
+  },
+  "lastUpdate": "2026-09-07T15:47:42.974Z"
+}

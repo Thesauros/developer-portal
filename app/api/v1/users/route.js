@@ -20,15 +20,15 @@ export const POST = apiHandler({}, async (request, ctx, api) => {
   const body = await readJson(request);
   const external_id = body.external_id != null ? String(body.external_id).trim() : '';
   if (!external_id) fail('invalid_request', 'external_id is required (your customer id).');
-  if (filter('users', (u) => u.external_id === external_id).length) {
-    fail('invalid_request', `A user with external_id "${external_id}" already exists.`);
-  }
   if (body.email != null && !EMAIL_RE.test(body.email)) fail('invalid_request', 'email is invalid.');
   const wallets = validateWallets(body.wallets);
 
   // Idempotent: a retried create with the same Idempotency-Key returns the
   // original user instead of failing on the external_id uniqueness check.
   return idempotent(request, api.auth, api, async () => {
+    if (filter('users', (u) => u.external_id === external_id).length) {
+      fail('invalid_request', `A user with external_id "${external_id}" already exists.`);
+    }
     const now = new Date().toISOString();
     const user = create('users', {
       id: randomId('usr'),

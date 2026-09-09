@@ -2,24 +2,25 @@
 // Defaults to the built-in sandbox on the same origin (/api/v1);
 // set NEXT_PUBLIC_API_BASE to point the portal at a real API deployment.
 
-export const BASE = process.env.NEXT_PUBLIC_API_BASE || '/api/v1';
+export const APP_BASE = process.env.NEXT_PUBLIC_BASE_PATH || '';
+export const BASE = process.env.NEXT_PUBLIC_API_BASE || APP_BASE + '/api/v1';
 
 // Real-data mode: the portal reads live data from the Thesauros Partner API,
 // proxied same-origin through Next.js rewrites (/api/v1/real/* -> PARTNER_API_URL).
 // Enable with NEXT_PUBLIC_DATA_SOURCE=real (see .env.example).
 export const DATA_SOURCE = process.env.NEXT_PUBLIC_DATA_SOURCE === 'real' ? 'real' : 'sandbox';
 export const IS_REAL = DATA_SOURCE === 'real';
-export const REAL_BASE = '/api/v1/real';
+export const REAL_BASE = APP_BASE + '/api/v1/real';
 // On-chain protocol metrics, proxied to the monitoring service.
-export const MONITOR_BASE = '/api/v1/monitor';
+export const MONITOR_BASE = APP_BASE + '/api/v1/monitor';
 
 export const BOOTSTRAP_KEY = 'tsk_test_thesauros_sandbox_0000000000000000';
 // Real-mode defaults (test environment seeded keys):
 // - session key: partner-scoped so partner views (Users, Analytics) work;
 // - admin key: keys:admin for the API Keys management surface, which the
 //   partner-scoped session key cannot call.
-export const REAL_BOOTSTRAP_KEY = 'tsk_test_acme_partner_key_00000000000000000';
-export const REAL_ADMIN_KEY = 'tsk_test_master_full_access_000000000000000';
+export const REAL_BOOTSTRAP_KEY = '';
+export const REAL_ADMIN_KEY = '';
 export const DEFAULT_KEY = IS_REAL ? REAL_BOOTSTRAP_KEY : BOOTSTRAP_KEY;
 
 export class PortalApiError extends Error {
