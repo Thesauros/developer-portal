@@ -17,3 +17,4 @@ SECURITY_AUDIT.md
 !.env.example
 private-state/
 *.sqlite*
+.vercel

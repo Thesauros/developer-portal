@@ -1,0 +1,23 @@
+# Development and test files
+test/
+docs/
+scripts/
+private-state/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Source maps and build artifacts
+.next/cache/
+*.tsbuildinfo
+
+# Environment and secrets
+.env.local
+.env.production
+
+# Editor and OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
