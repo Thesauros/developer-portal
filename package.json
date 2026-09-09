@@ -2,15 +2,19 @@
   "name": "developer-portal",
   "version": "1.0.0",
   "private": true,
-  "description": "Thesauros Developer Portal — dashboard UI, API reference with live Try-it console, and the built-in sandbox API.",
+  "description": "Thesauros Individual and Institution workspaces with account access, test deposits, live market views and developer tools.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "test": "node test/product-ledger.mjs && node test/live-data.mjs && node test/live-cache.mjs && node test/crypto.mjs"
   },
   "dependencies": {
+    "better-auth": "1.7.3",
+    "better-sqlite3": "12.11.1",
+    "ethers": "6.17.0",
     "next": "^16.2.7",
     "react": "19.2.5",
     "react-dom": "19.2.5"

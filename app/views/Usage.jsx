@@ -65,8 +65,7 @@ export default function Usage({ apiKey }) {
           <span className={s.kicker}>Observability</span>
           <h1 className={s.viewTitle}>Usage</h1>
           <p className={s.viewLead}>
-            Request volume, error rate and latency for your integration. Data reflects real calls
-            made from this portal plus simulated production traffic.
+            Track request volume, errors and latency. This workspace combines your sandbox calls with generated traffic for exploring the reporting experience.
           </p>
         </div>
         <div className={s.codeTabs} role="tablist" aria-label="Range">

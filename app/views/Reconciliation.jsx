@@ -84,8 +84,7 @@ export default function Reconciliation({ apiKey }) {
           <span className={s.kicker}>Accounting</span>
           <h1 className={s.viewTitle}>Reconciliation</h1>
           <p className={s.viewLead}>
-            Match the recorded ledger against on-chain state. The report explains any difference as
-            intraday unsettled yield; balances and daily snapshots feed your period accounting.
+            Follow each balance back to its movements and daily snapshots. This sandbox models reconciliation so your team can prepare its accounting workflow.
           </p>
         </div>
         <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={reload}>

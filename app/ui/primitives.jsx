@@ -62,7 +62,7 @@ const TOKEN_CLASS = {
   str: '#7ee0a0',
   kw: '#6ea8ff',
   num: '#f0b072',
-  com: '#54627e',
+  com: '#91a5bd',
   fn: '#9ecbff',
   punc: '#8fa3c4',
   plain: '#c3cee2',
@@ -167,19 +167,37 @@ export function MethodBadge({ method }) {
 /* ---------- modal ---------- */
 
 export function Modal({ open, onClose, title, children }) {
+  const dialogRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (e) => e.key === 'Escape' && onClose();
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.querySelector('input, select, textarea, button')?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeRef.current(); }
+      if (e.key === 'Tab') {
+        const controls = [...(dialogRef.current?.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]') || [])].filter(node => node.getClientRects().length);
+        const first = controls[0], last = controls[controls.length - 1];
+        if (!first) return;
+        if (e.shiftKey && (document.activeElement === first || !dialogRef.current.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && (document.activeElement === last || !dialogRef.current.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+      }
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = previousOverflow; if (previousFocus?.isConnected) previousFocus.focus(); };
+  }, [open]);
 
   if (!open) return null;
   return (
     <div
+      ref={dialogRef}
       className={s.overlay}
       role="dialog"
       aria-modal="true"
+      aria-label={title}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className={s.modal}>

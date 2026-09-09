@@ -1,8 +1,8 @@
 // Code samples used across the portal (Overview, Quickstart, Webhooks).
 
 export const QUICKSTART_INSTALL = {
-  ts: { file: 'terminal', lang: 'bash', code: 'npm install @thesauros/sdk\n# or\npnpm add @thesauros/sdk' },
-  python: { file: 'terminal', lang: 'bash', code: 'pip install thesauros' },
+  ts: { file: 'terminal', lang: 'bash', code: 'npm install ./thesauros-sdk-1.1.0.tgz' },
+  python: { file: 'terminal', lang: 'bash', code: 'python -m pip install ./thesauros-1.1.0-py3-none-any.whl' },
   curl: { file: 'terminal', lang: 'bash', code: '# No install needed \u2014 the API is plain HTTPS + JSON.' },
 };
 
@@ -10,9 +10,10 @@ export const QUICKSTART_INIT = {
   ts: {
     file: 'client.ts',
     lang: 'typescript',
-    code: `import { Thesauros } from '@thesauros/sdk';
+    code: `import { SandboxClient } from '@thesauros/sdk';
 
-const client = new Thesauros({
+const client = new SandboxClient({
+  base_url: process.env.THESAUROS_BASE,
   apiKey: process.env.THESAUROS_API_KEY, // tsk_test_\u2026 or tsk_live_\u2026
 });`,
   },
@@ -20,9 +21,12 @@ const client = new Thesauros({
     file: 'client.py',
     lang: 'python',
     code: `import os
-from thesauros import Thesauros
+from thesauros import SandboxClient
 
-client = Thesauros(api_key=os.environ["THESAUROS_API_KEY"])`,
+client = SandboxClient(
+    api_key=os.environ["THESAUROS_API_KEY"],
+    base_url=os.environ["THESAUROS_BASE"],
+)`,
   },
   curl: {
     file: 'terminal',
@@ -36,7 +40,7 @@ export const QUICKSTART_DEPOSIT = {
   ts: {
     file: 'earn.ts',
     lang: 'typescript',
-    code: `// Open a non-custodial yield position from your user's wallet
+    code: `// Create a simulated position for your customer
 const position = await client.positions.create({
   wallet: user.address,
   asset: 'USDC',
@@ -45,12 +49,12 @@ const position = await client.positions.create({
 
 console.log(position.id);      // "pos_9f2c\u2026"
 console.log(position.status);  // "active"
-console.log(position.apy);     // 6.42`,
+console.log(position.apy);     // Decimal APY: 0.0642 displays as 6.42%`,
   },
   python: {
     file: 'earn.py',
     lang: 'python',
-    code: `# Open a non-custodial yield position from your user's wallet
+    code: `# Create a simulated position for your customer
 position = client.positions.create(
     wallet=user_address,
     asset="USDC",
@@ -59,7 +63,7 @@ position = client.positions.create(
 
 print(position["id"])      # "pos_9f2c\u2026"
 print(position["status"])  # "active"
-print(position["apy"])     # 6.42`,
+print(position["apy"])     # Decimal APY: 0.0642 displays as 6.42%`,
   },
   curl: {
     file: 'terminal',

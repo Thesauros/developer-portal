@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {normalizeNetwork,selectMarkets,number} from '../lib/live-data.mjs';
+const source=new URL('./fixtures/live-data/',import.meta.url);const read=name=>JSON.parse(readFileSync(new URL(name+'.json',source),'utf8'));const networks=read('networks');
+const base=normalizeNetwork(read('baseRebalancer'),networks[1],'2026-09-07T16:00:00Z');
+assert.equal(base.vaults[0].assets,4.214289);assert.equal(base.vaults[0].apy,5.0754);assert.equal(base.vaults[0].providers[0].share,52.52);assert.equal(base.vaults[0].providers[0].apy,5.4478);assert.equal(base.vaults[0].history.length,0);assert.equal(base.configuredActive,false);assert.equal(base.status,'available');
+const arb=normalizeNetwork(read('arbitrumRebalancer'),networks[0],'2026-09-07T16:00:00Z');assert.equal(arb.vaults[0].apy,null);assert.equal(arb.vaults[0].assets,null);assert.equal(arb.status,'degraded');assert.equal(arb.vaults[0].lifetime.financialResult,.061389);assert.equal(arb.events.length,8);assert.equal(new Set(arb.events.map(e=>e.id)).size,8);
+const timeout=normalizeNetwork(null,networks[1],null,true);assert.equal(timeout.stale,true);assert.equal(timeout.vaults.length,0);assert.equal(timeout.blockNumber,null);
+const unknown=structuredClone(read('baseRebalancer'));unknown.vaults[0].tvl='not a number';unknown.apyData[0].apy='';unknown.vaults[0].providerInfo.apy=null;const sanitized=normalizeNetwork(unknown,networks[1],null);assert.equal(sanitized.vaults[0].assets,null);assert.equal(sanitized.vaults[0].apy,null);
+assert.equal(number(null),null);assert.equal(number(''),null);assert.equal(number('0'),0);assert.equal(number('Infinity'),null);
+const pools=selectMarkets(read('pools'));assert.ok(pools.length>0);assert.ok(pools.every(p=>p.tvlUsd>1000000));assert.ok(pools.some(p=>p.name==='Aave'));assert.ok(pools.every(p=>Number.isFinite(p.apy)));assert.ok(!pools.some(p=>p.tvlUsd===base.vaults[0].assets));
+console.log('PASS: live financial units, null/error handling, source scope, empty history and event identity.');
+const {retainIndexed}=await import('../lib/live-data.mjs');
+const earlier=read('arbitrumRebalancer'),partial={...structuredClone(earlier),vaultLifetimeStats:[],events:[],lastUpdate:'2026-09-07T18:00:00Z'};
+const retained=retainIndexed(partial,earlier);assert.equal(retained.events.length,8);assert.equal(retained.eventsObservedAt,earlier.lastUpdate);assert.equal(retained.vaultLifetimeStats[0].updatedAt,earlier.vaultLifetimeStats[0].updatedAt);assert.equal(retained.lifetimeRetained,true);assert.equal(retained.eventsRetained,true);
+const fresh=retainIndexed(earlier,retained);assert.equal(fresh.eventsRetained,false);assert.equal(fresh.lifetimeRetained,false);assert.equal(fresh.eventsObservedAt,earlier.lastUpdate);
+console.log('PASS: partial source responses preserve indexed records and their observation times; new source records supersede retained records.');
