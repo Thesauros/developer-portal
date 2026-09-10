@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { useDisconnect } from "wagmi";
 import {
   base,
   useLive,
@@ -30,6 +31,10 @@ const labels = {
 };
 export default function ProductApp({ mode, user }) {
   const institution = mode === "institution";
+  const { disconnectAsync } = useDisconnect();
+  const displayName = user.walletAddress
+    ? user.walletAddress.slice(0, 6) + "…" + user.walletAddress.slice(-4)
+    : user.name;
   const [tab, setTab] = useState("overview"),
     [menu, setMenu] = useState(false),
     [signingOut, setSigningOut] = useState(false),
@@ -95,6 +100,7 @@ export default function ProductApp({ mode, user }) {
         sessionStorage.removeItem("thesauros.integration." + user.id);
       } catch {}
       window.dispatchEvent(new Event("thesauros:navigating"));
+      await disconnectAsync().catch(() => {});
       location.assign("/app/?mode=" + mode);
     } catch {
       setError("Sign out could not complete. Please retry.");
@@ -191,11 +197,13 @@ export default function ProductApp({ mode, user }) {
             onClick={() => navigate("settings")}
             aria-label="Account settings"
           >
-            {user.name
-              .split(" ")
-              .map((n) => n[0])
-              .slice(0, 2)
-              .join("")}
+            {user.walletAddress
+              ? user.walletAddress.slice(2, 4).toUpperCase()
+              : displayName
+                  .split(" ")
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")}
           </button>
           <button
             className={s.menuButton}
@@ -216,7 +224,7 @@ export default function ProductApp({ mode, user }) {
             <span className={s.eyebrow}>
               {institution ? "Business workspace" : "Personal workspace"}
             </span>
-            <strong>{institution ? user.company : user.name}</strong>
+            <strong>{institution ? user.company : displayName}</strong>
           </div>
           <nav aria-label="Account navigation">
             {nav.map((id) => (
@@ -456,7 +464,10 @@ export default function ProductApp({ mode, user }) {
                         </div>
                       </section>
                     ) : (
-                      <WalletCard networks={networks} />
+                      <WalletCard
+                        networks={networks}
+                        expectedAddress={user.walletAddress}
+                      />
                     )}
                     <Protocol
                       feed={protocol}

@@ -1,4 +1,6 @@
 "use client";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useEffect, useRef, useState } from "react";
 import { base, fmt, Mark, short, stamp } from "./LivePanels";
 import s from "./workspace.module.css";
@@ -11,7 +13,9 @@ const VAULT = [
   "function asset() view returns (address)",
   "function convertToAssets(uint256) view returns (uint256)",
 ];
-export default function WalletCard({ networks = [] }) {
+export default function WalletCard({ networks = [], expectedAddress }) {
+  const { address: connectedAddress, connector, chainId } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const [address, setAddress] = useState(""),
     [balance, setBalance] = useState(null),
     [busy, setBusy] = useState(false),
@@ -81,61 +85,34 @@ export default function WalletCard({ networks = [] }) {
       if (version === generation.current) setBusy(false);
     }
   }
-  async function connect() {
-    setError("");
-    const ethereum = window.ethereum;
-    if (!ethereum?.request) {
-      setError(
-        "Open this page in a wallet browser or with an Ethereum wallet extension to connect.",
-      );
-      return;
-    }
-    setBusy(true);
-    try {
-      const accounts = await ethereum.request({
-        method: "eth_requestAccounts",
-      });
-      providerRef.current = ethereum;
-      await read(accounts[0], ethereum);
-    } catch (e) {
-      setError(
-        e.code === 4001
-          ? "Connection request cancelled."
-          : "Wallet connection is unavailable. Please try again.",
-      );
-      setBusy(false);
-    }
-  }
-  function disconnect() {
-    generation.current++;
-    setAddress("");
-    setBalance(null);
-    setError("");
-    setBusy(false);
-    providerRef.current = null;
+  function connect() {
+    openConnectModal?.();
   }
   useEffect(() => {
-    const ethereum = window.ethereum;
-    if (!ethereum?.on) return;
-    const accountsChanged = (accounts) => {
-      if (providerRef.current) read(accounts[0], ethereum);
-    };
-    const chainChanged = () => {
-      if (providerRef.current && address) read(address, ethereum);
-    };
-    ethereum.on("accountsChanged", accountsChanged);
-    ethereum.on("chainChanged", chainChanged);
+    let cancelled = false;
+    if (
+      !connectedAddress ||
+      !connector ||
+      !networks.length ||
+      connectedAddress.toLowerCase() !== expectedAddress?.toLowerCase()
+    )
+      return;
+    connector
+      .getProvider()
+      .then((provider) => {
+        if (cancelled) return;
+        providerRef.current = provider;
+        read(connectedAddress, provider);
+      })
+      .catch(() => {
+        if (!cancelled)
+          setError("Please reconnect your wallet to read balances.");
+      });
     return () => {
-      ethereum.removeListener?.("accountsChanged", accountsChanged);
-      ethereum.removeListener?.("chainChanged", chainChanged);
-    };
-  }, [address]);
-  useEffect(
-    () => () => {
+      cancelled = true;
       generation.current++;
-    },
-    [],
-  );
+    };
+  }, [connectedAddress, connector, chainId, networks, expectedAddress]);
   return (
     <section className={s.wallet}>
       <div className={s.panelHead}>
@@ -153,9 +130,7 @@ export default function WalletCard({ networks = [] }) {
         <>
           <div className={s.walletAddress}>
             <span>{short(address)}</span>
-            <button onClick={disconnect} className={s.textButton}>
-              Disconnect
-            </button>
+            <span className={s.caption}>Connected wallet</span>
           </div>
           {balance ? (
             <>

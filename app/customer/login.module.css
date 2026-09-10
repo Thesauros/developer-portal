@@ -506,3 +506,126 @@
   cursor: default;
   opacity: 0.6;
 }
+.modes a {
+  padding: 0 0 12px;
+  border-bottom: 2px solid transparent;
+  color: #6b8092;
+  font-size: 12px;
+  margin-bottom: -1px;
+}
+.modes a[aria-current="page"] {
+  color: #193c5b;
+  border-color: #234c70;
+}
+.walletConnectButton {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  min-height: 52px;
+  padding: 15px 20px;
+  background: #173d5e;
+  color: white;
+  font:
+    500 13px/1.5 var(--font-sans),
+    sans-serif;
+  cursor: pointer;
+}
+.walletConnectButton:hover {
+  background: #224f73;
+}
+.walletConnectButton:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+.walletEmblem {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dbe4eb;
+  border-radius: 20px;
+  background: #edf2f6;
+  color: #456985;
+  margin: 32px 0 25px;
+}
+.walletHint {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #647d92;
+  margin: 18px 0 30px;
+}
+.accessNote {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #6a8094;
+  border-top: 1px solid #dde5eb;
+  padding-top: 20px;
+}
+.accessFoot {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  font-size: 10px;
+  color: #6a8094;
+  margin-top: auto;
+  padding: 16px 0;
+  line-height: 1.5;
+}
+.availability {
+  font-size: 11px;
+  color: #55768e;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 24px;
+}
+.availability > span {
+  width: 6px;
+  height: 6px;
+  background: #6d8aa1;
+  border-radius: 50%;
+}
+.previewFeatures {
+  border-top: 1px solid #dce4eb;
+  margin: 32px 0;
+}
+.previewFeatures > div {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 0;
+  border-bottom: 1px solid #dce4eb;
+}
+.previewFeatures span {
+  font-size: 10px;
+  color: #8aa0b0;
+}
+.previewFeatures p {
+  margin: 0;
+  font-size: 13px;
+  color: #45627a;
+}
+.quietLink {
+  display: block;
+  font-size: 12px;
+  text-align: center;
+  margin-top: 20px;
+  color: #59778e !important;
+  padding: 8px;
+}
+@media (min-width: 1100px) {
+  .formWrap {
+    max-width: 390px;
+  }
+  .formWrap h1 {
+    font-size: 46px;
+    letter-spacing: -1.9px;
+  }
+  .intro {
+    font-size: 14px;
+    max-width: 365px;
+  }
+  .visualCopy h2 {
+    font-size: clamp(40px, 4vw, 64px);
+  }
+}
