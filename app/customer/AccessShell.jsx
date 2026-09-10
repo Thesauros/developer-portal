@@ -25,13 +25,12 @@ export default function AccessShell({ institution = false, children }) {
             {institution ? (
               <>
                 A wider view.
-                <br />A stronger connection.
+                <br /> A stronger connection.
               </>
             ) : (
               <>
                 Your next move.
-                <br />
-                With a clearer view.
+                <br /> With a clearer view.
               </>
             )}
           </h2>
