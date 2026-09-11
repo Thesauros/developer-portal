@@ -1,0 +1,21 @@
+[Unit]
+Description=GitHub Actions deployment for app-v2-dev.thesauros.io
+After=network-online.target pm2-root.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/thesauros-portal-deploy
+ExecStart=/opt/node-v24.21.0-linux-x64/bin/node /opt/thesauros-portal-deploy/server.mjs
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=30
+UMask=0077
+Environment=PATH=/opt/node-v24.21.0-linux-x64/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+
+[Install]
+WantedBy=multi-user.target

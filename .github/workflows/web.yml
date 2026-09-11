@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_TELEMETRY_DISABLED: "1"
       NEXT_PUBLIC_BASE_PATH: /developers
       BETTER_AUTH_URL: http://localhost:8879
       BETTER_AUTH_SECRET: ci-only-isolated-test-database-not-for-deployment
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: "24.21.0"
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
@@ -29,3 +29,29 @@ jobs:
       - name: Initialize isolated account database
         run: node scripts/init-auth.mjs
       - run: npm run build
+      - name: Test deployment authorization and rollback
+        run: |
+          npm ci --prefix deploy/automation --ignore-scripts
+          npm test --prefix deploy/automation
+
+  deploy-v2:
+    name: Deploy app-v2-dev
+    needs: build
+    if: github.ref == 'refs/heads/v2' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: app-v2-dev-deployment
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24.21.0"
+      - name: Deploy the verified commit and wait for health checks
+        run: node scripts/request-deployment.mjs
