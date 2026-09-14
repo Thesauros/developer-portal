@@ -1,36 +1,29 @@
-# Unified accounts and live data
+# Account access
 
-The public preview routes are /app (email/password login), /app/individual and /app/institution (session-protected workspaces). /developers opens the Institution login or redirects an existing session into embedded developer tools. Existing hash links (reference, keys, webhooks, etc.) retain their destination. /monitoring opens protocol statistics inside the signed-in account.
+Individual uses RainbowKit/wagmi (the same connection stack as app.thesauros.io), including injected wallets and WalletConnect. A Sign-In with Ethereum message creates an authenticated Better Auth session. No email, password, token approval or blockchain transaction is requested for sign-in.
 
-## Setup
+The server checks the configured public origin, supported chain, exact statement and URI, issue/expiry timestamps, signature and one-time nonce. The nonce is bound to an HttpOnly browser cookie. EOA signatures are checked locally; ERC-1271 contract wallets are verified against the configured chain RPC. The session token stays in an HttpOnly cookie.
 
-Install dependencies with npm ci. Configure BETTER_AUTH_SECRET, BETTER_AUTH_URL, THESAUROS_AUTH_DB and NEXT_PUBLIC_BASE_PATH in .env.local; never expose the secret or database through public assets. Run `node --env-file=.env.local scripts/init-auth.mjs` before the production build. For the shared preview, deploy with `bash scripts/release-preview.sh`; it builds into an isolated directory before switching the service. `THESAUROS_NEXT_DIST` must match at build and start. Do not overwrite a build directory currently being served.
+A wallet maps to one Individual account across the supported sign-in chains (Arbitrum, Base, Ethereum). Test balances persist by authenticated user ID. Switching to another wallet closes the previous session and asks the user to sign in again. Rejected connection/signature requests can be retried in the wallet dialog.
 
-Accounts, hashed passwords, session tokens, recovery-key hashes and per-user test workspaces persist in SQLite under ../private-state. Test transaction requests preserve idempotency across reloads and restarts. Creating an account never seeds company/customer capital. Each account can explicitly receive test funds once. Recovery keys are displayed once on signup; password recovery invalidates all existing sessions. No email delivery provider is configured in this preview.
+Institution, `/developers` and the legacy monitoring page show Coming soon, with contact and docs links. The Institution UI code is retained for a later release. No public email signup/login or password recovery route remains active. Existing email accounts, recovery records and test workspaces are retained in the database without being silently attached to a wallet.
 
-The public IP preview currently uses HTTP. It is a review environment. For production configure the HTTPS origin and secure cookies (automatically derived from BETTER_AUTH_URL), verify the company domain, configure email delivery/verification and operational account administration. Registration does not verify ownership of an email address or business identity.
+## Storage and deployment
 
-## Data
+Configure `BETTER_AUTH_URL` to the exact external origin, including the scheme and port. Set a unique `BETTER_AUTH_SECRET`. Secure cookies are used with HTTPS. The preview proxy overwrites `X-Real-IP`; only place the app behind trusted proxies that overwrite this header, since it supplies the authentication rate-limit identity.
 
-Authenticated GET /customer/live?kind=protocol normalizes https://bastardgreeks.thesauros.io/api/networks and /api/dashboard?network= on the server. GET ?kind=markets returns a curated set of actual stablecoin lending pools from https://yields.llama.fi/pools. GET ?kind=history&pool= accepts only pool identifiers in that set. /monitoring/data is a compatibility entry for the actual protocol feed; it no longer returns the old monitor simulation.
+Local preview uses `THESAUROS_AUTH_DB` (better-sqlite3). When `TURSO_DATABASE_URL` is set, the app uses libSQL for both Better Auth (through the Kysely dialect) and transactional workspace persistence. Set `TURSO_AUTH_TOKEN` if required. Run `node --env-file=.env.local scripts/init-auth.mjs` before the first start and after this update to add the wallet identity table. This migration preserves existing records. Back up the database before deployment.
 
-Underlying vault assets retain their token denomination. Percent APYs are not divided or multiplied in the monitor adapter. Failed reads produce null values. Lifetime snapshots retain their original timestamp and block range. No synthetic vault-rate history is generated. External market TVL is labeled as market liquidity in USD, never as Thesauros assets.
+`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` can override the existing public project identifier used by the old app. Configure the deployment's allowed origins in the WalletConnect project when an allowlist is enabled. The origin must also match the signed message and `BETTER_AUTH_URL`.
 
-Source fetches are cached on the server (protocol 60 seconds, markets 10 minutes, histories one hour). Concurrent requests share an in-flight fetch. Last successful responses persist outside the public tree, retain fetchedAt/source metadata and are marked stale on refresh failure. If a successful response omits previously indexed lifetime records or events, those records stay available with their original timestamps and a retained-record label. Current balances and APYs are never filled from historical records. API responses and authenticated pages are private/no-store through the preview proxy.
+The web app expects the same `/app/` and `/developers/` reverse-proxy mapping described in DEPLOYMENT.md. An IP/HTTP preview is useful for review; use the production HTTPS origin when testing real mobile wallet handoff.
 
-Individual wallets use the injected EIP-1193 provider. Wallet reads call asset, decimals, balanceOf and convertToAssets at a common block; no signing or transfer method is used. Account changes, chain changes, cancellation, unsupported chains and disconnect invalidate old reads. Wallet selection is not used as login or proof of ownership.
+## Test scope
 
-## Developer tools
+`npm test` includes cryptographic login, nonce replay, cross-browser challenge use, wrong signer/domain/URI/statement, expiry, account isolation, cross-chain identity, logout, and disabled email/Institution access on both SQLite and local libSQL. Those tests use freshly generated disposable keys and databases; they do not send transactions or use customer wallets.
 
-The existing API sandbox and SDK contract are retained. Their shared sample data is explicitly labeled inside Institution; sample API customers are not connected company customers. Connecting an external partner API to a company still requires partner credentials and deployment configuration. The new product UI does not infer company access from signup alone.
+The Individual test account remains a simulation with explicitly supplied test funds. Wallet sign-in does not turn these deposits into real vault transactions. Live protocol/market reporting and read-only wallet balances retain their existing data sources.
 
-## Verification
+### WalletConnect QR compatibility
 
-Run `npm test` from the repository root: financial ledger invariants, recorded public data
-fixtures, missing/error values, percent/token units, event identity, source
-scope and cached-source behavior. See [deployment](DEPLOYMENT.md) for setup.
-
-The original preview also has deployment-specific browser checks covering
-signup, login, isolation, recovery, role boundaries and desktop/mobile journeys.
-Those scripts and their private account/session state remain in the preview
-workspace; they are not dependencies of this repository's tests or build.
+`cuer@0.0.3`, used by RainbowKit, requests a borderless QR matrix and draws its own padding. Its broad `qr ~0` dependency also accepts 0.6+ releases that reject `border: 0`. The scoped override pins `qr` to 0.5.5 until cuer supports the new API; verify the WalletConnect QR modal when changing this override.

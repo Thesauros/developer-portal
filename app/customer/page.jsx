@@ -1,21 +1,19 @@
 import { headers } from "next/headers";
-import { userSession, accountMode } from "../../lib/auth.mjs";
+import { userSession } from "../../lib/auth.mjs";
 import Login from "./Login";
+import ComingSoon from "./ComingSoon";
 import EntryRedirect from "./EntryRedirect";
 export const metadata = {
-  title: "Thesauros · Sign in",
-  description: "Your capital, markets and infrastructure in one workspace.",
+  title: "Thesauros · Connect your wallet",
+  description: "Your wallet, your Thesauros account.",
 };
 export default async function Page({ searchParams }) {
   const query = await searchParams;
-  const session = await userSession(await headers());
-  if (session)
-    return <EntryRedirect mode={accountMode(session.user)} destination="overview" next={typeof query.next === "string" ? query.next : ""} />;
-  return (
-    <Login
-      initialMode={query.mode === "institution" ? "institution" : "individual"}
-      initialStage={query.signup === "1" ? "signup" : "login"}
-      next={typeof query.next === "string" ? query.next : ""}
-    />
-  );
+  if (query.mode === "institution") return <ComingSoon />;
+  const next = typeof query.next === "string" ? query.next : "";
+  if (await userSession(await headers()))
+    return (
+      <EntryRedirect mode="individual" destination="overview" next={next} />
+    );
+  return <Login next={next} />;
 }

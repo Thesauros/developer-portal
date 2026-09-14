@@ -1,7 +1,7 @@
 # Running the account application
 
 The app uses Next.js 16 and React 19 on Node.js 20.20 or newer. It needs a
-writable, persistent SQLite database and a server process; it is not a static
+writable, persistent SQLite or Turso database and a server process; it is not a static
 export. The separate `Thesauros/developer.thesauros.io` repository contains the NestJS backend and Postgres configuration.
 Run the following commands **from this repository root**.
 
@@ -32,15 +32,15 @@ pages sit under `/developers/customer`. A reverse proxy is required for the
 complete login and navigation flow; opening the Next port alone is insufficient.
 The marketing preview's `serve.py` already implements this mapping.
 
-| Public path | Next.js upstream path |
-| --- | --- |
-| `/app` and `/app/` | `/developers/customer` |
-| `/app/individual` | `/developers/customer/individual` |
-| `/app/institution` | `/developers/customer/institution` |
-| `/app/*` | `/developers/customer/*` |
+| Public path                       | Next.js upstream path                            |
+| --------------------------------- | ------------------------------------------------ |
+| `/app` and `/app/`                | `/developers/customer`                           |
+| `/app/individual`                 | `/developers/customer/individual`                |
+| `/app/institution`                | `/developers/customer/institution`               |
+| `/app/*`                          | `/developers/customer/*`                         |
 | `/developers` and `/developers/*` | Same path, including auth, API and static assets |
-| `/monitoring` and `/monitoring/` | `/developers/monitoring` |
-| `/monitoring/*` | `/developers/monitoring/*` |
+| `/monitoring` and `/monitoring/`  | `/developers/monitoring`                         |
+| `/monitoring/*`                   | `/developers/monitoring/*`                       |
 
 Preserve the query string, request body, cookies and response `Set-Cookie`
 headers. Forward the public Host and scheme. Do not cache authenticated pages
@@ -56,17 +56,17 @@ does not restart or deploy that preview.
 
 ## Persistence and connected services
 
-Run auth initialization before the first build/start. Back up the SQLite
+Run auth initialization before the first build/start and after adding wallet authentication. With Turso, set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN; initialization and workspace writes use libSQL. Back up the SQLite
 database using SQLite-aware tooling, and persist its directory across releases.
 The source cache is stored in `../private-state/live-cache` relative to the
 process working directory. Tests use recorded public fixtures and mock fetches;
 they do not require production keys.
 
 The account UI reads public protocol and market feeds. Its test deposits are
-simulated and isolated by account. Institution developer tools contain the
+simulated and isolated by account. Institution currently shows Coming soon. The retained developer tools use the
 separate shared integration sandbox. An actual partner integration still needs
 Partner API configuration and credentials; signing up does not provision one.
 
-See [account operation](ACCOUNT-WORKSPACES.md) for role boundaries, recovery,
-source data and current account verification limitations. No private accounts,
+See [account operation](ACCOUNT-WORKSPACES.md) for wallet authentication, migration,
+source data and current account boundaries. No private accounts,
 environment files or running database are included in this repository.

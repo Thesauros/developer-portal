@@ -1,18 +1,18 @@
 # Unified Thesauros workspaces
 
-One account application with Individual and Institution roles, persistent test deposits, live protocol and market views, and embedded developer tools. The website is the public entry; `/app/` is the account entry.
+Individual uses wallet sign-in, persistent test deposits and live protocol/market views. The Institution workspace is coming soon. The website is the public entry; `/app/` is the account entry.
 
 ## Routes and responsibilities
 
-| Route | Destination |
-| --- | --- |
-| `/app/individual` | Personal workspace: protocol, markets, wallet reads, test account and account settings |
-| `/app/institution` | Business workspace: the same views, plus reporting, customer integration and developer tools |
-| `/developers/` | Compatible entry into Institution developer tools |
-| `/monitoring/` | Compatible entry into the signed-in account’s protocol statistics |
-| `/developers/api/v1/…` | Existing integration sandbox and SDK contract |
+| Route                  | Destination                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `/app/individual`      | Personal workspace: protocol, markets, wallet reads, test account and account settings |
+| `/app/institution`     | Coming soon, with early-access contact and documentation                               |
+| `/developers/`         | Institution coming soon                                                                |
+| `/monitoring/`         | Institution coming soon                                                                |
+| `/developers/api/v1/…` | Existing integration sandbox and SDK contract                                          |
 
-Role and destination survive login and registration. A requested URL never grants a different account role. See [account setup and operation](docs/ACCOUNT-WORKSPACES.md) for authentication, data sources and deployment settings.
+Individual uses wallet connection and Sign-In with Ethereum. Institution and the legacy developer entry show Coming soon. See [account setup and operation](docs/ACCOUNT-WORKSPACES.md).
 
 ## Local development and deployment
 
@@ -23,7 +23,7 @@ initialize auth, build Next.js and connect the `/app/` reverse proxy. The NestJS
 ## Active source
 
 - `app/customer/ProductApp.jsx` and `workspace.module.css`: role-aware shell and account navigation.
-- `Login.jsx`, `EntryRedirect.jsx`, `destination.mjs`: sign-in, recovery and trusted destination mapping.
+- `Login.jsx`, `EntryRedirect.jsx`, `destination.mjs`: wallet sign-in and trusted destination mapping.
 - `LivePanels.jsx`, `WalletCard.jsx`, `lib/live-data.mjs`: protocol, external markets and read-only wallet balances.
 - `TestAccount.jsx`, `lib/product-ledger.mjs`: persistent test balances and idempotent simulated deposits/withdrawals.
 - `DeveloperTools.jsx` and the seven `app/views/` components: the Institution integration sandbox.
@@ -31,7 +31,7 @@ initialize auth, build Next.js and connect the `/app/` reverse proxy. The NestJS
 
 Developer tools, the test account and account settings load when opened. The Individual overview does not download the API explorer and developer screens.
 
-Accounts and test transactions persist in the private SQLite database. The separate API sandbox retains shared sample data and its original contract; it does not represent connected company customers. Test webhook controls send requests only to the receiver configured by the user. Current company reporting remains empty until a partner integration is connected.
+Accounts and test transactions persist in the private SQLite or configured Turso database. The separate API sandbox retains shared sample data and its original contract; it does not represent connected company customers. Test webhook controls send requests only to the receiver configured by the user. Current company reporting remains empty until a partner integration is connected.
 
 ## Verification
 
@@ -59,6 +59,5 @@ portal and has a separate contract; it is not the Partner API backend.
 
 Marketing is in `573pn01v01k/thesauros-site` and documentation in
 `Thesauros/docs.thesauros.io`. Each project builds and deploys separately.
-The running preview remains in its original local workspace; opening or merging
-these PRs does not deploy it. The separate economics studio at `/demo/` is not
+Opening or merging a PR does not restart the shared preview server. The separate economics studio at `/demo/` is not
 included here.

@@ -1,34 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { database, userSession, accountMode } from "../../../lib/auth.mjs";
+import { userSession, accountMode } from "../../../lib/auth.mjs";
 import {
-  createWorkspace,
   snapshot,
   transact,
   LedgerError,
 } from "../../../lib/product-ledger.mjs";
+import { withWorkspace } from "../../../lib/workspace-store.mjs";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
-function load(user) {
-  const row = database
-    .prepare("SELECT state FROM product_workspaces WHERE user_id=?")
-    .get(user.id);
-  const workspace = row
-    ? JSON.parse(row.state)
-    : createWorkspace(Date.now(), true);
-  workspace.replays = new Map(row ? workspace.replays : []);
-  return workspace;
-}
-function save(user, workspace) {
-  database
-    .prepare(
-      "INSERT INTO product_workspaces(user_id,state,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET state=excluded.state,updated_at=excluded.updated_at",
-    )
-    .run(
-      user.id,
-      JSON.stringify({ ...workspace, replays: [...workspace.replays] }),
-      Date.now(),
-    );
-}
 function view(workspace, mode) {
   return { ...snapshot(workspace, mode), funded: !!workspace.funded };
 }
@@ -45,11 +24,9 @@ export async function GET(request) {
       { error: "This workspace belongs to another account type." },
       { status: 403, headers },
     );
-  const data = database.transaction(() => {
-    const workspace = load(session.user);
-    save(session.user, workspace);
-    return view(workspace, mode);
-  })();
+  const data = await withWorkspace(session.user.id, (workspace) =>
+    view(workspace, mode),
+  );
   return Response.json(data, { headers });
 }
 export async function POST(request) {
@@ -82,8 +59,7 @@ export async function POST(request) {
         "This workspace belongs to another account type.",
         403,
       );
-    const result = database.transaction(() => {
-      const workspace = load(session.user);
+    const result = await withWorkspace(session.user.id, (workspace) => {
       let event;
       if (body.type === "fund") {
         if (!workspace.funded) {
@@ -103,9 +79,8 @@ export async function POST(request) {
           account.events.push(event);
         }
       } else event = transact(workspace, body);
-      save(session.user, workspace);
       return { event, ...view(workspace, body.mode) };
-    })();
+    });
     return Response.json(result, { status: 201, headers });
   } catch (error) {
     return Response.json(
