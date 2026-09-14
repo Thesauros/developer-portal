@@ -9,7 +9,8 @@
     "start": "next start",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "test": "node test/product-ledger.mjs && node test/live-data.mjs && node test/live-cache.mjs && node test/crypto.mjs && node test/wallet-auth.mjs && node test/wallet-auth.mjs --libsql"
+    "test": "node test/product-ledger.mjs && node test/live-data.mjs && node test/live-cache.mjs && node test/crypto.mjs && node test/wallet-auth.mjs && node test/wallet-auth.mjs --libsql",
+    "test:routes": "node test/routes.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

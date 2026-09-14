@@ -6,23 +6,10 @@ const handlers = toNextJsHandler(auth);
 const nonceCookie = "thesauros.wallet-challenge";
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 const noStore = { "Cache-Control": "private, no-store" };
-function externalRequest(request) {
-  const url = new URL(request.url),
-    prefix = process.env.NEXT_PUBLIC_BASE_PATH || "";
-  if (prefix && !url.pathname.startsWith(prefix + "/"))
-    url.pathname = prefix + url.pathname;
-  return new Request(url, {
-    method: request.method,
-    headers: request.headers,
-    ...(!["GET", "HEAD"].includes(request.method)
-      ? { body: request.body, duplex: "half" }
-      : {}),
-  });
-}
 function challengeHeader(value, age) {
   return `${nonceCookie}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${authOrigin.startsWith("https:") ? "; Secure" : ""}`;
 }
-export const GET = (request) => handlers.GET(externalRequest(request));
+export const GET = (request) => handlers.GET(request);
 export async function POST(request) {
   const path = new URL(request.url).pathname.split("/api/auth")[1];
   if (
@@ -79,7 +66,7 @@ export async function POST(request) {
         { status: 401, headers: noStore },
       );
   }
-  const response = await handlers.POST(externalRequest(request));
+  const response = await handlers.POST(request);
   response.headers.set("Cache-Control", "private, no-store");
   if (response.ok && ["/siwe/nonce", "/siwe/get-nonce"].includes(path)) {
     const result = await response.clone().json();

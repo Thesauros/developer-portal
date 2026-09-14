@@ -1,5 +1,4 @@
-import ComingSoon from "./customer/ComingSoon";
-export const metadata = { title: "Thesauros · Institution — Coming soon" };
+import { redirect } from "next/navigation";
 export default function Page() {
-  return <ComingSoon />;
+  redirect("/app");
 }

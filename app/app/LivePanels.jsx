@@ -2,7 +2,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import s from "./workspace.module.css";
 import BrandLoading from "../ui/BrandLoading";
-export const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
 export const fmt = (n, d = 2) =>
   n === null || n === undefined || !Number.isFinite(Number(n))
     ? "—"
@@ -44,7 +43,7 @@ export function Mark({ name, token, chain }) {
   return file ? (
     <img
       className={s.mark}
-      src={base + "/brand/" + file}
+      src={"/brand/" + file}
       alt=""
       width="27"
       height="27"
@@ -65,7 +64,7 @@ export function useLive(kind) {
     const controller = new AbortController();
     async function run() {
       try {
-        const r = await fetch(base + "/customer/live?kind=" + kind, {
+        const r = await fetch("/app/live?kind=" + kind, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -320,7 +319,7 @@ export function Markets({ feed, brief = false, onExplore }) {
     let active = true;
     setHistory(null);
     setHistoryError("");
-    fetch(base + "/customer/live?kind=history&pool=" + market.id, {
+    fetch("/app/live?kind=history&pool=" + market.id, {
       signal: controller.signal,
     })
       .then(async (r) => {

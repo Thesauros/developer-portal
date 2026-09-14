@@ -1,4 +1,5 @@
 'use client';
+import { documentationHref } from '../../lib/site-links.mjs';
 
 import { useMemo, useState } from 'react';
 import s from '../platform.module.css';
@@ -288,7 +289,7 @@ export default function ApiReference({ apiKey }) {
         response — including rate-limit headers and request ids.
       </p>
 
-      <div className={s.sectionLinks}><a href="/docs/api/partner/">Partner API reference</a><a href="/docs/api/sandbox/">Full sandbox contract</a><a href="/docs/sdks/">SDK guides</a></div>
+      <div className={s.sectionLinks}><a href={documentationHref("/api/partner/")}>Partner API reference</a><a href={documentationHref("/api/sandbox/")}>Full sandbox contract</a><a href={documentationHref("/sdks/")}>SDK guides</a></div>
       <label className={s.endpointSearch}><span>Find a sandbox method</span><input type="search" className={s.input} placeholder="Search by method, path or task" value={query} onChange={event=>setQuery(event.target.value)}/></label>
 
       <div className={s.apiGrid} style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: 26, marginTop: 30, alignItems: 'start' }}>

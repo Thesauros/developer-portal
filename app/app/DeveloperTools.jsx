@@ -1,4 +1,5 @@
 "use client";
+import { documentationHref } from "../../lib/site-links.mjs";
 import { useEffect, useState } from "react";
 import Quickstart from "../views/Quickstart";
 import ApiReference from "../views/ApiReference";
@@ -64,8 +65,10 @@ export default function DeveloperTools({
           </p>
         </div>
         <div>
-          <a href="/docs/sdks/downloads/">Download SDKs</a>
-          <a href="/docs/start/integration-paths/">Integration guide</a>
+          <a href={documentationHref("/sdks/downloads/")}>Download SDKs</a>
+          <a href={documentationHref("/start/integration-paths/")}>
+            Integration guide
+          </a>
         </div>
       </div>
       <div

@@ -59,7 +59,7 @@ backups are available for an operator-controlled database recovery.
 | Nginx configuration           | `/etc/nginx/sites-available/app-v2-dev.thesauros.io` |
 
 The app uses the built-in developer sandbox and persistent local SQLite.
-Registration is available in the UI. External Partner API credentials are not
+Individual uses wallet sign-in; Institution shows Coming soon. External Partner API credentials are not
 configured. Private settings and account data are outside Git and all releases.
 The original checkout's `.env.local` belongs to the initial manual deployment;
 automated releases use `runtime.env` instead.
@@ -84,7 +84,25 @@ files into `/opt/thesauros-portal-deploy`, run `npm ci --omit=dev --ignore-scrip
 there with Node.js 24, and restart the service after any active deployment has
 finished. Application pushes do not replace the running deployment service.
 
-Nginx maps `/app/*` to `/developers/customer/*`, forwards `/developers/*`
-unchanged, and maps `/monitoring/*` to `/developers/monitoring/*`. `/` redirects
-to `/app/`. Documentation and contact links redirect to their public sites.
+Nginx must pass paths to Next unchanged, including `/app/*`, `/api/*`,
+`/_next/*` and `/brand/*`. Next owns the native routes and legacy redirects.
+The root redirects to `/app`; documentation and contact links use their public sites.
 The dev host sends `X-Robots-Tag: noindex, nofollow`.
+
+## Migrating from the prefixed deployment
+
+Before activating the native-route release, replace the old nginx path mapping
+with pass-through routing (see `deploy/nginx-local.conf`; retain the server
+name, TLS and deployment-service location in the real vhost). Check `nginx -t`.
+Update the installed deployment `.mjs` files together, including `health.mjs`,
+and restart that service after any active deployment finishes. Updating the
+repository alone does not update `/opt/thesauros-portal-deploy/`.
+
+The new application exposes `/app/individual` itself. An old proxy mapping to
+`/developers/customer/individual` would trigger a loop through the legacy
+redirect. Update the proxy and release together; keep the previous nginx
+configuration available if rolling back the application.
+
+The updated health checker recognizes native wallet pages and can still verify
+a previous release using `/developers/customer`, with either the former email
+entry or wallet entry. No authentication database migration is introduced here.

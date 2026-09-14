@@ -11,11 +11,10 @@ import { useAccount, useDisconnect } from "wagmi";
 import WalletProvider, { WalletTheme } from "./WalletProvider";
 import { workspaceDestination } from "../destination.mjs";
 import s from "../login.module.css";
-const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const statement =
   "Sign in to your Thesauros account. This request does not authorize transactions or token spending.";
 async function post(path, body) {
-  const r = await fetch(base + "/api/auth/" + path, {
+  const r = await fetch("/api/auth/" + path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

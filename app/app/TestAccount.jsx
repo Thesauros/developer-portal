@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "../ui/primitives";
 import platform from "../platform.module.css";
-import { base, fmt, pct, Mark, stamp } from "./LivePanels";
+import { fmt, pct, Mark, stamp } from "./LivePanels";
 import s from "./workspace.module.css";
 import BrandLoading from "../ui/BrandLoading";
 const requestId = () =>
@@ -18,7 +18,7 @@ export default function TestAccount({ mode }) {
     const controller = new AbortController();
     async function refresh() {
       try {
-        const r = await fetch(base + "/customer/api?mode=" + mode, {
+        const r = await fetch("/app/api?mode=" + mode, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -43,7 +43,7 @@ export default function TestAccount({ mode }) {
     setError("");
     setNotice("");
     try {
-      const r = await fetch(base + "/customer/api", {
+      const r = await fetch("/app/api", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...body, mode }),

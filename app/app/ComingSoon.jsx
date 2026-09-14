@@ -1,3 +1,4 @@
+import { documentationHref, marketingHref } from "../../lib/site-links.mjs";
 import AccessShell from "./AccessShell";
 import s from "./login.module.css";
 export default function ComingSoon() {
@@ -26,10 +27,13 @@ export default function ComingSoon() {
           <p>Integration &amp; developer tools</p>
         </div>
       </div>
-      <a className={s.primaryLink} href="/contact?usecase=launch">
+      <a
+        className={s.primaryLink}
+        href={marketingHref("/contact?usecase=launch")}
+      >
         Discuss early access
       </a>
-      <a className={s.quietLink} href="/docs/">
+      <a className={s.quietLink} href={documentationHref("/")}>
         Explore the documentation
       </a>
     </AccessShell>

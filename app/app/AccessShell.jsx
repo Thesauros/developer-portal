@@ -1,5 +1,5 @@
+import { documentationHref, marketingHref } from "../../lib/site-links.mjs";
 import s from "./login.module.css";
-const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
 export default function AccessShell({ institution = false, children }) {
   return (
     <main className={s.page}>
@@ -7,7 +7,6 @@ export default function AccessShell({ institution = false, children }) {
         <img
           className={s.photo}
           src={
-            base +
             "/brand/" +
             (institution ? "login-gallery.webp" : "login-reflections.webp")
           }
@@ -15,8 +14,8 @@ export default function AccessShell({ institution = false, children }) {
           fetchPriority="high"
         />
         <div className={s.shade} />
-        <a className={s.brand} href="/">
-          <img src={base + "/brand/mark.svg"} width="27" height="27" alt="" />
+        <a className={s.brand} href={marketingHref("/")}>
+          <img src={"/brand/mark.svg"} width="27" height="27" alt="" />
           Thesauros
         </a>
         <div className={s.visualCopy}>
@@ -49,12 +48,12 @@ export default function AccessShell({ institution = false, children }) {
       </section>
       <section className={s.access}>
         <div className={s.topLinks}>
-          <a href="/docs/">Documentation</a>
-          <a href="/contact">Contact</a>
+          <a href={documentationHref("/")}>Documentation</a>
+          <a href={marketingHref("/contact")}>Contact</a>
         </div>
         <div className={s.formWrap}>
-          <a className={s.mobileBrand} href="/">
-            <img src={base + "/brand/mark.svg"} width="25" height="25" alt="" />
+          <a className={s.mobileBrand} href={marketingHref("/")}>
+            <img src={"/brand/mark.svg"} width="25" height="25" alt="" />
             Thesauros
           </a>
           <nav className={s.modes} aria-label="Account type">
@@ -74,7 +73,7 @@ export default function AccessShell({ institution = false, children }) {
           {children}
         </div>
         <div className={s.accessFoot}>
-          <a href="/">Back to Thesauros</a>
+          <a href={marketingHref("/")}>Back to Thesauros</a>
           <span>Your capital. Your choice.</span>
         </div>
       </section>

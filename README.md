@@ -10,7 +10,7 @@ Individual uses wallet sign-in, persistent test deposits and live protocol/marke
 | `/app/institution`     | Coming soon, with early-access contact and documentation                               |
 | `/developers/`         | Institution coming soon                                                                |
 | `/monitoring/`         | Institution coming soon                                                                |
-| `/developers/api/v1/…` | Existing integration sandbox and SDK contract                                          |
+| `/api/v1/…` | Existing integration sandbox and SDK contract                                          |
 
 Individual uses wallet connection and Sign-In with Ethereum. Institution and the legacy developer entry show Coming soon. See [account setup and operation](docs/ACCOUNT-WORKSPACES.md).
 
@@ -18,11 +18,11 @@ Individual uses wallet connection and Sign-In with Ethereum. Institution and the
 
 This directory has its own `package.json` and lockfile. Run `npm ci` from the repository root, then
 follow [setup and routing](docs/DEPLOYMENT.md) to configure the account database,
-initialize auth, build Next.js and connect the `/app/` reverse proxy. The NestJS backend and SDKs live separately in `Thesauros/developer.thesauros.io`.
+initialize auth, build Next.js and open `/app/individual` directly. No URL rewrite is required. The NestJS backend and SDKs live separately in `Thesauros/developer.thesauros.io`.
 
 ## Active source
 
-- `app/customer/ProductApp.jsx` and `workspace.module.css`: role-aware shell and account navigation.
+- `app/app/ProductApp.jsx` and `workspace.module.css`: role-aware shell and account navigation.
 - `Login.jsx`, `EntryRedirect.jsx`, `destination.mjs`: wallet sign-in and trusted destination mapping.
 - `LivePanels.jsx`, `WalletCard.jsx`, `lib/live-data.mjs`: protocol, external markets and read-only wallet balances.
 - `TestAccount.jsx`, `lib/product-ledger.mjs`: persistent test balances and idempotent simulated deposits/withdrawals.
@@ -38,7 +38,8 @@ Accounts and test transactions persist in the private SQLite or configured Turso
 Run `npm test` for ledger invariants, data normalization and source-cache behavior.
 The public data fixtures are included under `test/fixtures/live-data`; tests do
 not require the original preview workspace. Run `npm run build` after configuring
-and initializing auth as described in the deployment guide.
+and initializing auth as described in the deployment guide, then run `npm run test:routes`
+to check native routes, assets and wallet sessions on the compiled server.
 
 The shared preview also has browser journey and public-route checks maintained
 beside the marketing server. Those deployment-specific scripts and private test

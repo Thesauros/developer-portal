@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEXT_TELEMETRY_DISABLED: "1"
-      NEXT_PUBLIC_BASE_PATH: /developers
       BETTER_AUTH_URL: http://localhost:8879
       BETTER_AUTH_SECRET: ci-only-isolated-test-database-not-for-deployment
       THESAUROS_AUTH_DB: /tmp/thesauros-web-ci/accounts.sqlite
@@ -29,6 +28,7 @@ jobs:
       - name: Initialize isolated account database
         run: node scripts/init-auth.mjs
       - run: npm run build
+      - run: npm run test:routes
       - name: Test deployment authorization and rollback
         run: |
           npm ci --prefix deploy/automation --ignore-scripts

@@ -1,4 +1,5 @@
 'use client';
+import { documentationHref } from '../../lib/site-links.mjs';
 
 import { useState } from 'react';
 import s from '../platform.module.css';
@@ -109,7 +110,7 @@ export default function Quickstart({ go }) {
         <Badge tone="teal">test mode</Badge>
       </div>
 
-      <p className={s.sectionLinks}><a href="/docs/sdks/downloads/">Download SDK 1.1.0</a><a href="/docs/start/quickstart/">Partner API quickstart</a></p>
+      <p className={s.sectionLinks}><a href={documentationHref("/sdks/downloads/")}>Download SDK 1.1.0</a><a href={documentationHref("/start/quickstart/")}>Partner API quickstart</a></p>
       <Step
         n="1"
         title="Install the SDK"
