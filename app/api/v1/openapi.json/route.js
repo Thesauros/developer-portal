@@ -120,7 +120,7 @@ function buildDoc() {
         'Enterprise yield-infrastructure sandbox API. Deterministic simulation of the Thesauros routing engine: vaults, aggregated yield, positions with live accrual, rebalances, webhooks and usage telemetry. All APY values are decimal fractions (0.052 = 5.2%).',
       contact: { name: 'Thesauros', url: 'https://developer.thesauros.io' },
     },
-    servers: [{ url: (process.env.NEXT_PUBLIC_BASE_PATH || '') + '/api/v1', description: 'Earn sandbox' }],
+    servers: [{ url: '/api/v1', description: 'Earn sandbox' }],
     tags: [
       { name: 'keys', description: 'API key management' },
       { name: 'users', description: 'Partner end-users' },

@@ -1,3 +1,4 @@
+import { checkApplication } from "./health.mjs";
 import { spawn, execFileSync } from "node:child_process";
 import {
   mkdirSync,
@@ -116,39 +117,12 @@ export async function activateRelease(next, previous, operations) {
   }
 }
 
-async function health(port) {
-  const local = `http://127.0.0.1:${port}`;
-  const options = () => ({
-    headers: { Host: "app-v2-dev.thesauros.io", "X-Forwarded-Proto": "https" },
-    signal: AbortSignal.timeout(5000),
-  });
-  const page = await fetch(local + "/developers/customer", options());
-  if (page.status !== 200) throw new Error("Sign-in page is not healthy");
-  const html = await page.text();
-  if (!html.includes("Welcome back."))
-    throw new Error("Sign-in page content is missing");
-  const asset = html.match(/src="(\/developers\/_next\/static\/[^" ]+\.js)"/);
-  if (!asset || !(await fetch(local + asset[1], options())).ok)
-    throw new Error("Application assets are not healthy");
-  const session = await fetch(
-    local + "/developers/api/auth/get-session",
-    options(),
-  );
-  if (session.status !== 200 || (await session.json()) !== null)
-    throw new Error("Session endpoint is not healthy");
-  const workspace = await fetch(
-    local + "/developers/customer/api?mode=individual",
-    options(),
-  );
-  if (workspace.status !== 401)
-    throw new Error("Workspace authentication check failed");
-}
-
-async function waitHealthy(port) {
+async function waitHealthy(port, release) {
+  const legacy = !existsSync(join(release, "app/app/page.jsx"));
   let last;
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
-      await health(port);
+      await checkApplication(`http://127.0.0.1:${port}`, { legacy });
       return;
     } catch (error) {
       last = error;
@@ -208,7 +182,7 @@ async function deploy(sha) {
     return 3;
   }
   if (previous.sha === sha && previous.release !== checkout) {
-    await waitHealthy(18880);
+    await waitHealthy(18880, previous.release);
     console.log("This commit is already healthy.");
     return 0;
   }
@@ -305,7 +279,7 @@ async function deploy(sha) {
       { cwd: release, env: runtime, stdio: "inherit" },
     );
     candidate.once("error", (error) => console.error(error.message));
-    await waitHealthy(18881);
+    await waitHealthy(18881, release);
   } finally {
     if (candidate && candidate.exitCode === null) {
       candidate.kill("SIGTERM");
@@ -319,7 +293,7 @@ async function deploy(sha) {
   const next = { sha, release, deployedAt: new Date().toISOString() };
   await activateRelease(next, previous, {
     apply,
-    healthy: () => waitHealthy(18880),
+    healthy: (value) => waitHealthy(18880, value.release),
     persist: async (value) => {
       await run(node, [pm2, "save"]);
       saveJSON(currentPath, value);

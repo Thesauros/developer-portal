@@ -8,6 +8,7 @@ const directory = mkdtempSync(join(tmpdir(), "thesauros-wallet-test-"));
 const origin = "http://localhost:8879";
 process.env.BETTER_AUTH_URL = origin;
 process.env.BETTER_AUTH_SECRET = "isolated-test-secret-only-not-for-deployment";
+// A stale deployment variable must not change native routes.
 process.env.NEXT_PUBLIC_BASE_PATH = "/developers";
 process.env.THESAUROS_AUTH_DB = join(directory, "accounts.sqlite");
 if (process.argv.includes("--libsql"))
@@ -22,7 +23,7 @@ globalThis.fetch = async () =>
   });
 await import("../scripts/init-auth.mjs");
 const route = await import("../app/api/auth/[...all]/route.js");
-const ledger = await import("../app/customer/api/route.js");
+const ledger = await import("../app/app/api/route.js");
 const { auth, database, userSession } = await import("../lib/auth.mjs");
 const { walletStatement } = await import("../lib/wallet-auth.mjs");
 let checks = 0;
@@ -48,7 +49,7 @@ function updateCookies(browser, response) {
   }
 }
 async function post(browser, path, body = {}, options = {}) {
-  const request = new Request(origin + "/developers/api/auth/" + path, {
+  const request = new Request(origin + "/api/auth/" + path, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -83,19 +84,16 @@ async function challenge(browser, account, changes = {}) {
   return { message, signature: await account.signMessage({ message }) };
 }
 async function api(browser, mode = "individual", body) {
-  const request = new Request(
-    origin + "/developers/customer/api?mode=" + mode,
-    {
-      headers: {
-        origin,
-        cookie: cookieHeader(browser),
-        "content-type": "application/json",
-      },
-      ...(body
-        ? { method: "POST", body: JSON.stringify({ mode, ...body }) }
-        : {}),
+  const request = new Request(origin + "/app/api?mode=" + mode, {
+    headers: {
+      origin,
+      cookie: cookieHeader(browser),
+      "content-type": "application/json",
     },
-  );
+    ...(body
+      ? { method: "POST", body: JSON.stringify({ mode, ...body }) }
+      : {}),
+  });
   return body ? ledger.POST(request) : ledger.GET(request);
 }
 try {

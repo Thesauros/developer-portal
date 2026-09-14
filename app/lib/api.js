@@ -2,17 +2,16 @@
 // Defaults to the built-in sandbox on the same origin (/api/v1);
 // set NEXT_PUBLIC_API_BASE to point the portal at a real API deployment.
 
-export const APP_BASE = process.env.NEXT_PUBLIC_BASE_PATH || '';
-export const BASE = process.env.NEXT_PUBLIC_API_BASE || APP_BASE + '/api/v1';
+export const BASE = process.env.NEXT_PUBLIC_API_BASE || '/api/v1';
 
 // Real-data mode: the portal reads live data from the Thesauros Partner API,
 // proxied same-origin through Next.js rewrites (/api/v1/real/* -> PARTNER_API_URL).
 // Enable with NEXT_PUBLIC_DATA_SOURCE=real (see .env.example).
 export const DATA_SOURCE = process.env.NEXT_PUBLIC_DATA_SOURCE === 'real' ? 'real' : 'sandbox';
 export const IS_REAL = DATA_SOURCE === 'real';
-export const REAL_BASE = APP_BASE + '/api/v1/real';
+export const REAL_BASE = '/api/v1/real';
 // On-chain protocol metrics, proxied to the monitoring service.
-export const MONITOR_BASE = APP_BASE + '/api/v1/monitor';
+export const MONITOR_BASE = '/api/v1/monitor';
 
 export const BOOTSTRAP_KEY = 'tsk_test_thesauros_sandbox_0000000000000000';
 // Real-mode defaults (test environment seeded keys):

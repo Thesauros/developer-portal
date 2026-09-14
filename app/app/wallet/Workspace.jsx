@@ -4,7 +4,6 @@ import { useAccount } from "wagmi";
 import WalletProvider, { WalletTheme } from "./WalletProvider";
 import ProductApp from "../ProductApp";
 import BrandLoading from "../../ui/BrandLoading";
-const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
 function SessionGuard({ user }) {
   const { address, status } = useAccount();
   const connected = useRef(false);
@@ -16,7 +15,7 @@ function SessionGuard({ user }) {
     if (status === "connected") connected.current = true;
     if (mismatch || (connected.current && status === "disconnected")) {
       setLeaving(true);
-      fetch(base + "/api/auth/sign-out", {
+      fetch("/api/auth/sign-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",

@@ -1,9 +1,9 @@
 "use client";
+import { documentationHref, marketingHref } from "../../lib/site-links.mjs";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useDisconnect } from "wagmi";
 import {
-  base,
   useLive,
   Protocol,
   Markets,
@@ -90,7 +90,7 @@ export default function ProductApp({ mode, user }) {
   async function signOut() {
     setSigningOut(true);
     try {
-      const r = await fetch(base + "/api/auth/sign-out", {
+      const r = await fetch("/api/auth/sign-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -182,16 +182,16 @@ export default function ProductApp({ mode, user }) {
         Skip to workspace
       </a>
       <header className={s.header}>
-        <a className={s.brand} href="/">
-          <img src={base + "/brand/mark.svg"} width="26" height="26" alt="" />
+        <a className={s.brand} href={marketingHref("/")}>
+          <img src={"/brand/mark.svg"} width="26" height="26" alt="" />
           Thesauros
         </a>
         <span className={s.headerMode}>
           {institution ? "Institution" : "Individual"}
         </span>
         <nav>
-          <a href="/docs/">Documentation</a>
-          <a href="/contact">Support</a>
+          <a href={documentationHref("/")}>Documentation</a>
+          <a href={marketingHref("/contact")}>Support</a>
           <button
             className={s.accountButton}
             onClick={() => navigate("settings")}
@@ -322,7 +322,7 @@ export default function ProductApp({ mode, user }) {
                 <br />
                 to your product.
               </span>
-              <a href="/contact">Talk to Thesauros</a>
+              <a href={marketingHref("/contact")}>Talk to Thesauros</a>
             </div>
             <button onClick={signOut} disabled={signingOut}>
               {signingOut ? "Signing out…" : "Sign out"}
@@ -438,7 +438,6 @@ export default function ProductApp({ mode, user }) {
                         style={{
                           backgroundImage:
                             "linear-gradient(90deg,#122e48ed,#122e4830),url(" +
-                            base +
                             "/brand/login-gallery.webp)",
                         }}
                       >
@@ -540,7 +539,9 @@ export default function ProductApp({ mode, user }) {
                   >
                     Explore test customers
                   </button>
-                  <a href="/contact">Connect a partner integration</a>
+                  <a href={marketingHref("/contact")}>
+                    Connect a partner integration
+                  </a>
                 </div>
               </section>
             )}
@@ -549,8 +550,10 @@ export default function ProductApp({ mode, user }) {
             <span>
               Thesauros · {institution ? "Institution" : "Individual"}
             </span>
-            <a href="/docs/security/controls/">Security & controls</a>
-            <a href="/docs/">Documentation</a>
+            <a href={documentationHref("/security/controls/")}>
+              Security & controls
+            </a>
+            <a href={documentationHref("/")}>Documentation</a>
           </footer>
         </main>
       </div>

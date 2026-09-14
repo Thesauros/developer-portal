@@ -2,7 +2,7 @@
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useEffect, useRef, useState } from "react";
-import { base, fmt, Mark, short, stamp } from "./LivePanels";
+import { fmt, Mark, short, stamp } from "./LivePanels";
 import s from "./workspace.module.css";
 const ERC20 = [
   "function balanceOf(address) view returns (uint256)",

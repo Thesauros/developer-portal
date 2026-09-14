@@ -16,7 +16,7 @@ Local preview uses `THESAUROS_AUTH_DB` (better-sqlite3). When `TURSO_DATABASE_UR
 
 `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` can override the existing public project identifier used by the old app. Configure the deployment's allowed origins in the WalletConnect project when an allowlist is enabled. The origin must also match the signed message and `BETTER_AUTH_URL`.
 
-The web app expects the same `/app/` and `/developers/` reverse-proxy mapping described in DEPLOYMENT.md. An IP/HTTP preview is useful for review; use the production HTTPS origin when testing real mobile wallet handoff.
+The web app serves native `/app/*` and `/api/*` routes directly, as described in DEPLOYMENT.md. An IP/HTTP preview is useful for review; use the production HTTPS origin when testing real mobile wallet handoff.
 
 ## Test scope
 
