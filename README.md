@@ -23,7 +23,8 @@ developer-portal/
 │   ├── ui/                      CodeBlock + syntax highlight, SVG charts, primitives
 │   ├── lib/                     Client-side API helper + formatters, icon set
 │   ├── data/                    Endpoint catalog + code samples (TS/Python/cURL)
-│   └── api/v1/                  Built-in sandbox REST API — 31 route handlers
+│   ├── api/v1/                  Built-in sandbox REST API — 31 route handlers
+│   └── api/admin/               Real-mode server-side proxy (holds PARTNER_ADMIN_KEY)
 └── lib/api/                     Sandbox core: auth, rate limiting, simulation engine,
                                  webhook signing/dispatch, SSRF guard, HTTP envelopes
 ```
@@ -79,10 +80,15 @@ Two mechanisms, both configured in `.env` (see `.env.example`):
    Views without a production counterpart (Webhooks, Reconciliation, Usage,
    Status, API Reference Try-it) keep running on the built-in sandbox.
 
-   Keys: any valid `tsk_*` key works for protocol-wide endpoints
-   (`yield/history`); partner-scoped views need a partner key
-   (`partner:read`), key management needs `keys:admin`. Paste the key into the
-   portal session key field (API Keys view).
+   Keys: real mode ships no Partner API credential to the browser. Key
+   management (`keys:admin`) and the read-only partner endpoints behind Users
+   and Analytics (`partner/summary`, `partner/users`,
+   `partner/user/:id/positions`) run through the server-side admin proxy
+   `/api/admin/*`, which attaches `PARTNER_ADMIN_KEY` on the server and
+   forwards only those allowlisted paths. With `PARTNER_ADMIN_KEY` unset the
+   proxy answers `503` and those views render their empty state. On-chain
+   metrics need no auth, and the built-in sandbox keeps using the public
+   bootstrap key above.
 
    `NEXT_PUBLIC_DATA_SOURCE` is inlined at build time — set it in the deploy
    environment before `next build`.

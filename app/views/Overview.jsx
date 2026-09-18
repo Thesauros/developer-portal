@@ -383,6 +383,13 @@ export default function Overview({ go, apiKey }) {
               ) : null}
             </tbody>
           </table>
+          <div className={s.cardPad} style={{ borderTop: '1px solid var(--stroke)', paddingTop: 12, paddingBottom: 12 }}>
+            <span className={s.faint} style={{ fontSize: 12, lineHeight: 1.6 }}>
+              Published terms: the protocol performance fee is 25% of generated yield, nothing
+              on principal. Partners keep 50% of that fee as standard, up to 80% (12.5–20% of
+              yield).
+            </span>
+          </div>
         </div>
 
         <div className={`${s.card} ${s.cardPad} ${s.revealItem}`} style={{ animationDelay: '140ms' }}>

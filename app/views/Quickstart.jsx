@@ -85,7 +85,7 @@ export default function Quickstart({ go }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '22px 0 30px' }}>
         <LangTabs lang={lang} setLang={setLang} />
         <span className={s.faint} style={{ fontSize: 12.5 }}>
-          Sandbox key is pre-filled.{' '}
+          {IS_REAL ? 'These samples run against the built-in sandbox.' : 'Sandbox key is pre-filled.'}{' '}
           <button type="button" className={s.btnGhost} style={{ minHeight: 'auto', padding: '0 4px', color: 'var(--blue-strong)' }} onClick={() => go('keys')}>
             Create your own →
           </button>
@@ -103,10 +103,10 @@ export default function Quickstart({ go }) {
             {IS_REAL ? 'Default portal key' : 'Shared sandbox key'}
           </div>
           <div className={`${s.mono} ${s.faint}`} style={{ fontSize: 12, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {DEFAULT_KEY}
+            {DEFAULT_KEY || 'No credential ships with the portal — Partner API calls are authenticated server-side.'}
           </div>
         </div>
-        <CopyButton text={DEFAULT_KEY} label="Copy key" />
+        {DEFAULT_KEY ? <CopyButton text={DEFAULT_KEY} label="Copy key" /> : null}
         <Badge tone="teal">test mode</Badge>
       </div>
 

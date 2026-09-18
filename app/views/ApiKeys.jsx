@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, post, del, maskKey, timeAgo, DEFAULT_KEY, IS_REAL, REAL_BASE, REAL_ADMIN_KEY } from '../lib/api';
+import { get, post, del, maskKey, timeAgo, DEFAULT_KEY, IS_REAL, ADMIN_BASE } from '../lib/api';
 import { Badge, Modal, CopyButton, Empty, Spinner } from '../ui/primitives';
 import { IconKey, IconPlus, IconTrash, IconShield } from '../lib/icons';
 
@@ -16,11 +16,13 @@ export default function ApiKeys({ apiKey, setApiKey }) {
   const [newSecret, setNewSecret] = useState(null); // shown once after create
   const [error, setError] = useState(null);
 
-  // Real mode manages keys against the production Partner API. Key
-  // management needs keys:admin, which the partner-scoped session key lacks —
-  // so the admin surface runs on the seeded admin key.
-  const API_BASE = IS_REAL ? REAL_BASE : undefined;
-  const adminKey = IS_REAL ? REAL_ADMIN_KEY : apiKey;
+  // Real mode manages keys against the production Partner API. Key management
+  // needs keys:admin, so it goes through the server-side admin proxy
+  // (/api/admin/*), which attaches PARTNER_ADMIN_KEY on the server — the admin
+  // credential is never shipped to the browser. Sandbox mode calls the built-in
+  // API with the portal session key.
+  const API_BASE = IS_REAL ? ADMIN_BASE : undefined;
+  const adminKey = IS_REAL ? null : apiKey;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -73,7 +75,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
           <p className={s.viewLead}>
             Keys authenticate every request. Test keys hit the sandbox; live keys route production
             flow. Secrets are shown exactly once — store them in a secret manager.
-            {IS_REAL ? ' Key management runs on the seeded admin key (keys:admin).' : ''}
+            {IS_REAL ? ' Key management runs server-side through the portal’s admin proxy (keys:admin).' : ''}
           </p>
         </div>
         <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => { setNewSecret(null); setCreateOpen(true); }}>
@@ -87,7 +89,9 @@ export default function ApiKeys({ apiKey, setApiKey }) {
           <div>
             <div className={s.h3} style={{ fontSize: 13.5 }}>Portal session key</div>
             <div className={s.faint} style={{ fontSize: 12.5, marginTop: 3 }}>
-              This key is used by the Try-it playground and dashboard calls on this page.
+              {IS_REAL
+                ? 'Partner API calls are authenticated server-side by the portal, so no credential is pre-filled here. A key you create below becomes the session key via “Use as portal key”.'
+                : 'This key is used by the Try-it playground and dashboard calls on this page.'}
             </div>
           </div>
           <div className={s.row}>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, post, timeAgo, shortAddr, fmtUsd, fmtApy, IS_REAL, REAL_BASE } from '../lib/api';
+import { get, post, timeAgo, shortAddr, fmtUsd, fmtApy, IS_REAL, ADMIN_BASE } from '../lib/api';
 import { Badge, Modal, Empty, Spinner } from '../ui/primitives';
 import { IconUsers, IconPlus, IconArrowRight } from '../lib/icons';
 
@@ -15,11 +15,12 @@ export default function Users({ apiKey }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // Real mode reads attributed users from the Partner API (partner-scoped);
-  // user creation and per-user ledgers are sandbox-only features.
+  // Real mode reads attributed users from the Partner API through the
+  // server-side admin proxy, which attaches the partner credential on the
+  // server; user creation and per-user ledgers are sandbox-only features.
   const load = useCallback(() => {
     const path = IS_REAL ? '/partner/users?limit=100' : '/users?limit=100';
-    get(path, { key: apiKey, base: IS_REAL ? REAL_BASE : undefined })
+    get(path, { key: IS_REAL ? null : apiKey, base: IS_REAL ? ADMIN_BASE : undefined })
       .then(({ data }) => setUsers(Array.isArray(data) ? data : []))
       .catch((e) => setError(e.message));
   }, [apiKey]);
@@ -35,8 +36,8 @@ export default function Users({ apiKey }) {
       try {
         if (IS_REAL) {
           const pos = await get(`/partner/user/${user.id}/positions`, {
-            key: apiKey,
-            base: REAL_BASE,
+            key: null,
+            base: ADMIN_BASE,
           }).then((r) => r.data);
           setDetail({ positions: pos, ledger: [] });
         } else {

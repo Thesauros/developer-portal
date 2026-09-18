@@ -13,14 +13,17 @@ export const REAL_BASE = '/api/v1/real';
 // On-chain protocol metrics, proxied to the monitoring service.
 export const MONITOR_BASE = '/api/v1/monitor';
 
+// Public by design: this shared key authenticates every anonymous portal
+// session against the built-in sandbox API and is documented in the README.
 export const BOOTSTRAP_KEY = 'tsk_test_thesauros_sandbox_0000000000000000';
-// Real-mode defaults (test environment seeded keys):
-// - session key: partner-scoped so partner views (Users, Analytics) work;
-// - admin key: keys:admin for the API Keys management surface, which the
-//   partner-scoped session key cannot call.
-export const REAL_BOOTSTRAP_KEY = 'tsk_test_acme_partner_key_00000000000000000';
-export const REAL_ADMIN_KEY = 'tsk_test_master_full_access_000000000000000';
-export const DEFAULT_KEY = IS_REAL ? REAL_BOOTSTRAP_KEY : BOOTSTRAP_KEY;
+
+// Real mode ships no Partner API credential to the browser: key management
+// (keys:admin) and the read-only partner endpoints behind Users + Analytics run
+// through the server-side admin proxy below, which attaches PARTNER_ADMIN_KEY
+// on the server. The real-mode default session key is therefore empty; a key
+// created in the API Keys view can still be adopted as the session key.
+export const ADMIN_BASE = '/api/admin';
+export const DEFAULT_KEY = IS_REAL ? '' : BOOTSTRAP_KEY;
 
 export class PortalApiError extends Error {
   constructor(status, code, message) {
@@ -36,8 +39,10 @@ export class PortalApiError extends Error {
  * on the returned object's non-enumerable props for the few callers that
  * need envelopes. Most callers just want `data`.
  *
- * `base` selects the API surface: BASE (built-in sandbox, default) or
- * REAL_BASE (same-origin proxy to the real Partner API).
+ * `base` selects the API surface: BASE (built-in sandbox, default),
+ * REAL_BASE (same-origin proxy to the real Partner API, caller supplies the
+ * key) or ADMIN_BASE (server-side admin proxy, which supplies the key itself —
+ * pass `key: null`).
  */
 export async function api(path, { method = 'GET', key = BOOTSTRAP_KEY, body, base = BASE } = {}) {
   const headers = { Accept: 'application/json' };

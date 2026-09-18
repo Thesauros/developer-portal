@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, getRetry, fmtUsd, fmtApy, timeAgo, shortAddr, IS_REAL, REAL_BASE } from '../lib/api';
+import { get, getRetry, fmtUsd, fmtApy, timeAgo, shortAddr, IS_REAL, ADMIN_BASE } from '../lib/api';
 import { Badge, Empty, Spinner } from '../ui/primitives';
 import { IconSpark, IconScale, IconArrowUpRight } from '../lib/icons';
 
@@ -18,10 +18,13 @@ export default function Analytics({ apiKey }) {
   const [summary, setSummary] = useState(null); // real mode: partner economics
   const [summaryErr, setSummaryErr] = useState(null);
 
+  // Real-mode partner economics come from the Partner API through the
+  // server-side admin proxy, which attaches the partner credential on the
+  // server; the browser sends no key.
   useEffect(() => {
     if (!IS_REAL) return undefined;
     let alive = true;
-    getRetry('/partner/summary', { key: apiKey, base: REAL_BASE })
+    getRetry('/partner/summary', { key: null, base: ADMIN_BASE })
       .then(({ data }) => {
         if (!alive) return;
         setSummary(data);
@@ -31,7 +34,7 @@ export default function Analytics({ apiKey }) {
     return () => {
       alive = false;
     };
-  }, [apiKey]);
+  }, []);
 
   useEffect(() => {
     if (IS_REAL) {
@@ -80,8 +83,10 @@ export default function Analytics({ apiKey }) {
           {IS_REAL ? (
             summaryErr ? (
               <div className={`${s.card} ${s.cardPad}`} style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-2)', borderLeft: '3px solid var(--orange)' }}>
-                Partner economics unavailable with the current key ({summaryErr}). Use a
-                partner-scoped key to load live revenue-share data.
+                Partner economics unavailable ({summaryErr}). Live economics are
+                fetched server-side from the Partner API — set{' '}
+                <span className={s.mono}>PARTNER_ADMIN_KEY</span> on the portal server to
+                enable them.
               </div>
             ) : summary && summary.revenue ? (
               <div className={`${s.card} ${s.revealItem}`} style={{ marginTop: 24, overflow: 'hidden' }}>
@@ -104,15 +109,20 @@ export default function Analytics({ apiKey }) {
                     </div>
                   ))}
                 </div>
-                {summary.partner ? (
-                  <div className={s.cardPad} style={{ borderTop: '1px solid var(--stroke)', paddingTop: 12, paddingBottom: 12 }}>
-                    <span className={s.faint} style={{ fontSize: 12 }}>
+                <div className={s.cardPad} style={{ borderTop: '1px solid var(--stroke)', paddingTop: 12, paddingBottom: 12 }}>
+                  <div className={s.faint} style={{ fontSize: 12, lineHeight: 1.6 }}>
+                    Published terms: the protocol performance fee is 25% of generated yield,
+                    nothing on principal. Partners keep 50% of that fee as standard, up to 80%
+                    (12.5–20% of yield).
+                  </div>
+                  {summary.partner ? (
+                    <span className={s.faint} style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
                       Partner <span className={s.strong}>{summary.partner.name}</span>{' '}
                       <span className={`${s.mono} ${s.faint}`} style={{ fontSize: 11 }}>({summary.partner.id})</span>
                       {summary.as_of ? <> · as of <span className={s.strong}>{new Date(summary.as_of).toUTCString()}</span></> : null}
                     </span>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
             ) : null
           ) : null}
