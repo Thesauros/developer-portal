@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, post, del, maskKey, timeAgo, DEFAULT_KEY, IS_REAL, ADMIN_BASE } from '../lib/api';
+import { get, post, del, maskKey, timeAgo, DEFAULT_KEY, IS_REAL, ADMIN_BASE, ACCOUNT_APP_URL } from '../lib/api';
 import { Badge, Modal, CopyButton, Empty, Spinner } from '../ui/primitives';
 import { IconKey, IconPlus, IconTrash, IconShield } from '../lib/icons';
 
@@ -41,9 +41,12 @@ export default function ApiKeys({ apiKey, setApiKey }) {
     setCreating(true);
     setError(null);
     try {
+      // Real mode offers no live option (see the modal): the portal never mints
+      // live keys, so the environment is pinned to test there regardless of state.
+      const environment = IS_REAL ? 'test' : env;
       const { data } = await post(
         '/keys',
-        { label: label || 'Untitled key', environment: env },
+        { label: label || 'Untitled key', environment },
         { key: adminKey, base: API_BASE },
       );
       setNewSecret(data);
@@ -73,15 +76,55 @@ export default function ApiKeys({ apiKey, setApiKey }) {
           <span className={s.kicker}>Credentials</span>
           <h1 className={s.viewTitle}>API Keys</h1>
           <p className={s.viewLead}>
-            Keys authenticate every request. Test keys hit the sandbox; live keys route production
-            flow. Secrets are shown exactly once — store them in a secret manager.
-            {IS_REAL ? ' Key management runs server-side through the portal’s admin proxy (keys:admin).' : ''}
+            {IS_REAL ? (
+              <>
+                Keys authenticate every request. Secrets are shown exactly once — store them in a
+                secret manager. This view manages keys server-side through the portal’s admin proxy
+                (keys:admin). It does not mint live keys: your own{' '}
+                <code className={s.mono}>tsk_live_</code> key is created in the account app, then
+                used here.
+              </>
+            ) : (
+              <>
+                Keys authenticate every request. Test keys hit the sandbox; live keys route production
+                flow. Secrets are shown exactly once — store them in a secret manager.
+              </>
+            )}
           </p>
         </div>
         <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => { setNewSecret(null); setCreateOpen(true); }}>
           <IconPlus size={14} /> Create key
         </button>
       </div>
+
+      {IS_REAL ? (
+        <div
+          className={`${s.card} ${s.cardPad} ${s.revealItem}`}
+          style={{ marginTop: 22, display: 'flex', gap: 14, alignItems: 'flex-start', borderLeft: '3px solid var(--orange)' }}
+        >
+          <IconKey size={18} style={{ color: 'var(--orange)', flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <div className={s.h3} style={{ fontSize: 13.5 }}>Live keys are created in the account app</div>
+            <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>
+              A production <code className={s.mono}>tsk_live_</code> key is bound to your account, so
+              it is issued where your identity lives — not from this portal, which has no sign-in and
+              cannot tell one partner from another. Sign in to the account app, open{' '}
+              <span className={s.strong}>Developer tools → API keys</span>, and create your first live
+              key there; it is shown once. Then paste it below as the portal session key to drive the
+              views on this site.
+            </p>
+            <a
+              className={`${s.btn} ${s.btnSecondary} ${s.btnSm}`}
+              style={{ marginTop: 10, display: 'inline-flex' }}
+              href={ACCOUNT_APP_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              Open the account app
+            </a>
+          </div>
+        </div>
+      ) : null}
 
       {/* active key selector */}
       <div className={`${s.card} ${s.cardPad} ${s.revealItem}`} style={{ marginTop: 26, borderLeft: '3px solid var(--blue)' }}>
@@ -167,15 +210,33 @@ export default function ApiKeys({ apiKey, setApiKey }) {
         <IconShield size={18} style={{ color: 'var(--teal)', flexShrink: 0, marginTop: 2 }} />
         <div>
           <div className={s.h3} style={{ fontSize: 13.5 }}>Scopes & rotation</div>
-          <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>
-            Every key is scoped: <code className={s.mono}>read</code> (GET),{' '}
-            <code className={s.mono}>write</code> (positions &amp; webhooks) and{' '}
-            <code className={s.mono}>keys:admin</code> (key management). Scopes are server-assigned — a
-            key cannot grant itself broader access, and minting <code className={s.mono}>live</code> keys
-            requires the <code className={s.mono}>keys:live</code> scope. Revocation is immediate: a
-            revoked key returns <code className={s.mono}>401</code>, and an out-of-scope call returns{' '}
-            <code className={s.mono}>403</code>.
-          </p>
+          {IS_REAL ? (
+            <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>
+              Every key is scoped: <code className={s.mono}>read</code> and{' '}
+              <code className={s.mono}>write</code> for protocol-level data,{' '}
+              <code className={s.mono}>partner:read</code> for the endpoints bound to one partner, and{' '}
+              <code className={s.mono}>keys:admin</code> / <code className={s.mono}>partner:admin</code>{' '}
+              for operators. Scopes are server-assigned — a key cannot grant itself broader access.
+              Minting a <code className={s.mono}>live</code> key takes{' '}
+              <code className={s.mono}>keys:admin</code>, or the self-serve onboarding path in the
+              account app, which issues exactly one{' '}
+              <code className={s.mono}>read</code>+<code className={s.mono}>write</code> live key per
+              account. Production rejects every <code className={s.mono}>tsk_test_</code> key.
+              Revocation is immediate: a revoked key returns{' '}
+              <code className={s.mono}>401</code>, and an out-of-scope call returns{' '}
+              <code className={s.mono}>403</code>.
+            </p>
+          ) : (
+            <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>
+              Every key is scoped: <code className={s.mono}>read</code> (GET),{' '}
+              <code className={s.mono}>write</code> (positions &amp; webhooks) and{' '}
+              <code className={s.mono}>keys:admin</code> (key management). Scopes are server-assigned — a
+              key cannot grant itself broader access, and minting <code className={s.mono}>live</code> keys
+              requires the <code className={s.mono}>keys:live</code> scope. Revocation is immediate: a
+              revoked key returns <code className={s.mono}>401</code>, and an out-of-scope call returns{' '}
+              <code className={s.mono}>403</code>.
+            </p>
+          )}
         </div>
       </div>
 
@@ -217,10 +278,29 @@ export default function ApiKeys({ apiKey, setApiKey }) {
             </div>
             <div className={s.field}>
               <label className={s.fieldLabel}>Environment</label>
-              <div className={s.envSwitch} style={{ maxWidth: 260 }}>
-                <button type="button" className={`${s.envBtn} ${env === 'test' ? s.envBtnActive : ''}`} onClick={() => setEnv('test')}>Test</button>
-                <button type="button" className={`${s.envBtn} ${env === 'live' ? s.envBtnActive : ''}`} onClick={() => setEnv('live')}>Live</button>
-              </div>
+              {IS_REAL ? (
+                <>
+                  <div className={s.envSwitch} style={{ maxWidth: 260 }}>
+                    <button type="button" className={`${s.envBtn} ${s.envBtnActive}`}>Test</button>
+                  </div>
+                  <div className={s.faint} style={{ fontSize: 12, lineHeight: 1.6, marginTop: 8, maxWidth: 520 }}>
+                    This portal creates <code className={s.mono}>test</code> keys only, through the
+                    admin proxy. A production Partner API rejects{' '}
+                    <code className={s.mono}>tsk_test_</code> keys, so a key created here is for a
+                    non-production stand. Your <code className={s.mono}>tsk_live_</code> key is created
+                    in the{' '}
+                    <a href={ACCOUNT_APP_URL} target="_blank" rel="noreferrer noopener" style={{ color: 'var(--blue-strong)' }}>
+                      account app
+                    </a>
+                    .
+                  </div>
+                </>
+              ) : (
+                <div className={s.envSwitch} style={{ maxWidth: 260 }}>
+                  <button type="button" className={`${s.envBtn} ${env === 'test' ? s.envBtnActive : ''}`} onClick={() => setEnv('test')}>Test</button>
+                  <button type="button" className={`${s.envBtn} ${env === 'live' ? s.envBtnActive : ''}`} onClick={() => setEnv('live')}>Live</button>
+                </div>
+              )}
             </div>
             <div className={s.row} style={{ justifyContent: 'flex-end', gap: 10 }}>
               <button type="button" className={`${s.btn} ${s.btnGhost}`} onClick={() => setCreateOpen(false)}>Cancel</button>

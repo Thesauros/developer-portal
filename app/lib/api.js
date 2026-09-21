@@ -25,6 +25,13 @@ export const BOOTSTRAP_KEY = 'tsk_test_thesauros_sandbox_0000000000000000';
 export const ADMIN_BASE = '/api/admin';
 export const DEFAULT_KEY = IS_REAL ? '' : BOOTSTRAP_KEY;
 
+// Where a partner creates their own live key. The portal has no session system,
+// so it cannot tell one partner from another and never mints live keys itself:
+// the account app owns identity and issues the first tsk_live_ key, which is
+// then used here. Override per deployment with NEXT_PUBLIC_ACCOUNT_APP_URL.
+export const ACCOUNT_APP_URL =
+  process.env.NEXT_PUBLIC_ACCOUNT_APP_URL || 'https://b2b.thesauros.io/app/institution';
+
 export class PortalApiError extends Error {
   constructor(status, code, message) {
     super(message || code || `HTTP ${status}`);

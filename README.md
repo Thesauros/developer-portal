@@ -90,6 +90,14 @@ Two mechanisms, both configured in `.env` (see `.env.example`):
    metrics need no auth, and the built-in sandbox keeps using the public
    bootstrap key above.
 
+   Live keys: this portal never mints them. It has no sign-in, so it cannot
+   attribute a `tsk_live_` key to a partner — and the admin proxy pins
+   `POST /keys` to `environment:"test"`, ignoring any client-supplied value.
+   A partner creates their own live key in the account app
+   (`NEXT_PUBLIC_ACCOUNT_APP_URL`, linked from Quickstart and API Keys in real
+   mode), through the backend's self-serve onboarding endpoint, and then uses it
+   here as the portal session key. Production rejects every `tsk_test_` key.
+
    `NEXT_PUBLIC_DATA_SOURCE` is inlined at build time — set it in the deploy
    environment before `next build`.
 

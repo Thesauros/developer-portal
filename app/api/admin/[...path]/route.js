@@ -57,12 +57,23 @@ function errorResponse(status, code, message) {
   return respond(status, { error: { code, message } });
 }
 
-/** Normalise the create-key payload to the two fields the endpoint accepts. */
+/**
+ * Normalise the create-key payload to the two fields the endpoint accepts.
+ *
+ * `environment` is pinned to `test` and the client's value is ignored. This
+ * route carries PARTNER_ADMIN_KEY (a `keys:admin` credential) and is reachable
+ * by any browser that can load the portal — it authenticates the *portal*, not
+ * the visitor. Now that the Partner API honours `environment: "live"` from a
+ * `keys:admin` caller, forwarding a client-supplied `"live"` here would let an
+ * anonymous visitor mint a production key. The portal has no session system, so
+ * it cannot attribute a live key to anyone: live keys come from the account app's
+ * self-serve onboarding path (POST /api/v1/onboarding/partners), never from here.
+ */
 function createKeyPayload(raw) {
   const body = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   return {
     label: typeof body.label === 'string' && body.label.trim() ? body.label.trim().slice(0, 100) : 'Untitled key',
-    environment: body.environment === 'live' ? 'live' : 'test',
+    environment: 'test',
   };
 }
 

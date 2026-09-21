@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import s from '../platform.module.css';
 import { CodeBlock, Badge, CopyButton } from '../ui/primitives';
-import { DEFAULT_KEY, IS_REAL } from '../lib/api';
+import { DEFAULT_KEY, IS_REAL, ACCOUNT_APP_URL } from '../lib/api';
 import {
   QUICKSTART_INSTALL,
   QUICKSTART_INIT,
@@ -85,10 +85,27 @@ export default function Quickstart({ go }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '22px 0 30px' }}>
         <LangTabs lang={lang} setLang={setLang} />
         <span className={s.faint} style={{ fontSize: 12.5 }}>
-          {IS_REAL ? 'These samples run against the built-in sandbox.' : 'Sandbox key is pre-filled.'}{' '}
-          <button type="button" className={s.btnGhost} style={{ minHeight: 'auto', padding: '0 4px', color: 'var(--blue-strong)' }} onClick={() => go('keys')}>
-            Create your own →
-          </button>
+          {IS_REAL ? (
+            <>
+              These samples run against the built-in sandbox.{' '}
+              <a
+                href={ACCOUNT_APP_URL}
+                target="_blank"
+                rel="noreferrer noopener"
+                className={s.btnGhost}
+                style={{ minHeight: 'auto', padding: '0 4px', color: 'var(--blue-strong)' }}
+              >
+                Create your live key →
+              </a>
+            </>
+          ) : (
+            <>
+              Sandbox key is pre-filled.{' '}
+              <button type="button" className={s.btnGhost} style={{ minHeight: 'auto', padding: '0 4px', color: 'var(--blue-strong)' }} onClick={() => go('keys')}>
+                Create your own →
+              </button>
+            </>
+          )}
         </span>
       </div>
 
@@ -110,6 +127,47 @@ export default function Quickstart({ go }) {
         <Badge tone="teal">test mode</Badge>
       </div>
 
+      {IS_REAL ? (
+        <div
+          className={`${s.card} ${s.cardPad} ${s.revealItem}`}
+          style={{ display: 'flex', alignItems: 'flex-start', gap: 14, borderLeft: '3px solid var(--orange)', marginBottom: 34 }}
+        >
+          <IconKey size={18} style={{ color: 'var(--orange)', flexShrink: 0, marginTop: 2 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className={s.h3} style={{ fontSize: 13.5 }}>Getting a live key</div>
+            <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.65, marginTop: 5 }}>
+              Everything on this page runs against the built-in sandbox with the test key above.
+              Production is a different credential: a <code className={s.mono}>tsk_live_</code> key,
+              bound to your account, and the production Partner API rejects every{' '}
+              <code className={s.mono}>tsk_test_</code> key.
+            </p>
+            <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.65, marginTop: 8 }}>
+              Live keys are created in the <span className={s.strong}>account app</span>, not here —
+              this portal has no sign-in, so it cannot tell one partner from another and never mints
+              them. Sign up, open <span className={s.strong}>Developer tools → API keys</span>, and
+              create your first live key; it is shown exactly once. Then use it in your own backend,
+              or paste it into <button type="button" className={s.btnGhost} style={{ minHeight: 'auto', padding: '0 4px', color: 'var(--blue-strong)' }} onClick={() => go('keys')}>API Keys</button>{' '}
+              as the session key to drive these views against production data. No approval step, no
+              sales call.
+            </p>
+            <div className={s.row} style={{ marginTop: 12 }}>
+              <a
+                className={`${s.btn} ${s.btnPrimary} ${s.btnSm}`}
+                href={ACCOUNT_APP_URL}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                Open the account app <IconArrowRight size={13} />
+              </a>
+              <span className={s.faint} style={{ fontSize: 12 }}>
+                Published terms: 25% performance fee on yield, nothing on principal. Partners keep 50%
+                of that fee as standard, up to 80%.
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <Step
         n="1"
         title="Install the SDK"
@@ -122,7 +180,11 @@ export default function Quickstart({ go }) {
       <Step
         n="2"
         title="Initialize the client"
-        desc="Authenticate with your API key. Test keys (tsk_test_) and live keys (tsk_live_) are both accepted; live keys carry a higher rate ceiling. In this sandbox both run the same deterministic simulation — no real funds move."
+        desc={
+          IS_REAL
+            ? 'Authenticate with your API key. These samples run against the sandbox, where tsk_test_ and tsk_live_ keys are both accepted and drive the same deterministic simulation — no real funds move. Production is stricter: only tsk_live_ keys authenticate there, and you create yours in the account app above.'
+            : 'Authenticate with your API key. Test keys (tsk_test_) and live keys (tsk_live_) are both accepted; live keys carry a higher rate ceiling. In this sandbox both run the same deterministic simulation — no real funds move.'
+        }
         delay={90}
       >
         <CodeBlock {...QUICKSTART_INIT[lang]} />
