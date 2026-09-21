@@ -14,6 +14,12 @@ Individual uses wallet sign-in, persistent test deposits and live protocol/marke
 
 Individual uses wallet connection and Sign-In with Ethereum. Institution and the legacy developer entry show Coming soon. See [account setup and operation](docs/ACCOUNT-WORKSPACES.md).
 
+## Published economics
+
+Thesauros charges a 25% performance fee on the yield generated and nothing on the principal — if a period earns nothing, no fee is charged. Partners keep 50% of that fee as standard, and up to 80% in specific cases: 12.5% to 20% of all yield generated.
+
+The Quickstart view states the same terms, and the sandbox partner seeds in `lib/api/store.js` carry `revenue_share_pct` 0.5 and 0.8 so sample data does not contradict the published deal.
+
 ## Local development and deployment
 
 This directory has its own `package.json` and lockfile. Run `npm ci` from the repository root, then

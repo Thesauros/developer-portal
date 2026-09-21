@@ -147,6 +147,15 @@ export default function Quickstart({ go }) {
         <CodeBlock {...QUICKSTART_MONITOR[lang]} />
       </Step>
 
+      <div className={`${s.card} ${s.cardPad} ${s.revealItem}`} style={{ marginBottom: 22 }}>
+        <div className={s.h3} style={{ fontSize: 13.5 }}>Published terms</div>
+        <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>
+          Thesauros charges a 25% performance fee on the yield generated and nothing on the
+          principal — if a period earns nothing, no fee is charged. Partners keep 50% of that fee as
+          standard, and up to 80% in specific cases: 12.5% to 20% of all yield generated.
+        </p>
+      </div>
+
       <div
         className={`${s.card} ${s.cardPad} ${s.revealItem}`}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, background: 'linear-gradient(120deg, rgba(58,127,255,0.10), rgba(77,234,216,0.06))' }}
