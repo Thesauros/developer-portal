@@ -1,121 +1,64 @@
-# Thesauros Developer Portal
+# Unified Thesauros workspaces
 
-Developer portal for Thesauros non-custodial stablecoin yield: dashboard UI,
-API reference with a live Try-it console, and the built-in sandbox API.
+Individual uses wallet sign-in, persistent test deposits and live protocol/market views. The Institution workspace is coming soon. The website is the public entry; `/app/` is the account entry.
 
-This is the frontend half of the former `developer.thesauros.io` monorepo.
-The real backend (partner API, NestJS + Postgres) lives in
-`Thesauros/developer.thesauros.io`; the API contract source of truth is its
-`spec/developer-platform-architecture.md`. The marketing site lives in
-`../b2b.thesauros.io`.
+## Routes and responsibilities
 
-## What's inside
+| Route                  | Destination                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `/app/individual`      | Personal workspace: protocol, markets, wallet reads, test account and account settings |
+| `/app/institution`     | Coming soon, with early-access contact and documentation                               |
+| `/developers/`         | Institution coming soon                                                                |
+| `/monitoring/`         | Institution coming soon                                                                |
+| `/api/v1/…` | Existing integration sandbox and SDK contract                                          |
 
-```
-developer-portal/
-├── app/
-│   ├── page.jsx                 Portal UI (client SPA shell)
-│   ├── layout.jsx               Root layout (Onest + JetBrains Mono)
-│   ├── platform.module.css      Portal design system (dark console)
-│   ├── views/                   Overview, Quickstart, ApiReference (live Try-it),
-│   │                            ApiKeys, Users, Webhooks, Analytics & Advisor,
-│   │                            Reconciliation, Usage, Vaults, Status
-│   ├── ui/                      CodeBlock + syntax highlight, SVG charts, primitives
-│   ├── lib/                     Client-side API helper + formatters, icon set
-│   ├── data/                    Endpoint catalog + code samples (TS/Python/cURL)
-│   └── api/v1/                  Built-in sandbox REST API — 31 route handlers
-└── lib/api/                     Sandbox core: auth, rate limiting, simulation engine,
-                                 webhook signing/dispatch, SSRF guard, HTTP envelopes
-```
+Individual uses wallet connection and Sign-In with Ethereum. Institution and the legacy developer entry show Coming soon. See [account setup and operation](docs/ACCOUNT-WORKSPACES.md).
 
-## Running locally
+## Local development and deployment
 
-```bash
-npm install
-npm run dev
-```
+This directory has its own `package.json` and lockfile. Run `npm ci` from the repository root, then
+follow [setup and routing](docs/DEPLOYMENT.md) to configure the account database,
+initialize auth, build Next.js and open `/app/individual` directly. No URL rewrite is required. The NestJS backend and SDKs live separately in `Thesauros/developer.thesauros.io`.
 
-- Portal: http://localhost:3000
-- Sandbox API base: http://localhost:3000/api/v1
-- OpenAPI: http://localhost:3000/api/v1/openapi.json
+## Active source
 
-Production build:
+- `app/app/ProductApp.jsx` and `workspace.module.css`: role-aware shell and account navigation.
+- `Login.jsx`, `EntryRedirect.jsx`, `destination.mjs`: wallet sign-in and trusted destination mapping.
+- `LivePanels.jsx`, `WalletCard.jsx`, `lib/live-data.mjs`: protocol, external markets and read-only wallet balances.
+- `TestAccount.jsx`, `lib/product-ledger.mjs`: persistent test balances and idempotent simulated deposits/withdrawals.
+- `DeveloperTools.jsx` and the seven `app/views/` components: the Institution integration sandbox.
+- `app/api/v1/` and `lib/api/`: existing sandbox handlers and resource contracts.
 
-```bash
-npm run build
-npm run start
-```
+Developer tools, the test account and account settings load when opened. The Individual overview does not download the API explorer and developer screens.
 
-## The sandbox
+Accounts and test transactions persist in the private SQLite or configured Turso database. The separate API sandbox retains shared sample data and its original contract; it does not represent connected company customers. Test webhook controls send requests only to the receiver configured by the user. Current company reporting remains empty until a partner integration is connected.
 
-The built-in API is a deterministic, single-instance simulation of the
-Thesauros routing engine. Every endpoint behaves per the contract, but no
-funds move and state resets on process restart. A shared bootstrap key is
-seeded for the portal:
+## Verification
 
-```
-tsk_test_thesauros_sandbox_0000000000000000
-```
+Run `npm test` for ledger invariants, data normalization and source-cache behavior.
+The public data fixtures are included under `test/fixtures/live-data`; tests do
+not require the original preview workspace. Run `npm run build` after configuring
+and initializing auth as described in the deployment guide, then run `npm run test:routes`
+to check native routes, assets and wallet sessions on the compiled server.
 
-APY values are decimal fractions (`0.052` == 5.2%).
+The shared preview also has browser journey and public-route checks maintained
+beside the marketing server. Those deployment-specific scripts and private test
+accounts are not part of this source snapshot. CI in the repository root checks
+this app alongside the dependency audit and static analysis.
 
-## Integrating with real data
+## Repository separation
 
-Two mechanisms, both configured in `.env` (see `.env.example`):
+This PR brings the current Individual and Institution application into
+`Thesauros/developer-portal`. It includes the latest clean marketing links,
+account access, persistent test deposits, live data views and embedded
+integration tools. The web app previously submitted in backend PR #12 is being
+removed from that repository in a companion PR.
 
-1. **Real-data mode** — `NEXT_PUBLIC_DATA_SOURCE=real`. Two live sources,
-   both proxied same-origin (no browser CORS, no extra backend config):
+The NestJS/PostgreSQL Partner API and TypeScript/Python SDKs remain in
+`Thesauros/developer.thesauros.io`. The built-in API sandbox here is part of the
+portal and has a separate contract; it is not the Partner API backend.
 
-   - **On-chain metrics** — `/api/v1/monitor/*` -> `MONITOR_API_URL/api/*`
-     (the monitoring service behind bastardgreeks.thesauros.io; public, no
-     auth). Feeds Overview (TVL, best APY, active vaults, network block/gas)
-     and Vaults (live vault state, provider APYs, allocation) with the same
-     numbers the monitoring dashboard shows.
-   - **Partner API** — `/api/v1/real/*` -> `PARTNER_API_URL/api/v1/*`.
-     Wired views: API Keys (real key list / create / revoke), Users
-     (attributed users + positions, partner-scoped), Analytics (partner
-     economics: TVL, yield, fees, revenue share).
-
-   Views without a production counterpart (Webhooks, Reconciliation, Usage,
-   Status, API Reference Try-it) keep running on the built-in sandbox.
-
-   Keys: any valid `tsk_*` key works for protocol-wide endpoints
-   (`yield/history`); partner-scoped views need a partner key
-   (`partner:read`), key management needs `keys:admin`. Paste the key into the
-   portal session key field (API Keys view).
-
-   `NEXT_PUBLIC_DATA_SOURCE` is inlined at build time — set it in the deploy
-   environment before `next build`.
-
-2. **Partner endpoint proxy** — `/api/v1/partners/*` and `/api/v1/partner/*`
-   are always proxied to `PARTNER_API_URL` (default
-   `http://localhost:3001`) — the NestJS backend from
-   `Thesauros/developer.thesauros.io`.
-
-## API surface (sandbox v1)
-
-| Area | Endpoints |
-| --- | --- |
-| Keys | `POST /keys`, `GET /keys`, `DELETE /keys/:id` |
-| Users | `POST /users`, `GET /users`, `GET /users/:id`, `PATCH /users/:id`, `GET /users/:id/positions`, `GET /users/:id/ledger` |
-| Vaults | `GET /vaults`, `GET /vaults/:id` |
-| Yield | `GET /yield`, `GET /yield/:asset` |
-| Positions | `POST /positions`, `GET /positions`, `GET /positions/:id`, `POST /positions/:id/withdraw`, `GET /positions/:id/history` |
-| Rebalances | `GET /rebalances` |
-| Webhooks | `POST /webhooks`, `GET /webhooks`, `DELETE /webhooks/:id`, `POST /webhooks/:id/test`, `GET /webhooks/events` |
-| Reconciliation | `GET /reconciliation/ledger`, `GET /reconciliation/balances`, `GET /reconciliation/report`, `GET /reconciliation/snapshots` |
-| Analytics | `GET /analytics/uplift`, `GET /analytics/decisions`, `GET /analytics/signals`, `GET /analytics/regime`, `GET /analytics/advisor` |
-| Telemetry | `GET /usage`, `GET /status` (public), `GET /openapi.json` (public) |
-
-Cross-cutting behavior:
-
-- Auth: `Authorization: Bearer tsk_test_... | tsk_live_...`
-- Scopes: `read` (GET), `write` (mutations), `keys:admin` (key management).
-- Envelopes: single `{object,data,meta?}`, list `{object:"list",data,meta}`,
-  error `{error:{code,message,doc_url}}`.
-- Pagination: `?limit=&cursor=` on lists; `meta.next_cursor` is opaque.
-- Idempotency: `Idempotency-Key` header on `POST` replays the original response.
-- Rate limiting: token bucket per key (120/min test, 600/min live) plus an
-  IP-based limit on failed auth. `429` carries `Retry-After`.
-- Webhooks: HMAC-SHA256 signed (`Webhook-Signature: t=...,v1=...`); endpoint
-  URLs are SSRF-guarded (loopback/private/link-local/metadata rejected).
+Marketing is in `573pn01v01k/thesauros-site` and documentation in
+`Thesauros/docs.thesauros.io`. Each project builds and deploys separately.
+Opening or merging a PR does not restart the shared preview server. The separate economics studio at `/demo/` is not
+included here.

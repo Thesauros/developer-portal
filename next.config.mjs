@@ -1,34 +1,50 @@
+import { marketingHref, documentationHref } from "./lib/site-links.mjs";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  distDir: process.env.THESAUROS_NEXT_DIST || ".next",
   devIndicators: false,
-  transpilePackages: [],
-  allowedDevOrigins: ['127.0.0.1', 'localhost'],
-  async rewrites() {
-    const apiBase = process.env.PARTNER_API_URL || 'http://localhost:3001';
-    const monitorBase = process.env.MONITOR_API_URL || 'https://bastardgreeks.thesauros.io';
+  // Routes are native at /app, /api and /monitoring on every deployment.
+  // NEXT_PUBLIC_BASE_PATH from older deployments is intentionally ignored.
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
+  async redirects() {
     return [
-      // Real-data proxy: the portal calls /api/v1/real/* same-origin and Next
-      // forwards to the deployed Partner API. Same-origin means no browser
-      // CORS and no extra CORS config on the backend.
       {
-        source: '/api/v1/real/:path*',
-        destination: `${apiBase}/api/v1/:path*`,
-      },
-      // On-chain metrics proxy: /api/v1/monitor/* -> monitoring service /api/*.
-      {
-        source: '/api/v1/monitor/:path*',
-        destination: `${monitorBase}/api/:path*`,
+        source: "/customer/:path*",
+        destination: "/app/:path*",
+        permanent: true,
       },
       {
-        source: '/api/v1/partners/:path*',
-        destination: `${apiBase}/api/v1/partners/:path*`,
+        source: "/developers/customer/:path*",
+        destination: "/app/:path*",
+        permanent: true,
       },
       {
-        source: '/api/v1/partner/:path*',
-        destination: `${apiBase}/api/v1/partner/:path*`,
+        source: "/developers/api/:path*",
+        destination: "/api/:path*",
+        permanent: true,
+      },
+      {
+        source: "/developers/monitoring/:path*",
+        destination: "/monitoring/:path*",
+        permanent: true,
+      },
+      {
+        source: "/developers",
+        destination: "/app/institution",
+        permanent: true,
+      },
+      {
+        source: "/contact",
+        destination: marketingHref("/contact"),
+        permanent: false,
+      },
+      {
+        source: "/docs/:path*",
+        destination: documentationHref("/:path*"),
+        permanent: false,
       },
     ];
   },
 };
-
 export default nextConfig;

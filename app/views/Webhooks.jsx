@@ -107,8 +107,7 @@ export default function Webhooks({ apiKey }) {
           <span className={s.kicker}>Events</span>
           <h1 className={s.viewTitle}>Webhooks</h1>
           <p className={s.viewLead}>
-            Subscribe your backend to position lifecycle events. Every delivery is HMAC-SHA256
-            signed so you can verify authenticity with a single helper.
+            Connect account events to your backend. Register a receiver, verify its signing secret and inspect delivery attempts. A test sends an HTTP request to your receiver.
           </p>
         </div>
         <div className={s.row}>
@@ -166,7 +165,7 @@ export default function Webhooks({ apiKey }) {
                         onClick={() => testHook(h.id)}
                         disabled={testing === h.id}
                       >
-                        {testing === h.id ? <span className={s.spinner} /> : <IconSend size={12} />} Test
+                        {testing === h.id ? <span className={s.spinner} /> : null} Test
                       </button>
                       <button type="button" className={`${s.btn} ${s.btnDanger} ${s.btnSm}`} onClick={() => removeHook(h.id)}>
                         <IconTrash size={12} />

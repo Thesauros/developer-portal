@@ -18,8 +18,8 @@ export const BOOTSTRAP_KEY = 'tsk_test_thesauros_sandbox_0000000000000000';
 // - session key: partner-scoped so partner views (Users, Analytics) work;
 // - admin key: keys:admin for the API Keys management surface, which the
 //   partner-scoped session key cannot call.
-export const REAL_BOOTSTRAP_KEY = 'tsk_test_acme_partner_key_00000000000000000';
-export const REAL_ADMIN_KEY = 'tsk_test_master_full_access_000000000000000';
+export const REAL_BOOTSTRAP_KEY = '';
+export const REAL_ADMIN_KEY = '';
 export const DEFAULT_KEY = IS_REAL ? REAL_BOOTSTRAP_KEY : BOOTSTRAP_KEY;
 
 export class PortalApiError extends Error {

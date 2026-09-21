@@ -1,0 +1,241 @@
+{
+  "network": "arbitrumRebalancer",
+  "networkName": "Arbitrum Rebalancer",
+  "vaults": [
+    {
+      "name": "Thesauros USDC Vault",
+      "symbol": "USDC",
+      "shareSymbol": "tUSDC",
+      "address": "0x4E5c0A4C11d713002D74bA43a458efc31bc76378",
+      "error": "request timeout (code=TIMEOUT, version=6.17.0)",
+      "token": "USDC",
+      "status": "error"
+    }
+  ],
+  "providers": [],
+  "apyData": [
+    {
+      "token": "USDC",
+      "vaultAddress": "0x4E5c0A4C11d713002D74bA43a458efc31bc76378",
+      "assetAddress": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "apy": "0.0000",
+      "provider": "Unknown",
+      "providerAddress": "unknown",
+      "source": "error",
+      "error": "request timeout (code=TIMEOUT, version=6.17.0)"
+    }
+  ],
+  "apyAnalytics": {
+    "series": [
+      {
+        "token": "USDC",
+        "vaultAddress": "0x4E5c0A4C11d713002D74bA43a458efc31bc76378",
+        "provider": "Unknown",
+        "providerAddress": "unknown",
+        "currentApy": 0,
+        "change24h": null,
+        "change7d": null,
+        "change30d": null,
+        "volatility30d": null,
+        "netYieldAfterFees": 0,
+        "points": []
+      }
+    ],
+    "allocationChanges": []
+  },
+  "events": [
+    {
+      "type": "RebalanceExecuted",
+      "txHash": "0x627b20977e0b976645eb16a0d855c50ed7494284f3057be62e43241b138bbf50",
+      "blockNumber": 499311809,
+      "token": "USDC",
+      "vault": "Thesauros USDC Vault",
+      "success": true,
+      "timestamp": "2026-08-28T16:00:02.000Z"
+    },
+    {
+      "type": "FeeCharged",
+      "txHash": "0xbd4194d09432d7187e956ff068dac7845f5024316e34edf1a1ae98849c8084f2",
+      "blockNumber": 498861650,
+      "token": "USDC",
+      "vault": "Thesauros USDC Vault",
+      "success": true,
+      "timestamp": "2026-08-27T08:36:04.000Z"
+    },
+    {
+      "type": "Withdraw",
+      "txHash": "0x26fca72af716f2cbd3a64f81ac2bac1af252a1549e3f611581315b61cf75f4f6",
+      "blockNumber": 497635637,
+      "token": "USDC",
+      "vault": "Thesauros USDC Vault",
+      "success": true,
+      "timestamp": "2026-08-23T18:39:31.000Z"
+    },
+    {
+      "type": "FeeCharged",
+      "txHash": "0x26fca72af716f2cbd3a64f81ac2bac1af252a1549e3f611581315b61cf75f4f6",
+      "blockNumber": 497635637,
+      "token": "USDC",
+      "vault": "Thesauros USDC Vault",
+      "success": true,
+      "timestamp": "2026-08-23T18:39:31.000Z"
+    },
+    {
+      "type": "Withdraw",
+      "txHash": "0x953f3efb9576ff878915270b24812b8e0ab7228b56c460c6fdef9620ac00afb2",
+      "blockNumber": 495772220,
+      "token": "USDC",
+      "vault": "Thesauros USDC Vault",
+      "success": true,
+      "timestamp": "2026-08-18T08:46:56.000Z"
+    },
+    {
+      "type": "FeeCharged",
+      "txHash": "0x953f3efb9576ff878915270b24812b8e0ab7228b56c460c6fdef9620ac00afb2",
+      "blockNumber": 495772220,
+      "token": "USDC",
+      "vault": "Thesauros USDC Vault",
+      "success": true,
+      "timestamp": "2026-08-18T08:46:56.000Z"
+    },
+    {
+      "type": "RebalanceExecuted",
+      "txHash": "0xdc2340ad8591769213e0ced5818590e27a2a4f597c1984a74ed0076abf11af62",
+      "blockNumber": 494575709,
+      "token": "USDC",
+      "vault": "Thesauros USDC Vault",
+      "success": true,
+      "timestamp": "2026-08-14T21:00:01.000Z"
+    },
+    {
+      "type": "FeeCharged",
+      "txHash": "0xdc2ad8874d685d7b0d599b55429df19b44fe5892d5e4db3ee8cd2cae6237694b",
+      "blockNumber": 494416123,
+      "token": "USDC",
+      "vault": "Thesauros USDC Vault",
+      "success": true,
+      "timestamp": "2026-08-14T09:54:08.000Z"
+    }
+  ],
+  "alerts": {
+    "total": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "byType": {},
+    "recent": [],
+    "lastUpdate": "2026-09-07T15:16:27.627Z"
+  },
+  "vaultLifetimeStats": [
+    {
+      "token": "USDC",
+      "shareSymbol": "tUSDC",
+      "vaultName": "Thesauros USDC Vault",
+      "vaultAddress": "0x4E5c0A4C11d713002D74bA43a458efc31bc76378",
+      "fromBlock": 491503900,
+      "toBlock": 502715358,
+      "firstEventBlock": 491503910,
+      "lastEventBlock": 499311809,
+      "eventsCount": 47,
+      "depositsCount": 10,
+      "withdrawalsCount": 9,
+      "feeChargedCount": 19,
+      "rebalanceCount": 9,
+      "totalDeposits": "70.000327",
+      "totalWithdrawals": "67.530326",
+      "netDeposits": "2.470001",
+      "currentAssets": "2.53139",
+      "currentShares": "2.521629",
+      "totalSharesMinted": "69.962414",
+      "totalSharesBurned": "67.440785",
+      "financialResult": "0.061389",
+      "protocolFees": "0",
+      "protocolFeeSharesRaw": "0",
+      "rebalanceCosts": "0",
+      "rebalancedAssets": "55.146132",
+      "updatedAt": "2026-09-07T15:05:09.193Z",
+      "recentEvents": [
+        {
+          "type": "FeeCharged",
+          "txHash": "0xdc2ad8874d685d7b0d599b55429df19b44fe5892d5e4db3ee8cd2cae6237694b",
+          "blockNumber": 494416123,
+          "token": "USDC",
+          "vault": "Thesauros USDC Vault",
+          "success": true,
+          "timestamp": "2026-08-14T09:54:08.000Z"
+        },
+        {
+          "type": "RebalanceExecuted",
+          "txHash": "0xdc2340ad8591769213e0ced5818590e27a2a4f597c1984a74ed0076abf11af62",
+          "blockNumber": 494575709,
+          "token": "USDC",
+          "vault": "Thesauros USDC Vault",
+          "success": true,
+          "timestamp": "2026-08-14T21:00:01.000Z"
+        },
+        {
+          "type": "Withdraw",
+          "txHash": "0x953f3efb9576ff878915270b24812b8e0ab7228b56c460c6fdef9620ac00afb2",
+          "blockNumber": 495772220,
+          "token": "USDC",
+          "vault": "Thesauros USDC Vault",
+          "success": true,
+          "timestamp": "2026-08-18T08:46:56.000Z"
+        },
+        {
+          "type": "FeeCharged",
+          "txHash": "0x953f3efb9576ff878915270b24812b8e0ab7228b56c460c6fdef9620ac00afb2",
+          "blockNumber": 495772220,
+          "token": "USDC",
+          "vault": "Thesauros USDC Vault",
+          "success": true,
+          "timestamp": "2026-08-18T08:46:56.000Z"
+        },
+        {
+          "type": "Withdraw",
+          "txHash": "0x26fca72af716f2cbd3a64f81ac2bac1af252a1549e3f611581315b61cf75f4f6",
+          "blockNumber": 497635637,
+          "token": "USDC",
+          "vault": "Thesauros USDC Vault",
+          "success": true,
+          "timestamp": "2026-08-23T18:39:31.000Z"
+        },
+        {
+          "type": "FeeCharged",
+          "txHash": "0x26fca72af716f2cbd3a64f81ac2bac1af252a1549e3f611581315b61cf75f4f6",
+          "blockNumber": 497635637,
+          "token": "USDC",
+          "vault": "Thesauros USDC Vault",
+          "success": true,
+          "timestamp": "2026-08-23T18:39:31.000Z"
+        },
+        {
+          "type": "FeeCharged",
+          "txHash": "0xbd4194d09432d7187e956ff068dac7845f5024316e34edf1a1ae98849c8084f2",
+          "blockNumber": 498861650,
+          "token": "USDC",
+          "vault": "Thesauros USDC Vault",
+          "success": true,
+          "timestamp": "2026-08-27T08:36:04.000Z"
+        },
+        {
+          "type": "RebalanceExecuted",
+          "txHash": "0x627b20977e0b976645eb16a0d855c50ed7494284f3057be62e43241b138bbf50",
+          "blockNumber": 499311809,
+          "token": "USDC",
+          "vault": "Thesauros USDC Vault",
+          "success": true,
+          "timestamp": "2026-08-28T16:00:02.000Z"
+        }
+      ],
+      "shareDecimals": 6
+    }
+  ],
+  "networkInfo": {
+    "network": "arbitrumRebalancer",
+    "networkName": "Arbitrum Rebalancer",
+    "error": "request timeout (code=TIMEOUT, version=6.17.0)",
+    "lastUpdate": "2026-09-07T15:22:28.421Z"
+  },
+  "lastUpdate": "2026-09-07T15:47:37.803Z"
+}

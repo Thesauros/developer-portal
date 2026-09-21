@@ -20,7 +20,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
   // management needs keys:admin, which the partner-scoped session key lacks —
   // so the admin surface runs on the seeded admin key.
   const API_BASE = IS_REAL ? REAL_BASE : undefined;
-  const adminKey = IS_REAL ? REAL_ADMIN_KEY : apiKey;
+  const adminKey = apiKey;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -71,9 +71,8 @@ export default function ApiKeys({ apiKey, setApiKey }) {
           <span className={s.kicker}>Credentials</span>
           <h1 className={s.viewTitle}>API Keys</h1>
           <p className={s.viewLead}>
-            Keys authenticate every request. Test keys hit the sandbox; live keys route production
-            flow. Secrets are shown exactly once — store them in a secret manager.
-            {IS_REAL ? ' Key management runs on the seeded admin key (keys:admin).' : ''}
+            Manage credentials for this workspace. The API URL selects the environment; a key prefix does not switch it. Store newly issued secrets in your backend configuration.
+            {IS_REAL ? ' Key management requires a keys:admin credential.' : ''}
           </p>
         </div>
         <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => { setNewSecret(null); setCreateOpen(true); }}>

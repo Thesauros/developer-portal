@@ -91,10 +91,9 @@ export default function Users({ apiKey }) {
       <div className={s.row} style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <span className={s.kicker}>Identity</span>
-          <h1 className={s.viewTitle}>Users</h1>
+          <h1 className={s.viewTitle}>Customers</h1>
           <p className={s.viewLead}>
-            Your customers, mapped to Thesauros via <code className={s.mono}>external_id</code>. Link
-            their wallets, then query positions and the reconciliation ledger per user.
+            Link your customer accounts through <code className={s.mono}>external_id</code>, attach wallets and inspect each customer’s positions and activity.
           </p>
         </div>
         {IS_REAL ? null : (
@@ -279,7 +278,7 @@ export default function Users({ apiKey }) {
           <div className={s.row} style={{ justifyContent: 'flex-end', gap: 10 }}>
             <button type="button" className={`${s.btn} ${s.btnGhost}`} onClick={() => setCreateOpen(false)}>Cancel</button>
             <button type="submit" className={`${s.btn} ${s.btnPrimary}`} disabled={saving}>
-              {saving ? <Spinner /> : <IconArrowRight size={14} />} Create
+              {saving ? <Spinner /> : null} Create
             </button>
           </div>
         </form>

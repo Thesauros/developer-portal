@@ -2,20 +2,40 @@
   "name": "developer-portal",
   "version": "1.0.0",
   "private": true,
-  "description": "Thesauros Developer Portal — dashboard UI, API reference with live Try-it console, and the built-in sandbox API.",
+  "description": "Thesauros Individual and Institution workspaces with account access, test deposits, live market views and developer tools.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "test": "node test/product-ledger.mjs && node test/live-data.mjs && node test/live-cache.mjs && node test/crypto.mjs && node test/wallet-auth.mjs && node test/wallet-auth.mjs --libsql",
+    "test:routes": "node test/routes.mjs"
   },
   "dependencies": {
-    "next": "^16.2.7",
+    "@libsql/client": "^0.18.0",
+    "@libsql/kysely-libsql": "^0.4.1",
+    "@rainbow-me/rainbowkit": "^2.2.11",
+    "@tanstack/react-query": "^5.102.8",
+    "better-auth": "1.7.3",
+    "better-sqlite3": "12.11.1",
+    "ethers": "6.17.0",
+    "next": "^16.3.3",
     "react": "19.2.5",
-    "react-dom": "19.2.5"
+    "react-dom": "19.2.5",
+    "viem": "^2.56.3",
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "prettier": "^3.8.3"
+  },
+  "overrides": {
+    "decode-uri-component": "^0.5.0",
+    "axios": "^1.18.0",
+    "uuid": "^11.1.1",
+    "ws": "^8.21.3",
+    "cuer": {
+      "qr": "0.5.5"
+    }
   }
 }

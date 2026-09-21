@@ -1,0 +1,42 @@
+[
+  {
+    "key": "arbitrumRebalancer",
+    "name": "Arbitrum Rebalancer",
+    "chainId": 42161,
+    "explorer": "https://arbiscan.io",
+    "isActive": true,
+    "hasConfig": true,
+    "rpcReady": true,
+    "rpcError": null
+  },
+  {
+    "key": "baseRebalancer",
+    "name": "Base Rebalancer",
+    "chainId": 8453,
+    "explorer": "https://basescan.org",
+    "isActive": false,
+    "hasConfig": true,
+    "rpcReady": true,
+    "rpcError": null
+  },
+  {
+    "key": "plasma",
+    "name": "Plasma",
+    "chainId": 9745,
+    "explorer": "https://plasmascan.to",
+    "isActive": false,
+    "hasConfig": true,
+    "rpcReady": true,
+    "rpcError": null
+  },
+  {
+    "key": "monad",
+    "name": "Monad",
+    "chainId": 143,
+    "explorer": "https://monadscan.com",
+    "isActive": false,
+    "hasConfig": true,
+    "rpcReady": true,
+    "rpcError": null
+  }
+]
