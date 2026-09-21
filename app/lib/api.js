@@ -1,26 +1,13 @@
 // Client-side helper for talking to the Thesauros API.
 // Defaults to the built-in sandbox on the same origin (/api/v1);
-// set NEXT_PUBLIC_API_BASE to point the portal at a real API deployment.
+// set NEXT_PUBLIC_API_BASE to point the portal at another API deployment.
 
 export const BASE = process.env.NEXT_PUBLIC_API_BASE || '/api/v1';
 
-// Real-data mode: the portal reads live data from the Thesauros Partner API,
-// proxied same-origin through Next.js rewrites (/api/v1/real/* -> PARTNER_API_URL).
-// Enable with NEXT_PUBLIC_DATA_SOURCE=real (see .env.example).
-export const DATA_SOURCE = process.env.NEXT_PUBLIC_DATA_SOURCE === 'real' ? 'real' : 'sandbox';
-export const IS_REAL = DATA_SOURCE === 'real';
-export const REAL_BASE = '/api/v1/real';
-// On-chain protocol metrics, proxied to the monitoring service.
-export const MONITOR_BASE = '/api/v1/monitor';
-
+// Public by design: this shared key authenticates every anonymous portal
+// session against the built-in sandbox and is documented in the README.
 export const BOOTSTRAP_KEY = 'tsk_test_thesauros_sandbox_0000000000000000';
-// Real-mode defaults (test environment seeded keys):
-// - session key: partner-scoped so partner views (Users, Analytics) work;
-// - admin key: keys:admin for the API Keys management surface, which the
-//   partner-scoped session key cannot call.
-export const REAL_BOOTSTRAP_KEY = '';
-export const REAL_ADMIN_KEY = '';
-export const DEFAULT_KEY = IS_REAL ? REAL_BOOTSTRAP_KEY : BOOTSTRAP_KEY;
+export const DEFAULT_KEY = BOOTSTRAP_KEY;
 
 export class PortalApiError extends Error {
   constructor(status, code, message) {
@@ -36,8 +23,7 @@ export class PortalApiError extends Error {
  * on the returned object's non-enumerable props for the few callers that
  * need envelopes. Most callers just want `data`.
  *
- * `base` selects the API surface: BASE (built-in sandbox, default) or
- * REAL_BASE (same-origin proxy to the real Partner API).
+ * `base` selects the API surface; the default is the built-in sandbox (BASE).
  */
 export async function api(path, { method = 'GET', key = BOOTSTRAP_KEY, body, base = BASE } = {}) {
   const headers = { Accept: 'application/json' };
@@ -71,75 +57,6 @@ export async function api(path, { method = 'GET', key = BOOTSTRAP_KEY, body, bas
 export const get = (path, opts) => api(path, { ...opts, method: 'GET' });
 export const post = (path, body, opts) => api(path, { ...opts, method: 'POST', body });
 export const del = (path, opts) => api(path, { ...opts, method: 'DELETE' });
-
-// The monitoring backend sleeps when idle; the first request after a cold
-// start can outlive the edge proxy timeout. Retry with backoff so the second
-// attempt lands on the warmed instance.
-export async function getRetry(path, opts, { retries = 2, delayMs = 2000 } = {}) {
-  let lastErr;
-  for (let i = 0; i <= retries; i++) {
-    try {
-      return await get(path, opts);
-    } catch (e) {
-      lastErr = e;
-      if (i < retries) await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
-    }
-  }
-  throw lastErr;
-}
-
-/* ---------- monitoring service mapping ---------- */
-
-const PROVIDER_KEYS = ['aave', 'morpho', 'compound', 'dolomite', 'treasury'];
-
-// Map the monitoring service dashboard payload (on-chain data) to the
-// sandbox vault shape the portal views render. Monitoring APYs are percent
-// strings ("9.2057" == 9.2057%); the portal uses decimal fractions.
-export function mapMonitorVaults(dash) {
-  if (!dash || !Array.isArray(dash.vaults)) return [];
-  const chain = dash.networkInfo ? dash.networkInfo.networkName : '';
-  const series =
-    dash.apyAnalytics && Array.isArray(dash.apyAnalytics.series) ? dash.apyAnalytics.series : [];
-  const totalTvl = dash.vaults.reduce((a, v) => a + (Number(v.tvl) || 0), 0);
-  return dash.vaults.map((v) => {
-    const providerLabel = v.providerInfo && v.providerInfo.name ? v.providerInfo.name : '';
-    const lower = providerLabel.toLowerCase();
-    const apyPct = v.providerInfo && v.providerInfo.apy != null ? Number(v.providerInfo.apy) : null;
-    const s = series.find((x) => x.vaultAddress === v.address);
-    const tvlUsd = Number(v.tvl) || 0;
-    return {
-      id: v.address,
-      name: v.name,
-      provider: PROVIDER_KEYS.find((k) => lower.includes(k)) || 'morpho',
-      providerName: providerLabel || null,
-      chain,
-      asset: v.token || v.symbol,
-      apy: apyPct != null && Number.isFinite(apyPct) ? apyPct / 100 : null,
-      apy_7d_avg: null,
-      tvl_usd: tvlUsd,
-      allocation_pct: totalTvl > 0 ? tvlUsd / totalTvl : 0,
-      risk_tier: null, // monitoring has no risk classification yet — show "—", not a fake tier
-      status: v.status || 'active',
-    };
-  });
-}
-
-// Map monitoring apyData to the portal yield-snapshot row shape.
-export function mapMonitorYield(dash) {
-  if (!dash || !Array.isArray(dash.apyData)) return [];
-  const series =
-    dash.apyAnalytics && Array.isArray(dash.apyAnalytics.series) ? dash.apyAnalytics.series : [];
-  return dash.apyData.map((a) => {
-    const apyPct = Number(a.apy);
-    const s = series.find((x) => x.vaultAddress === a.vaultAddress);
-    return {
-      asset: a.token,
-      best_apy: Number.isFinite(apyPct) ? apyPct / 100 : null,
-      blend_apy: Number.isFinite(apyPct) ? apyPct / 100 : null,
-      blended_30d: s && s.netYieldAfterFees != null ? s.netYieldAfterFees / 100 : null,
-    };
-  });
-}
 
 /* ---------- formatting ---------- */
 
