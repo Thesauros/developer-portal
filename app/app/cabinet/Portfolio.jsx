@@ -1,6 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
-import RateChart, { RateLegend, EarningsBars } from "./RateChart";
+import RateChart, { RateLegend, EarningsArea } from "./RateChart";
+import { Amount, VaultMark } from "./parts";
+import Rail, { RailLayout } from "./Rail";
+export { VaultMark };
 import {
   ago,
   average,
@@ -83,22 +86,6 @@ export function Tier({ tier }) {
     ] || tier;
   return (
     <span className={`${c.tier} ${c["tier_" + tier] || ""}`}>{label}</span>
-  );
-}
-
-export function VaultMark({ vault, size = 28 }) {
-  return vault.icon ? (
-    <img
-      src={vault.icon}
-      width={size}
-      height={size}
-      alt=""
-      className={c.vaultMark}
-    />
-  ) : (
-    <span className={c.vaultMarkText} style={{ width: size, height: size }}>
-      {vault.network[0]}
-    </span>
   );
 }
 
@@ -322,7 +309,16 @@ export default function Portfolio({
     .sort((a, b) => b.at - a.at)[0];
 
   return (
-    <div className={c.page}>
+    <RailLayout
+      rail={
+        <Rail
+          rows={rows}
+          onEarn={onEarn}
+          navigate={navigate}
+          needsWallet={needsWallet}
+        />
+      }
+    >
       <section className={c.statement} aria-label="Your balance">
         {loading ? (
           <div className={c.statementMain}>
@@ -333,11 +329,11 @@ export default function Portfolio({
             <p className={c.muted}>Reading your balance onchain…</p>
           </div>
         ) : total > 0 ? (
-          <>
+          <div className={c.heroGrowth}>
             <div className={c.statementMain}>
               <p className={c.label}>Balance in Earn</p>
               <p className={c.balance}>
-                {money(total)} <span>USDC</span>
+                <Amount value={total} /> <span>USDC</span>
               </p>
               <p className={c.earnedLine}>
                 <span className={c.positive}>
@@ -347,49 +343,21 @@ export default function Portfolio({
                   <span className={c.muted}> since {day(since, true)}</span>
                 )}
               </p>
-              <div className={c.actions}>
-                <button
-                  className={c.primary}
-                  onClick={() => onEarn(featured.id, "deposit")}
-                >
-                  Deposit
-                </button>
-                <button
-                  className={c.secondary}
-                  onClick={() => onEarn(featured.id, "withdraw")}
-                >
-                  Withdraw
-                </button>
-              </div>
             </div>
-            <dl className={c.statementFacts}>
-              <div>
-                <dt>Earning now</dt>
-                <dd>{pct(rate)}</dd>
-                <small>variable, blended across your vaults</small>
+            <div className={c.growth}>
+              <div className={c.growthHead}>
+                <span className={c.muted}>Earnings, last 30 days</span>
+                <strong className={c.positive}>+{earned(last30)} USDC</strong>
               </div>
-              <div>
-                <dt>At this rate</dt>
-                <dd>{money((total * (rate || 0)) / 100 / 12)}</dd>
-                <small>
-                  USDC a month, {money((total * (rate || 0)) / 100)} a year
-                </small>
-              </div>
-              <div>
-                <dt>Against the market</dt>
-                <dd className={spread >= 0 ? c.positive : c.negative}>
-                  {points(spread)}
-                </dd>
-                <small>30-day average vs average lending market</small>
-              </div>
-            </dl>
-          </>
+              <EarningsArea ticks={daily} />
+            </div>
+          </div>
         ) : (
           <>
             <div className={c.statementMain}>
               <p className={c.label}>Balance in Earn</p>
               <p className={c.balance}>
-                0.00 <span>USDC</span>
+                <Amount value={0} /> <span>USDC</span>
               </p>
               <p className={c.muted}>
                 {needsWallet
@@ -498,71 +466,42 @@ export default function Portfolio({
         <RateLegend />
       </section>
 
-      <div className={c.split}>
-        <section className={c.section}>
-          <header className={c.sectionHead}>
-            <div>
-              <h2>Where your money works</h2>
-              <p className={c.muted}>
-                {held.length
-                  ? "Your balance spread across lending markets, by current vault allocation."
-                  : chartVault?.id === "all"
-                    ? "How Thesauros vaults allocate deposits right now, across all networks."
-                    : `How the ${chartVault?.network} vault allocates deposits right now.`}
-              </p>
-            </div>
-          </header>
-          <Allocation
-            providers={providers}
-            total={held.length ? total : null}
-            token={chartVault?.token}
-          />
-          {rebalance && (
-            <p className={c.rebalance}>
-              Last rebalance {ago(rebalance.at)}: moved{" "}
-              {money(rebalance.amount)} {rebalance.vault.token}
-              {rebalance.fromName && rebalance.toName
-                ? ` from ${rebalance.fromName} to ${rebalance.toName}`
-                : ""}
-              .{" "}
-              <a
-                href={rebalance.vault.explorer + "/tx/" + rebalance.txHash}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View transaction
-              </a>
+      <section className={c.section}>
+        <header className={c.sectionHead}>
+          <div>
+            <h2>Where your money works</h2>
+            <p className={c.muted}>
+              {held.length
+                ? "Your balance spread across lending markets, by current vault allocation."
+                : chartVault?.id === "all"
+                  ? "How Thesauros vaults allocate deposits right now, across all networks."
+                  : `How the ${chartVault?.network} vault allocates deposits right now.`}
             </p>
-          )}
-        </section>
-        <section className={c.section}>
-          <header className={c.sectionHead}>
-            <div>
-              <h2>Daily earnings</h2>
-              <p className={c.muted}>
-                {held.length
-                  ? `${earned(last30)} USDC over the last 30 days`
-                  : "Appears after your first deposit"}
-              </p>
-            </div>
-          </header>
-          <EarningsBars ticks={daily} />
-          <dl className={c.miniFacts}>
-            <div>
-              <dt>Deposited</dt>
-              <dd>{money(rows.reduce((s, r) => s + r.deposited, 0))}</dd>
-            </div>
-            <div>
-              <dt>Withdrawn</dt>
-              <dd>{money(rows.reduce((s, r) => s + r.withdrawn, 0))}</dd>
-            </div>
-            <div>
-              <dt>In wallet</dt>
-              <dd>{money(cash)}</dd>
-            </div>
-          </dl>
-        </section>
-      </div>
+          </div>
+        </header>
+        <Allocation
+          providers={providers}
+          total={held.length ? total : null}
+          token={chartVault?.token}
+        />
+        {rebalance && (
+          <p className={c.rebalance}>
+            Last rebalance {ago(rebalance.at)}: moved {money(rebalance.amount)}{" "}
+            {rebalance.vault.token}
+            {rebalance.fromName && rebalance.toName
+              ? ` from ${rebalance.fromName} to ${rebalance.toName}`
+              : ""}
+            .{" "}
+            <a
+              href={rebalance.vault.explorer + "/tx/" + rebalance.txHash}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View transaction
+            </a>
+          </p>
+        )}
+      </section>
 
       <section className={c.section}>
         <header className={c.sectionHead}>
@@ -586,7 +525,6 @@ export default function Portfolio({
                 <th className={c.num}>Rate now</th>
                 <th className={c.num}>30-day avg</th>
                 <th className={c.num}>vs market</th>
-                <th />
               </tr>
             </thead>
             <tbody>
@@ -612,37 +550,6 @@ export default function Portfolio({
                   <td className={c.num}>
                     {r.marketSpread30d ? points(r.marketSpread30d) : "—"}
                   </td>
-                  <td className={c.rowActions}>
-                    {r.depositable ? (
-                      <>
-                        <button
-                          className={c.small}
-                          onClick={() => onEarn(r.id, "deposit")}
-                          disabled={r.depositPaused}
-                        >
-                          Deposit
-                        </button>
-                        {r.balance > 0 && (
-                          <button
-                            className={c.small}
-                            onClick={() => onEarn(r.id, "withdraw")}
-                            disabled={r.withdrawPaused}
-                          >
-                            Withdraw
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <a
-                        className={c.small}
-                        href="https://app.thesauros.io"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open in app
-                      </a>
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -666,7 +573,7 @@ export default function Portfolio({
       </section>
 
       <Health rows={rows} market={market} />
-    </div>
+    </RailLayout>
   );
 }
 

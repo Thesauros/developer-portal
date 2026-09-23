@@ -210,3 +210,51 @@ export function EarningsBars({ ticks, height = 120 }) {
     </div>
   );
 }
+
+// Cumulative earnings over the period, as a soft area.
+export function EarningsArea({ ticks, height = 120 }) {
+  const points = [];
+  let sum = 0;
+  for (const t of ticks) {
+    sum += t.v || 0;
+    points.push({ t: t.t, v: sum });
+  }
+  if (points.length < 2 || sum <= 0)
+    return (
+      <div className={c.chartEmpty} style={{ height }}>
+        No earnings recorded in the last 30 days.
+      </div>
+    );
+  const w = 600,
+    h = height;
+  const x = (i) => (i / (points.length - 1)) * w;
+  const y = (v) => h - 6 - (v / sum) * (h - 18);
+  const line = points
+    .map((p, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1))
+    .join("");
+  return (
+    <svg
+      className={c.area}
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      style={{ height }}
+      role="img"
+      aria-label="Cumulative earnings, last 30 days"
+    >
+      <defs>
+        <linearGradient id="earned-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#12805c" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#12805c" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={`${line}L${w} ${h}L0 ${h}Z`} fill="url(#earned-fill)" />
+      <path
+        d={line}
+        fill="none"
+        stroke="#12805c"
+        strokeWidth="2"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}

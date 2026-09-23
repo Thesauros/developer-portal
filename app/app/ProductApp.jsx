@@ -408,9 +408,20 @@ export default function ProductApp({ mode = "individual", user }) {
               setPeriod={setPeriod}
               onEarn={openEarn}
               initial={earnVault}
+              navigate={navigate}
+              needsWallet={!user.walletAddress}
             />
           )}
-          {current === "activity" && <Activity account={account} mine={mine} />}
+          {current === "activity" && (
+            <Activity
+              account={account}
+              mine={mine}
+              market={market}
+              onEarn={openEarn}
+              navigate={navigate}
+              needsWallet={!user.walletAddress}
+            />
+          )}
           {current === "earn" && !user.walletAddress && (
             <div className={s.linkWallet}>
               <p>

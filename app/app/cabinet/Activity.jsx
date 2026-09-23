@@ -1,7 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { getVault } from "../../../lib/vault-contracts.mjs";
-import { ActivityRows } from "./Portfolio";
+import { ActivityRows, combine } from "./Portfolio";
+import Rail, { RailLayout } from "./Rail";
 import { money } from "./format";
 import c from "./cabinet.module.css";
 
@@ -47,7 +48,18 @@ function csv(rows) {
   return "data:text/csv;charset=utf-8," + encodeURIComponent(lines.join("\n"));
 }
 
-export default function Activity({ account, mine }) {
+export default function Activity({
+  account,
+  mine,
+  market,
+  onEarn,
+  navigate,
+  needsWallet,
+}) {
+  const vaultRows = useMemo(
+    () => combine(market.data, account, mine.data),
+    [market.data, account, mine.data],
+  );
   const [filter, setFilter] = useState("all");
   const all = useMemo(
     () =>
@@ -62,7 +74,16 @@ export default function Activity({ account, mine }) {
     .filter((r) => r.kind === "withdraw")
     .reduce((s, r) => s + (r.amount || 0), 0);
   return (
-    <div className={c.page}>
+    <RailLayout
+      rail={
+        <Rail
+          rows={vaultRows}
+          onEarn={onEarn}
+          navigate={navigate}
+          needsWallet={needsWallet}
+        />
+      }
+    >
       <dl className={c.summaryRow}>
         <div>
           <dt>Deposited</dt>
@@ -127,6 +148,6 @@ export default function Activity({ account, mine }) {
           of confirmation.
         </p>
       </section>
-    </div>
+    </RailLayout>
   );
 }

@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import RateChart, { RateLegend } from "./RateChart";
 import { Allocation, VaultMark, combine } from "./Portfolio";
+import Rail, { RailLayout } from "./Rail";
 import {
   ago,
   average,
@@ -21,6 +22,8 @@ export default function Vaults({
   setPeriod,
   onEarn,
   initial,
+  navigate,
+  needsWallet,
 }) {
   const rows = useMemo(
     () => combine(market.data, account, mine.data),
@@ -39,7 +42,16 @@ export default function Vaults({
   const vaultAvg = average(v.series.vault);
   const marketAvg = average(v.series.market);
   return (
-    <div className={c.page}>
+    <RailLayout
+      rail={
+        <Rail
+          rows={rows}
+          onEarn={onEarn}
+          navigate={navigate}
+          needsWallet={needsWallet}
+        />
+      }
+    >
       <div className={c.tableWrap}>
         <table className={`${c.table} ${c.selectable}`}>
           <thead>
@@ -249,6 +261,6 @@ export default function Vaults({
           </p>
         )}
       </section>
-    </div>
+    </RailLayout>
   );
 }
