@@ -1,18 +1,58 @@
-// Only known local tabs can become a post-auth destination. Account role is
-// supplied by the server/auth response, never trusted from the requested URL.
-export function workspaceDestination(mode, { next = "", hash = "", pathname = "", fallback = "overview" } = {}) {
-  const role = mode === "institution" ? "institution" : "individual";
-  const technical = ["quickstart", "reference", "keys", "webhooks", "usage", "reconciliation", "users"];
-  const common = ["overview", "protocol", "markets", "activity", "test", "settings"];
-  const allowed = role === "institution" ? [...common, "customers", "integrations", ...technical.map(id => "integrations/" + id)] : common;
+// The server route selects a workspace view, not an authorization role. Both
+// views use the verified wallet identity; API authorization remains server-side.
+export function workspaceDestination(
+  mode,
+  { next = "", hash = "", pathname = "", fallback = "overview" } = {},
+) {
+  const view = mode === "institution" ? "institution" : "individual";
+  const allowed = [
+    "overview",
+    "vaults",
+    "activity",
+    "earn",
+    "markets",
+    "test",
+    "developers",
+    "settings",
+  ];
+  // Views merged into Vaults in the 2026-09 workspace redesign.
+  const vaultViews = [
+    "performance",
+    "operations",
+    "protocol",
+    "events",
+    "analytics",
+    "status",
+  ];
+  const technical = [
+    "quickstart",
+    "reference",
+    "keys",
+    "webhooks",
+    "usage",
+    "reconciliation",
+    "users",
+  ];
   let tab = fallback;
-  const requested = /^\/app\/(?:individual|institution)(?:#([a-z/]+))?$/.exec(next);
+  const requested = /^\/app\/(?:individual|institution)(?:#([a-z/]+))?$/.exec(
+    next,
+  );
   if (requested?.[1]) tab = requested[1];
   const fragment = hash.replace(/^#/, "");
-  if (allowed.includes(fragment)) tab = fragment;
-  if (pathname.startsWith("/developers") && technical.includes(fragment)) tab = "integrations/" + fragment;
-  if (["analytics", "vaults", "status"].includes(fragment) || pathname.startsWith("/monitoring")) tab = "protocol";
-  if (role === "individual" && (tab === "customers" || tab.startsWith("integrations"))) tab = "protocol";
+  if (
+    allowed.includes(fragment) ||
+    vaultViews.includes(fragment) ||
+    ["build", "customers"].includes(fragment) ||
+    fragment.startsWith("integrations")
+  )
+    tab = fragment;
+  if (pathname.startsWith("/developers") && technical.includes(fragment))
+    tab = "developers";
+  if (vaultViews.includes(tab)) tab = "vaults";
+  if (pathname.startsWith("/monitoring")) tab = "vaults";
+  // Legacy console links land in the unified Developers center.
+  if (tab === "customers" || tab.startsWith("integrations")) tab = "developers";
+  if (tab === "build") tab = "developers";
   if (!allowed.includes(tab)) tab = "overview";
-  return "/app/" + role + (tab === "overview" ? "" : "#" + tab);
+  return "/app/" + view + (tab === "overview" ? "" : "#" + tab);
 }

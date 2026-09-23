@@ -4,16 +4,24 @@ import { useAccount } from "wagmi";
 import WalletProvider, { WalletTheme } from "./WalletProvider";
 import ProductApp from "../ProductApp";
 import BrandLoading from "../../ui/BrandLoading";
-function SessionGuard({ user }) {
+function SessionGuard({ user, mode }) {
   const { address, status } = useAccount();
   const connected = useRef(false);
   const [leaving, setLeaving] = useState(false),
     [failed, setFailed] = useState(false);
+  // Institution accounts sign in with email; a connected wallet only signs
+  // transactions, so switching wallets must not end the session.
+  const walletSession = user.kind !== "institution";
   const mismatch =
-    address && address.toLowerCase() !== user.walletAddress.toLowerCase();
+    walletSession &&
+    address &&
+    address.toLowerCase() !== user.walletAddress?.toLowerCase();
   useEffect(() => {
     if (status === "connected") connected.current = true;
-    if (mismatch || (connected.current && status === "disconnected")) {
+    if (
+      mismatch ||
+      (walletSession && connected.current && status === "disconnected")
+    ) {
       setLeaving(true);
       fetch("/api/auth/sign-out", {
         method: "POST",
@@ -22,13 +30,13 @@ function SessionGuard({ user }) {
       })
         .then((r) => {
           if (!r.ok) throw new Error();
-          location.replace("/app/individual");
+          location.replace("/app/" + mode);
         })
         .catch(() => {
           setFailed(true);
         });
     }
-  }, [mismatch, status]);
+  }, [mismatch, status, mode, walletSession]);
   if (failed)
     return (
       <main style={{ padding: "15vh 8vw", color: "#19314a" }}>
@@ -41,13 +49,13 @@ function SessionGuard({ user }) {
       </main>
     );
   if (leaving || mismatch) return <BrandLoading fullscreen />;
-  return <ProductApp mode="individual" user={user} />;
+  return <ProductApp mode={mode} user={user} />;
 }
-export default function Workspace({ user }) {
+export default function Workspace({ user, mode = "individual" }) {
   return (
     <WalletProvider>
       <WalletTheme>
-        <SessionGuard user={user} />
+        <SessionGuard user={user} mode={mode} />
       </WalletTheme>
     </WalletProvider>
   );

@@ -98,11 +98,8 @@ try {
     );
     const html = await response.text();
     check(
-      html.includes(
-        path.endsWith("institution") || path === "/monitoring"
-          ? "Coming soon."
-          : "Your wallet.",
-      ),
+      html.includes("Sign in with your wallet") &&
+        !html.includes("Coming soon."),
       `${path} renders the expected interface`,
     );
     for (const asset of new Set(
@@ -193,7 +190,15 @@ try {
   );
   check(
     (await request("/app/api?mode=institution")).status === 403,
-    "institution remains gated",
+    "choosing the Institution view does not grant legacy company ledger access",
+  );
+  const institution = await request("/app/institution");
+  const institutionHtml = await institution.text();
+  check(institution.status === 200, "wallet session opens Institution route");
+  check(
+    !institutionHtml.includes("Sign in with your wallet") &&
+      !institutionHtml.includes("Coming soon."),
+    "Institution renders the authenticated wallet workspace",
   );
   const logout = await request("/api/auth/sign-out", {});
   check(logout.status === 200, "native logout works");

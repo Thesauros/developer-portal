@@ -7,7 +7,7 @@ function fixture(legacy, overrides = {}) {
     entry = legacy ? prefix + "/customer" : "/app";
   const responses = {
     [entry]: new Response(
-      `${legacy ? "Welcome back." : "Your wallet."}<script src="${prefix}/_next/static/test.js"></script>`,
+      `${legacy ? "Welcome back." : "Sign in with your wallet"}<script src="${prefix}/_next/static/test.js"></script>`,
     ),
     [prefix + "/_next/static/test.js"]: new Response("/* application */"),
     [prefix + "/api/auth/get-session"]: Response.json(null),

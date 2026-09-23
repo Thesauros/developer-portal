@@ -2,7 +2,7 @@
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useEffect, useRef, useState } from "react";
-import { fmt, Mark, short, stamp } from "./LivePanels";
+import { fmt, short, stamp } from "./LivePanels";
 import s from "./workspace.module.css";
 const ERC20 = [
   "function balanceOf(address) view returns (uint256)",
@@ -44,7 +44,7 @@ export default function WalletCard({ networks = [], expectedAddress }) {
       );
       if (!match)
         throw new Error(
-          "Switch your wallet to Base, Arbitrum, Plasma or Monad to read supported assets.",
+          "Switch your wallet to Arbitrum or Base to read supported balances in this workspace.",
         );
       const vault = match.vaults[0];
       if (!vault?.address)
@@ -116,15 +116,8 @@ export default function WalletCard({ networks = [], expectedAddress }) {
   return (
     <section className={s.wallet}>
       <div className={s.panelHead}>
-        <div>
-          <span className={s.eyebrow}>Your connected account</span>
-          <h2>
-            {address
-              ? "A clear view of your balance."
-              : "Your capital, in view."}
-          </h2>
-        </div>
-        <span className={s.pill}>Read only</span>
+        <h2>Wallet balances</h2>
+        <span className={s.caption}>Connected network · read only</span>
       </div>
       {address ? (
         <>
@@ -178,31 +171,12 @@ export default function WalletCard({ networks = [], expectedAddress }) {
         </>
       ) : (
         <>
-          <div className={s.walletValue}>
-            <span>In Thesauros Earn</span>
-            <strong>
-              —<small> USDC</small>
-            </strong>
-          </div>
-          <p>
-            Connect your wallet to read your stablecoin balance and Thesauros
-            vault position.
+          <p className={s.caption}>
+            Reconnect your signed-in wallet to see its supported stablecoin
+            balance and Thesauros vault position.
           </p>
-          <div className={s.walletNetworks}>
-            {["Base", "Arbitrum", "Monad"].map((n) => (
-              <span key={n}>
-                <Mark chain={n} />
-                {n}
-              </span>
-            ))}
-            <span>Plasma</span>
-          </div>
-          <button
-            className={s.primaryButton}
-            onClick={connect}
-            disabled={busy || !networks.length}
-          >
-            {busy ? "Connecting…" : "Connect wallet"}
+          <button className={s.primaryButton} onClick={connect} disabled={busy}>
+            {busy ? "Connecting…" : "Reconnect wallet"}
           </button>
         </>
       )}

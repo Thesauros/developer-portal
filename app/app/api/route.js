@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { userSession, accountMode } from "../../../lib/auth.mjs";
+import { workspaceSession, accountMode } from "../../../lib/auth.mjs";
 import {
   snapshot,
   transact,
@@ -12,14 +12,15 @@ function view(workspace, mode) {
   return { ...snapshot(workspace, mode), funded: !!workspace.funded };
 }
 export async function GET(request) {
-  const session = await userSession(request.headers);
+  const session = await workspaceSession(request.headers);
   if (!session)
     return Response.json(
       { error: "Sign in to continue." },
       { status: 401, headers },
     );
   const mode = new URL(request.url).searchParams.get("mode");
-  if (mode !== accountMode(session.user))
+  // Institution accounts may also use the Individual sandbox.
+  if (mode !== "individual" && mode !== accountMode(session.user))
     return Response.json(
       { error: "This workspace belongs to another account type." },
       { status: 403, headers },
@@ -30,7 +31,7 @@ export async function GET(request) {
   return Response.json(data, { headers });
 }
 export async function POST(request) {
-  const session = await userSession(request.headers);
+  const session = await workspaceSession(request.headers);
   if (!session)
     return Response.json(
       { error: "Sign in to continue." },
@@ -54,7 +55,7 @@ export async function POST(request) {
     const raw = await request.text();
     if (raw.length > 4096) throw new LedgerError("Request too large.", 413);
     const body = JSON.parse(raw);
-    if (body.mode !== accountMode(session.user))
+    if (body.mode !== "individual" && body.mode !== accountMode(session.user))
       throw new LedgerError(
         "This workspace belongs to another account type.",
         403,

@@ -1,7 +1,7 @@
 import { toNextJsHandler } from "better-auth/next-js";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { parseSiweMessage } from "viem/siwe";
-import { auth, authOrigin } from "../../../../lib/auth.mjs";
+import { auth, authOrigin, dbAll, dbRun } from "../../../../lib/auth.mjs";
 const handlers = toNextJsHandler(auth);
 const nonceCookie = "thesauros.wallet-challenge";
 const digest = (value) => createHash("sha256").update(value).digest("hex");
@@ -13,14 +13,20 @@ export const GET = (request) => handlers.GET(request);
 export async function POST(request) {
   const path = new URL(request.url).pathname.split("/api/auth")[1];
   if (
-    !["/siwe/nonce", "/siwe/get-nonce", "/siwe/verify", "/sign-out"].includes(
-      path,
-    )
+    ![
+      "/siwe/nonce",
+      "/siwe/get-nonce",
+      "/siwe/verify",
+      "/sign-out",
+      "/sign-in/email",
+      "/sign-up/email",
+      "/change-password",
+      "/revoke-other-sessions",
+    ].includes(path)
   )
     return Response.json(
       {
-        message:
-          "Connect a wallet to access Individual. Institution is coming soon.",
+        message: "Connect a wallet to access your Thesauros workspace.",
       },
       { status: 410, headers: noStore },
     );
@@ -66,8 +72,40 @@ export async function POST(request) {
         { status: 401, headers: noStore },
       );
   }
+  if (path === "/sign-up/email") return institutionSignUp(request, body);
   const response = await handlers.POST(request);
   response.headers.set("Cache-Control", "private, no-store");
+  if (path === "/sign-in/email" && response.ok) {
+    // Email access is for Institution accounts only.
+    const result = await response.clone().json();
+    const rows = await dbAll("SELECT accountType FROM user WHERE id=?", [
+      result.user?.id,
+    ]);
+    if (rows[0]?.accountType !== "institution") {
+      if (result.token)
+        await dbRun("DELETE FROM session WHERE token=?", [result.token]);
+      return Response.json(
+        {
+          message:
+            "This email is not an Institution account. Individual accounts sign in with a wallet.",
+        },
+        { status: 403, headers: noStore },
+      );
+    }
+    // Keep the session token in the HttpOnly cookie only.
+    const headers = new Headers(response.headers);
+    headers.delete("content-length");
+    return new Response(
+      JSON.stringify({
+        user: {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+        },
+      }),
+      { status: 200, headers },
+    );
+  }
   if (response.ok && ["/siwe/nonce", "/siwe/get-nonce"].includes(path)) {
     const result = await response.clone().json();
     response.headers.append(
@@ -85,4 +123,64 @@ export async function POST(request) {
     );
   }
   return response;
+}
+
+// Institution sign-up: name, company, email, password. Returns a one-time
+// recovery key, the only way to reset a password without email delivery.
+async function institutionSignUp(request, body) {
+  const text = (v, max) =>
+    typeof v === "string" && v.trim().length >= 2 && v.length <= max;
+  if (
+    !text(body.name, 100) ||
+    !text(body.company, 120) ||
+    typeof body.email !== "string" ||
+    body.email.length > 254 ||
+    typeof body.password !== "string"
+  )
+    return Response.json(
+      { message: "Enter your name, company, work email and a password." },
+      { status: 400, headers: noStore },
+    );
+  const forwarded = new Request(request.url, {
+    method: "POST",
+    headers: request.headers,
+    body: JSON.stringify({
+      name: body.name.trim(),
+      email: body.email.trim().toLowerCase(),
+      password: body.password,
+    }),
+  });
+  const response = await handlers.POST(forwarded);
+  if (!response.ok) {
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  }
+  const result = await response.clone().json();
+  const key = randomBytes(24)
+    .toString("hex")
+    .match(/.{1,8}/g)
+    .join("-");
+  await dbRun("UPDATE user SET accountType=?, company=? WHERE id=?", [
+    "institution",
+    body.company.trim(),
+    result.user.id,
+  ]);
+  await dbRun(
+    "INSERT OR REPLACE INTO account_recovery(user_id,key_hash) VALUES(?,?)",
+    [result.user.id, digest(key)],
+  );
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", "private, no-store");
+  headers.delete("content-length");
+  return new Response(
+    JSON.stringify({
+      user: {
+        id: result.user.id,
+        name: result.user.name,
+        email: result.user.email,
+      },
+      recoveryKey: key,
+    }),
+    { status: 200, headers },
+  );
 }
