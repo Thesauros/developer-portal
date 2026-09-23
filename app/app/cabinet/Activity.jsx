@@ -1,52 +1,36 @@
 "use client";
 import { useMemo, useState } from "react";
-import { getVault } from "../../../lib/vault-contracts.mjs";
 import { ActivityRows, combine } from "./Portfolio";
 import Rail, { RailLayout } from "./Rail";
 import { money } from "./format";
+import { earningDays, mergeActivity, rebalancesWhileHeld } from "./feed";
 import c from "./cabinet.module.css";
-
-// Onchain history from the vault data service, plus transactions sent from this
-// browser that the indexer has not picked up yet.
-export function mergeActivity(indexed, local) {
-  const known = new Set(indexed.map((t) => t.txHash.toLowerCase()));
-  const pending = local
-    .filter((t) => t.kind !== "approve")
-    .filter((t) => !known.has((t.replacementHash || t.hash).toLowerCase()))
-    .filter((t) => t.status !== "cancelled" && t.status !== "reverted")
-    .map((t) => {
-      const vault = getVault(t.vaultId);
-      const hash = t.replacementHash || t.hash;
-      return {
-        txHash: hash,
-        kind: t.kind,
-        network: vault.name,
-        token: vault.symbol,
-        at: t.createdAt ? Date.parse(t.createdAt) || t.createdAt : null,
-        amount: Number(t.amount) || null,
-        url: vault.explorer + "/tx/" + hash,
-        status: t.status,
-      };
-    });
-  return [...pending, ...indexed].sort((a, b) => (b.at || 0) - (a.at || 0));
-}
 
 function csv(rows) {
   const lines = [
-    "date,type,network,token,amount,transaction",
+    "date,type,network,token,amount,from,to,transaction",
     ...rows.map((r) =>
       [
         r.at ? new Date(r.at).toISOString() : "",
         r.kind,
-        r.network,
-        r.token,
+        r.network || "",
+        r.token || "",
         r.amount ?? "",
-        r.txHash,
+        r.fromName || "",
+        r.toName || "",
+        r.txHash || "",
       ].join(","),
     ),
   ];
   return "data:text/csv;charset=utf-8," + encodeURIComponent(lines.join("\n"));
 }
+
+const FILTERS = [
+  ["all", "All"],
+  ["money", "Deposits & withdrawals"],
+  ["earned", "Earnings"],
+  ["rebalance", "Rebalances"],
+];
 
 export default function Activity({
   account,
@@ -61,18 +45,32 @@ export default function Activity({
     [market.data, account, mine.data],
   );
   const [filter, setFilter] = useState("all");
-  const all = useMemo(
+  const money_ = useMemo(
     () =>
       mergeActivity(mine.data?.transactions || [], account.transactions || []),
     [mine.data, account.transactions],
   );
-  const rows = filter === "all" ? all : all.filter((r) => r.kind === filter);
-  const deposited = all
-    .filter((r) => r.kind === "deposit")
-    .reduce((s, r) => s + (r.amount || 0), 0);
-  const withdrawn = all
-    .filter((r) => r.kind === "withdraw")
-    .reduce((s, r) => s + (r.amount || 0), 0);
+  const feed = useMemo(
+    () =>
+      [
+        ...money_,
+        ...earningDays(mine.data?.vaults),
+        ...rebalancesWhileHeld(vaultRows, money_),
+      ].sort((a, b) => (b.at || 0) - (a.at || 0)),
+    [money_, mine.data, vaultRows],
+  );
+  const rows = feed.filter((r) =>
+    filter === "all"
+      ? true
+      : filter === "money"
+        ? r.kind === "deposit" || r.kind === "withdraw"
+        : r.kind === filter,
+  );
+  const sum = (kind) =>
+    feed
+      .filter((r) => r.kind === kind)
+      .reduce((s, r) => s + (r.amount || 0), 0);
+  const moves = feed.filter((r) => r.kind === "rebalance").length;
   return (
     <RailLayout
       rail={
@@ -87,29 +85,25 @@ export default function Activity({
       <dl className={c.summaryRow}>
         <div>
           <dt>Deposited</dt>
-          <dd>{money(deposited)}</dd>
+          <dd>{money(sum("deposit"))}</dd>
         </div>
         <div>
           <dt>Withdrawn</dt>
-          <dd>{money(withdrawn)}</dd>
+          <dd>{money(sum("withdraw"))}</dd>
         </div>
         <div>
-          <dt>Net deposited</dt>
-          <dd>{money(deposited - withdrawn)}</dd>
+          <dt>Earned, 30 days</dt>
+          <dd className={c.positive}>{money(sum("earned"))}</dd>
         </div>
         <div>
-          <dt>Transactions</dt>
-          <dd>{all.length}</dd>
+          <dt>Rebalances of your vaults</dt>
+          <dd>{moves}</dd>
         </div>
       </dl>
       <section className={c.section}>
         <header className={c.sectionHead}>
           <div className={c.segmented} role="group" aria-label="Filter">
-            {[
-              ["all", "All"],
-              ["deposit", "Deposits"],
-              ["withdraw", "Withdrawals"],
-            ].map(([id, label]) => (
+            {FILTERS.map(([id, label]) => (
               <button
                 key={id}
                 aria-pressed={filter === id}
@@ -119,11 +113,11 @@ export default function Activity({
               </button>
             ))}
           </div>
-          {all.length > 0 && (
+          {feed.length > 0 && (
             <a
               className={c.secondary}
               href={csv(rows)}
-              download="thesauros-activity.csv"
+              download="thesauros-statement.csv"
             >
               Export CSV
             </a>
@@ -137,15 +131,16 @@ export default function Activity({
             rows={rows}
             empty={
               filter === "all"
-                ? "No deposits or withdrawals yet. Your first deposit will appear here with its receipt."
+                ? "Nothing yet. Your deposits, daily earnings and the rebalances that move your money will appear here."
                 : "Nothing here for this filter."
             }
           />
         )}
         <p className={c.footnote}>
-          History comes from indexed vault events for your wallet on Arbitrum,
-          Base, Monad and Plasma. New transactions appear within a few minutes
-          of confirmation.
+          Deposits and withdrawals come from indexed vault events for your
+          wallet. Earnings are daily totals for the last 30 days. Rebalances are
+          read from the vault contracts and listed while you held a position in
+          that vault; the amount is what the vault moved, not only your share.
         </p>
       </section>
     </RailLayout>

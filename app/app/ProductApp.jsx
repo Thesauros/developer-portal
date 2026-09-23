@@ -33,7 +33,8 @@ const labels = {
 };
 const descriptions = {
   vaults: "Rates, allocation and history for every Thesauros vault.",
-  activity: "Every deposit and withdrawal from your wallet, with receipts.",
+  activity:
+    "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
   earn: "Move USDC between your wallet and Earn.",
   markets: "Stablecoin lending rates across DeFi, for comparison.",
   test: "Practise with simulated USDC. Nothing moves onchain.",
@@ -407,7 +408,6 @@ export default function ProductApp({ mode = "individual", user }) {
               period={period}
               setPeriod={setPeriod}
               onEarn={openEarn}
-              initial={earnVault}
               navigate={navigate}
               needsWallet={!user.walletAddress}
             />

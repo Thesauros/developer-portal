@@ -1,8 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
-import RateChart, { RateLegend, EarningsArea } from "./RateChart";
+import { EarningsArea } from "./RateChart";
 import { Amount, VaultMark } from "./parts";
 import Rail, { RailLayout } from "./Rail";
+import { mergeActivity, rebalancesWhileHeld } from "./feed";
 export { VaultMark };
 import {
   ago,
@@ -243,44 +244,8 @@ export default function Portfolio({
     [...held].sort((a, b) => b.balance - a.balance)[0] ||
     rows.find((r) => r.id === "arbitrum") ||
     rows[0];
-  const [chosen, setChosen] = useState("all");
-  const weightOf = held.length ? (r) => r.balance : (r) => r.tvl;
-  const allVaults = {
-    id: "all",
-    network: "All networks",
-    token: "USDC",
-    series: {
-      vault: aggregateSeries(rows, "vault", weightOf),
-      market: aggregateSeries(rows, "market", weightOf),
-    },
-    providers: (() => {
-      const byName = new Map();
-      const total = rows.reduce((s, r) => s + (weightOf(r) || 0), 0);
-      for (const r of rows)
-        for (const p of r.providers || []) {
-          const amount = ((weightOf(r) || 0) * (p.share || 0)) / 100;
-          const prev = byName.get(p.name) || { ...p, amount: 0, rateSum: 0 };
-          prev.amount += amount;
-          prev.rateSum += amount * (p.apy || 0);
-          byName.set(p.name, prev);
-        }
-      return [...byName.values()]
-        .map((p) => ({
-          ...p,
-          share: total ? (p.amount / total) * 100 : null,
-          apy: p.amount ? p.rateSum / p.amount : p.apy,
-        }))
-        .filter((p) => p.share >= 0.05)
-        .sort((a, b) => b.share - a.share);
-    })(),
-  };
-  const chartVault =
-    chosen === "all"
-      ? allVaults
-      : rows.find((r) => r.id === chosen) || featured;
-
   const providers = useMemo(() => {
-    if (!held.length) return chartVault?.providers || [];
+    if (!held.length) return [];
     const byName = new Map();
     for (const r of held)
       for (const p of r.providers) {
@@ -296,18 +261,21 @@ export default function Portfolio({
         share: (p.amount / total) * 100,
         apy: p.amount ? p.rateSum / p.amount : p.apy,
       }))
+      .filter((p) => p.share >= 0.05)
       .sort((a, b) => b.share - a.share);
-  }, [held, total, chartVault]);
+  }, [held, total]);
 
   const loading = account.loading && !account.vaults.length;
-  const recent = (mine.data?.transactions || []).slice(0, 5);
-  const rebalance = (
-    held.length ? held : chartVault?.id === "all" ? rows : [chartVault]
-  )
-    .map((r) => r?.lastRebalance && { ...r.lastRebalance, vault: r })
-    .filter(Boolean)
-    .sort((a, b) => b.at - a.at)[0];
-
+  const moneyRows = mergeActivity(
+    mine.data?.transactions || [],
+    account.transactions || [],
+  );
+  const recent = [...moneyRows, ...rebalancesWhileHeld(rows, moneyRows)]
+    .sort((a, b) => (b.at || 0) - (a.at || 0))
+    .slice(0, 4);
+  const best = [...rows]
+    .filter((r) => r.depositable)
+    .sort((a, b) => (b.apr30d || 0) - (a.apr30d || 0))[0];
   return (
     <RailLayout
       rail={
@@ -403,215 +371,117 @@ export default function Portfolio({
         </p>
       )}
 
-      <section className={c.section}>
-        <header className={c.sectionHead}>
-          <div>
-            <h2>Your rate against the market</h2>
-            <p className={c.muted}>
-              {chartVault?.id === "all"
-                ? `Across all networks, weighted by ${held.length ? "your balance" : "vault deposits"}, Thesauros averaged `
-                : `${chartVault?.network} ${chartVault?.token} vault averaged `}
-              {pct(average(chartVault?.series?.vault || []))} over this period;
-              the average lending market paid{" "}
-              {pct(average(chartVault?.series?.market || []))}.
-            </p>
-          </div>
-          <div className={c.controls}>
-            <div className={c.segmented} role="group" aria-label="Network">
-              <button
-                aria-pressed={chartVault?.id === "all"}
-                onClick={() => setChosen("all")}
-              >
-                <span className={c.chainStack} aria-hidden="true">
-                  {rows.map((r) => (
-                    <VaultMark key={r.id} vault={r} size={16} />
-                  ))}
-                </span>
-                All
+      {held.length > 0 ? (
+        <section className={c.section}>
+          <header className={c.sectionHead}>
+            <div>
+              <h2>Where your money works</h2>
+              <p className={c.muted}>
+                Your {money(total)} USDC by lending market, at each vault’s
+                current allocation.
+              </p>
+            </div>
+            <button className={c.link} onClick={() => navigate("vaults")}>
+              Vault details
+            </button>
+          </header>
+          <Allocation providers={providers} total={total} token="USDC" />
+        </section>
+      ) : (
+        !loading && (
+          <section className={c.section}>
+            <header className={c.sectionHead}>
+              <div>
+                <h2>Choose where to start</h2>
+                <p className={c.muted}>
+                  {best
+                    ? `The ${best.network} vault averaged ${pct(best.apr30d)} over 30 days, ${points(best.marketSpread30d)} above the average lending market.`
+                    : "Compare rates, allocation and history for each vault."}
+                </p>
+              </div>
+              <button className={c.link} onClick={() => navigate("vaults")}>
+                Compare vaults
               </button>
-              {rows.map((r) => (
-                <button
-                  key={r.id}
-                  aria-pressed={r.id === chartVault?.id}
-                  onClick={() => setChosen(r.id)}
-                >
-                  <VaultMark vault={r} size={16} />
-                  {r.network}
-                </button>
-              ))}
-            </div>
-            <div className={c.segmented} role="group" aria-label="Period">
-              {["7d", "30d", "180d"].map((p) => (
-                <button
-                  key={p}
-                  aria-pressed={p === period}
-                  onClick={() => setPeriod(p)}
-                >
-                  {p === "180d" ? "6m" : p}
-                </button>
-              ))}
-            </div>
-          </div>
-        </header>
-        {market.loading && !market.data ? (
-          <div className={c.chartEmpty} style={{ height: 260 }}>
-            Loading rate history…
-          </div>
-        ) : (
-          <RateChart
-            series={chartVault?.series}
-            label={`${chartVault?.network} vault rate against the lending market`}
-          />
-        )}
-        <RateLegend />
-      </section>
-
-      <section className={c.section}>
-        <header className={c.sectionHead}>
-          <div>
-            <h2>Where your money works</h2>
-            <p className={c.muted}>
-              {held.length
-                ? "Your balance spread across lending markets, by current vault allocation."
-                : chartVault?.id === "all"
-                  ? "How Thesauros vaults allocate deposits right now, across all networks."
-                  : `How the ${chartVault?.network} vault allocates deposits right now.`}
-            </p>
-          </div>
-        </header>
-        <Allocation
-          providers={providers}
-          total={held.length ? total : null}
-          token={chartVault?.token}
-        />
-        {rebalance && (
-          <p className={c.rebalance}>
-            Last rebalance {ago(rebalance.at)}: moved {money(rebalance.amount)}{" "}
-            {rebalance.vault.token}
-            {rebalance.fromName && rebalance.toName
-              ? ` from ${rebalance.fromName} to ${rebalance.toName}`
-              : ""}
-            .{" "}
-            <a
-              href={rebalance.vault.explorer + "/tx/" + rebalance.txHash}
-              target="_blank"
-              rel="noreferrer"
-            >
-              View transaction
-            </a>
-          </p>
-        )}
-      </section>
-
-      <section className={c.section}>
-        <header className={c.sectionHead}>
-          <div>
-            <h2>Vaults</h2>
-            <p className={c.muted}>
-              Your balance and current rate in every Thesauros vault.
-            </p>
-          </div>
-          <button className={c.link} onClick={() => navigate("vaults")}>
-            Compare vaults
-          </button>
-        </header>
-        <div className={c.tableWrap}>
-          <table className={c.table}>
-            <thead>
-              <tr>
-                <th>Vault</th>
-                <th className={c.num}>Your balance</th>
-                <th className={c.num}>Earned</th>
-                <th className={c.num}>Rate now</th>
-                <th className={c.num}>30-day avg</th>
-                <th className={c.num}>vs market</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    <span className={c.vaultCell}>
-                      <VaultMark vault={r} />
-                      <span>
-                        <strong>{r.token}</strong>
-                        <small>{r.network}</small>
-                      </span>
-                    </span>
-                  </td>
-                  <td className={c.num}>
-                    {r.depositable ? money(r.balance) : "—"}
-                  </td>
-                  <td className={`${c.num} ${r.earned > 0 ? c.positive : ""}`}>
-                    {r.earned ? earned(r.earned) : "—"}
-                  </td>
-                  <td className={c.num}>{pct(r.rate)}</td>
-                  <td className={c.num}>{pct(r.apr30d)}</td>
-                  <td className={c.num}>
-                    {r.marketSpread30d ? points(r.marketSpread30d) : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </header>
+          </section>
+        )
+      )}
 
       <section className={c.section}>
         <header className={c.sectionHead}>
           <div>
             <h2>Recent activity</h2>
             <p className={c.muted}>
-              Your deposits and withdrawals, from onchain records.
+              Your deposits and withdrawals, and the rebalances that moved your
+              money.
             </p>
           </div>
           <button className={c.link} onClick={() => navigate("activity")}>
-            All activity
+            Full statement
           </button>
         </header>
-        <ActivityRows rows={recent} empty="No deposits or withdrawals yet." />
+        <ActivityRows rows={recent} empty="No activity yet." />
       </section>
-
-      <Health rows={rows} market={market} />
     </RailLayout>
   );
 }
+
+const KIND = {
+  deposit: { title: "Deposit", icon: "↓", tone: "dirIn", sign: "+" },
+  withdraw: { title: "Withdrawal", icon: "↑", tone: "dirOut", sign: "−" },
+  earned: { title: "Earned", icon: "+", tone: "dirEarn", sign: "+" },
+  rebalance: { title: "Rebalanced", icon: "⇄", tone: "dirMove", sign: "" },
+};
 
 export function ActivityRows({ rows, empty }) {
   if (!rows.length) return <p className={c.emptyLine}>{empty}</p>;
   return (
     <ul className={c.activity}>
-      {rows.map((t) => (
-        <li key={t.txHash + t.kind}>
-          <span
-            className={t.kind === "withdraw" ? c.dirOut : c.dirIn}
-            aria-hidden="true"
-          >
-            {t.kind === "withdraw" ? "↑" : "↓"}
-          </span>
-          <span className={c.activityMain}>
-            <strong>{t.kind === "withdraw" ? "Withdrawal" : "Deposit"}</strong>
-            <small>
-              {t.network} {t.token}, {day(t.at, true)}
-              {t.status && t.status !== "success"
-                ? ", awaiting confirmation"
-                : ""}
-            </small>
-          </span>
-          <span className={`${c.num} ${c.activityAmount}`}>
-            {t.kind === "withdraw" ? "−" : "+"}
-            {money(t.amount)} {t.token}
-          </span>
-          <a
-            href={t.url}
-            target="_blank"
-            rel="noreferrer"
-            className={c.receipt}
-          >
-            Receipt
-          </a>
-        </li>
-      ))}
+      {rows.map((t, i) => {
+        const k = KIND[t.kind] || KIND.deposit;
+        return (
+          <li key={(t.txHash || t.at) + t.kind + i}>
+            <span className={c[k.tone]} aria-hidden="true">
+              {k.icon}
+            </span>
+            <span className={c.activityMain}>
+              <strong>{k.title}</strong>
+              <small>
+                {t.kind === "rebalance"
+                  ? `${t.network} vault: ${t.fromName || "provider"} to ${t.toName || "provider"}, ${day(t.at, true)}`
+                  : t.kind === "earned"
+                    ? `All vaults, ${day(t.at, true)}`
+                    : `${t.network} ${t.token}, ${day(t.at, true)}`}
+                {t.status && t.status !== "success"
+                  ? ", awaiting confirmation"
+                  : ""}
+              </small>
+            </span>
+            <span
+              className={`${c.num} ${c.activityAmount} ${t.kind === "earned" ? c.positive : ""}`}
+            >
+              {k.sign}
+              {t.kind === "earned" ? earned(t.amount) : money(t.amount)}{" "}
+              {t.token || "USDC"}
+              {t.kind === "rebalance" && (
+                <small className={c.amountNote}>moved in the vault</small>
+              )}
+            </span>
+            {t.url ? (
+              <a
+                href={t.url}
+                target="_blank"
+                rel="noreferrer"
+                className={c.receipt}
+              >
+                {t.kind === "rebalance" ? "Transaction" : "Receipt"}
+              </a>
+            ) : (
+              <span />
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
