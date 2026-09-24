@@ -140,7 +140,9 @@ export default function EarnWorkspace({
             >
               <img src={v.icon} alt="" width="28" height="28" />
               <span>
-                <strong>USDC on {v.name}</strong>
+                <strong>
+                  {v.symbol} on {v.name}
+                </strong>
                 <small>
                   {data?.status === "ready"
                     ? BigInt(data.shares) > 0n
@@ -180,13 +182,15 @@ export default function EarnWorkspace({
                   ? "No active Earn position"
                   : "Your Earn balance"}
               </span>
-              <span className={p.networkTag}>{vault.name} · USDC</span>
+              <span className={p.networkTag}>
+                {vault.name} · {vault.symbol}
+              </span>
             </div>
             {emptyPosition ? (
               <div className={e.firstCopy}>
                 <h2>Your next Earn deposit.</h2>
                 <p>
-                  Start with {tokenAmount(position.minAssets)} USDC on{" "}
+                  Start with {tokenAmount(position.minAssets)} {vault.symbol} on{" "}
                   {vault.name}. Your wallet holds the shares in the vault.
                 </p>
               </div>
@@ -194,11 +198,11 @@ export default function EarnWorkspace({
               <>
                 <div className={p.balanceValue}>
                   {balanceLabel(ready ? position.positionAssets : null)}
-                  <span className={p.balanceUnit}>USDC</span>
+                  <span className={p.balanceUnit}>{vault.symbol}</span>
                 </div>
                 <p className={p.balanceMeta}>
                   {ready
-                    ? "Your share of this vault, valued in USDC."
+                    ? `Your share of this vault, valued in ${vault.symbol}.`
                     : account.loading
                       ? "Reading your position directly from the vault…"
                       : "Your position is temporarily unavailable."}
@@ -210,7 +214,7 @@ export default function EarnWorkspace({
                 <span>Available in your wallet</span>
                 <strong>
                   {balanceLabel(ready ? position.cash : null)}{" "}
-                  <small>USDC</small>
+                  <small>{vault.symbol}</small>
                 </strong>
               </div>
               <div>
@@ -256,8 +260,8 @@ export default function EarnWorkspace({
                 onClick={() => setSelected(other.id)}
               >
                 {otherPosition
-                  ? `${balanceLabel(other.positionAssets)} USDC in Earn on ${getVault(other.id).name}`
-                  : `${balanceLabel(other.cash)} USDC available on ${getVault(other.id).name}`}
+                  ? `${balanceLabel(other.positionAssets)} ${getVault(other.id).symbol} in Earn on ${getVault(other.id).name}`
+                  : `${balanceLabel(other.cash)} ${getVault(other.id).symbol} available on ${getVault(other.id).name}`}
                 <span>View {getVault(other.id).name}</span>
               </button>
             )}
@@ -276,7 +280,8 @@ export default function EarnWorkspace({
               <div>
                 <h2>About this vault</h2>
                 <p className={p.sectionCopy}>
-                  Withdraw any time; the vault returns your share in USDC.
+                  Withdraw any time; the vault returns your share in{" "}
+                  {vault.symbol}.
                 </p>
               </div>
               <button
@@ -290,7 +295,8 @@ export default function EarnWorkspace({
               <div>
                 <span>Assets in this vault</span>
                 <strong>
-                  {displayAmount(ready ? position.totalAssets : null)} USDC
+                  {displayAmount(ready ? position.totalAssets : null)}{" "}
+                  {vault.symbol}
                 </strong>
               </div>
               <div>
@@ -627,10 +633,10 @@ function TransactionPanel({
         type: "success",
         text:
           action === "approve"
-            ? "USDC approval confirmed. Review and confirm your deposit next."
+            ? `${vault.symbol} approval confirmed. Review and confirm your deposit next.`
             : mode === "deposit"
               ? "Deposit confirmed onchain. Your position is refreshing."
-              : "Withdrawal confirmed onchain. USDC has returned to your wallet.",
+              : `Withdrawal confirmed onchain. ${vault.symbol} has returned to your wallet.`,
       });
       setReview(null);
       if (action !== "approve") {
@@ -692,7 +698,10 @@ function TransactionPanel({
     }
   }
   return (
-    <section className={p.transactionPanel} aria-label="Manage your USDC">
+    <section
+      className={p.transactionPanel}
+      aria-label={"Manage your " + vault.symbol}
+    >
       <div className={p.modeTabs} aria-label="Transaction type">
         {["deposit", "withdraw"].map((value) => (
           <button
@@ -707,7 +716,11 @@ function TransactionPanel({
         ))}
       </div>
       <div>
-        <h2>{mode === "deposit" ? "Deposit USDC" : "Back to your wallet."}</h2>
+        <h2>
+          {mode === "deposit"
+            ? `Deposit ${vault.symbol}`
+            : "Back to your wallet."}
+        </h2>
         <p className={p.sectionCopy}>
           {mode === "deposit"
             ? "Deposit into Thesauros on " + vault.name + "."
@@ -717,11 +730,13 @@ function TransactionPanel({
       {needsFunds && !busy && !pending && !uncertain && !review ? (
         <div className={e.nextStep}>
           <span className={e.nextStepLabel}>Before you deposit</span>
-          <h3>Add USDC on {vault.name}.</h3>
+          <h3>
+            Add {vault.symbol} on {vault.name}.
+          </h3>
           <p>
-            Your wallet has {displayAmount(position.cash)} USDC here. Add enough
-            for the {tokenAmount(position.minAssets)} USDC minimum, and keep ETH
-            for network fees.
+            Your wallet has {displayAmount(position.cash)} {vault.symbol} here.
+            Add enough for the {tokenAmount(position.minAssets)} {vault.symbol}{" "}
+            minimum, and keep {vault.gasToken} for network fees.
           </p>
           <button className={p.textButton} onClick={onSandbox}>
             Practise with test funds
@@ -760,12 +775,12 @@ function TransactionPanel({
               }
               aria-invalid={!!feedback}
             />
-            <span>USDC</span>
+            <span>{vault.symbol}</span>
           </div>
           <div id="earn-available" className={p.amountBalance}>
             <span>
               {mode === "deposit" ? "Available" : "Position value"}:{" "}
-              {displayAmount(balance, 6)} USDC
+              {displayAmount(balance, 6)} {vault.symbol}
             </span>
             <button
               disabled={
@@ -801,13 +816,15 @@ function TransactionPanel({
           <dt>{mode === "deposit" ? "Minimum deposit" : "Receiving wallet"}</dt>
           <dd>
             {mode === "deposit"
-              ? displayAmount(ready ? position.minAssets : null) + " USDC"
+              ? displayAmount(ready ? position.minAssets : null) +
+                " " +
+                vault.symbol
               : short(owner)}
           </dd>
         </div>
         <div>
           <dt>Network fee</dt>
-          <dd>Paid in ETH · shown in wallet</dd>
+          <dd>Paid in {vault.gasToken}, shown in your wallet</dd>
         </div>
         {review && (
           <div>
@@ -832,15 +849,17 @@ function TransactionPanel({
       {review && (
         <div className={e.review}>
           <span className={p.eyebrow}>Review your {mode}</span>
-          <strong>{tokenAmount(review.rawAmount)} USDC</strong>
+          <strong>
+            {tokenAmount(review.rawAmount)} {vault.symbol}
+          </strong>
           <p>
             {mode === "deposit"
               ? review.needsApproval
-                ? "First approve exactly this amount of USDC. A separate wallet confirmation makes the deposit."
-                : "USDC is approved. Confirm the deposit in your wallet to receive vault shares."
+                ? `First approve exactly this amount of ${vault.symbol}. A separate wallet confirmation makes the deposit.`
+                : `${vault.symbol} is approved. Confirm the deposit in your wallet to receive vault shares.`
               : all
-                ? "Redeem all your vault shares. The final USDC amount is set when the transaction is included."
-                : "USDC will return to the same wallet. The vault checks available liquidity when you confirm."}
+                ? `Redeem all your vault shares. The final ${vault.symbol} amount is set when the transaction is included.`
+                : `${vault.symbol} will return to the same wallet. The vault checks available liquidity when you confirm.`}
           </p>
           <p>
             Rates and share previews can change.{" "}
@@ -962,7 +981,7 @@ function TransactionPanel({
       <div className={p.transactionFooter}>
         {needsFunds && !busy && !pending && !uncertain && !review ? (
           <button className={p.primaryButton} onClick={onFunding}>
-            Add USDC to your wallet
+            Add {vault.symbol} to your wallet
           </button>
         ) : noPosition && !busy && !pending ? (
           <button className={p.primaryButton} disabled>
@@ -998,7 +1017,7 @@ function TransactionPanel({
               }
             >
               {review.needsApproval && mode === "deposit"
-                ? "1. Approve USDC"
+                ? `1. Approve ${vault.symbol}`
                 : "Confirm " + mode}
             </button>
             <button className={p.textButton} onClick={() => setReview(null)}>
@@ -1022,7 +1041,7 @@ function TransactionPanel({
           </button>
         )}
         <p className={p.dataNote}>
-          Real USDC on {vault.name}. Every transfer needs your wallet
+          Real {vault.symbol} on {vault.name}. Every transfer needs your wallet
           confirmation.
         </p>
       </div>
@@ -1084,7 +1103,7 @@ function TransactionList({
               <div>
                 <strong>
                   {tx.kind === "approve"
-                    ? "USDC approval"
+                    ? `${vault.symbol} approval`
                     : tx.kind === "withdraw"
                       ? "Withdrawal"
                       : "Deposit"}
@@ -1107,7 +1126,7 @@ function TransactionList({
             <div className={p.positionValue}>
               <strong>
                 {tx.amountEstimated ? "≈ " : ""}
-                {tx.amount} USDC
+                {tx.amount} {vault.symbol}
               </strong>
               {tx.amountEstimated && <small>Estimated amount</small>}
               <span className={e[tx.status]}>

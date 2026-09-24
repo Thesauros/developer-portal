@@ -6,12 +6,12 @@ const steps = [
   {
     short: "Choose",
     title: "Give your USDC an Earn balance.",
-    body: "Choose a Thesauros vault on Arbitrum or Base. The vault puts deposited USDC to work through lending providers; you hold the shares that represent your position.",
+    body: "Choose a Thesauros vault on Arbitrum, Base, Monad or Plasma. The vault puts your deposit to work through lending providers; you hold the shares that represent your position.",
     detail:
       "Review the allocation, variable rate and current minimum deposit. Keep ETH for network fees on the selected network.",
     note: "One network, one vault, your position.",
     visual: [
-      ["wallet", "Your USDC", "On Arbitrum or Base"],
+      ["wallet", "Your USDC or USDT0", "On one of four networks"],
       ["vault", "Thesauros vault", "Your Earn position"],
       ["market", "Lending providers", "View the allocation"],
     ],

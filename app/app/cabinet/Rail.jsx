@@ -1,6 +1,6 @@
 "use client";
 import { Amount, VaultMark } from "./parts";
-import { money, pct, points } from "./format";
+import { earned, money, pct, points } from "./format";
 import c from "./cabinet.module.css";
 
 // Page column plus the account rail: actions and balances stay in reach on
@@ -87,7 +87,7 @@ export default function Rail({ rows, onEarn, navigate, needsWallet = false }) {
               <VaultMark vault={r} size={30} />
               <span>
                 <strong>{r.network}</strong>
-                <small>{r.cash ? money(r.cash) + " in wallet" : "USDC"}</small>
+                <small>{r.cash ? money(r.cash) + " in wallet" : r.token}</small>
               </span>
               <span className={c.railAmount}>
                 <Amount value={r.balance ?? 0} />
@@ -99,9 +99,15 @@ export default function Rail({ rows, onEarn, navigate, needsWallet = false }) {
 
       <div className={c.railTiles}>
         <div>
-          <span>{inEarn ? "Earning now" : "Best 30-day rate"}</span>
+          <span>{inEarn ? "Current rate" : "Best 30-day rate"}</span>
           <strong>{pct(inEarn ? rate : best?.apr30d)}</strong>
-          {!inEarn && best && <small>{best.network} vault</small>}
+          <small>
+            {inEarn
+              ? held.length > 1
+                ? `blended across ${held.length} vaults, by balance`
+                : `${held[0].network} vault, variable`
+              : `${best?.network} vault`}
+          </small>
         </div>
         <div>
           <span>{inEarn ? "Per month" : "vs market"}</span>
@@ -116,8 +122,8 @@ export default function Rail({ rows, onEarn, navigate, needsWallet = false }) {
           <>
             <div>
               <span>Earned</span>
-              <strong className={c.positive}>{money(earnedTotal)}</strong>
-              <small>USDC all time</small>
+              <strong className={c.positive}>{earned(earnedTotal)}</strong>
+              <small>all time, after fees</small>
             </div>
             <div>
               <span>vs market</span>

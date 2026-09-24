@@ -19,7 +19,6 @@ const loading = () => <BrandLoading />;
 const TestAccount = dynamic(() => import("./TestAccount"), { loading });
 const AccountSettings = dynamic(() => import("./AccountSettings"), { loading });
 const QuickGuide = dynamic(() => import("./QuickGuide"));
-const PlatformGuide = dynamic(() => import("./PlatformGuide"));
 const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
 const labels = {
   overview: "Portfolio",
@@ -99,11 +98,12 @@ export default function ProductApp({ mode = "individual", user }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(vaultPreferenceKey);
-      if (["arbitrum", "base"].includes(saved)) setEarnVault(saved);
+      if (["arbitrum", "base", "monad", "plasma"].includes(saved))
+        setEarnVault(saved);
     } catch {}
   }, [vaultPreferenceKey]);
   function chooseEarnVault(id) {
-    if (!["arbitrum", "base"].includes(id)) return;
+    if (!["arbitrum", "base", "monad", "plasma"].includes(id)) return;
     setEarnVault(id);
     try {
       localStorage.setItem(vaultPreferenceKey, id);
@@ -122,7 +122,7 @@ export default function ProductApp({ mode = "individual", user }) {
   const guideOpener = useRef(null);
   function openGuide(event) {
     guideOpener.current = event?.currentTarget || document.activeElement;
-    setGuide("platform");
+    setGuide("earn");
   }
   const [signingOut, setSigningOut] = useState(false),
     [error, setError] = useState("");
@@ -491,13 +491,6 @@ export default function ProductApp({ mode = "individual", user }) {
           navigationButton(id, true),
         )}
       </nav>
-      {guide === "platform" && (
-        <PlatformGuide
-          onClose={closeGuide}
-          navigate={navigate}
-          returnFocusRef={guideOpener}
-        />
-      )}
       {guide === "earn" && (
         <QuickGuide
           open={true}
