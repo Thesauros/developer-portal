@@ -7,9 +7,9 @@ const onest = localFont({
   variable: "--font-sans",
 });
 export const metadata = {
-  title: "Thesauros Developers · Build your Earn experience",
+  title: "Thesauros · Account",
   description:
-    "Prototype customer journeys, explore the sandbox API and prepare your Thesauros integration.",
+    "View vault balances, compare lending markets and follow onchain activity with Thesauros.",
 };
 export default function RootLayout({ children }) {
   return (

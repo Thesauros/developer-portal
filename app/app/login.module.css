@@ -1,11 +1,13 @@
 .page {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(440px, 0.95fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(400px, 0.95fr);
   min-height: 100dvh;
-  background: #f7f8fa;
-  color: #19314a;
-  font-family: var(--font-sans), Arial, sans-serif;
-  line-height: 1.5;
+  background: #f7f9fb;
+  color: #10243a;
+  font:
+    400 15px/1.6 var(--font-sans),
+    Arial,
+    sans-serif;
   padding: 14px;
   gap: 14px;
 }
@@ -16,21 +18,20 @@
   color: inherit;
   text-decoration: none;
 }
-.page button,
-.page input {
+.page button {
   font: inherit;
 }
 .page :where(button, a, input):focus-visible {
-  outline: 3px solid #6f96b3;
+  outline: 3px solid #366eac;
   outline-offset: 4px;
 }
 .visual {
   position: relative;
-  border-radius: 19px;
+  border-radius: 18px;
   overflow: hidden;
   min-height: calc(100dvh - 28px);
   background: #09223a;
-  color: #fff;
+  color: white;
   isolation: isolate;
 }
 .photo,
@@ -43,7 +44,7 @@
   z-index: -2;
 }
 .shade {
-  background: linear-gradient(180deg, #08223b15 15%, #071e3580 65%, #061c35cf);
+  background: linear-gradient(180deg, #071e3550, #071e3520 35%, #061c35e8);
   z-index: -1;
 }
 .brand {
@@ -51,9 +52,9 @@
   align-items: center;
   gap: 11px;
   font-weight: 500;
-  letter-spacing: -0.9px;
+  letter-spacing: -0.8px;
   font-size: 25px;
-  margin: 33px 39px;
+  margin: 34px 40px;
   width: fit-content;
 }
 .brand img {
@@ -61,317 +62,171 @@
 }
 .visualCopy {
   position: absolute;
-  left: 43px;
-  right: 43px;
-  bottom: 34px;
-}
-.visualCopy > span {
-  display: block;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1.7px;
-  color: #b7cbdc;
+  left: 40px;
+  right: 40px;
+  bottom: 48px;
 }
 .visualCopy h2 {
-  font-size: clamp(32px, 3.6vw, 58px);
-  line-height: 1.06;
-  letter-spacing: -1.9px;
-  font-weight: 400;
-  margin: 23px 0;
+  font-size: clamp(30px, 3.7vw, 54px);
+  font-weight: 450;
+  line-height: 1.12;
+  letter-spacing: -1.7px;
+  margin: 0 0 20px;
+  max-width: 460px;
 }
-.visualCopy > p {
-  font-size: 13px;
-  line-height: 1.7;
-  color: #bacddb;
-  max-width: 310px;
-  margin: 0 0 38px;
-}
-.visualFoot {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  border-top: 1px solid #b7cee02b;
-  padding-top: 18px;
-  color: #b1c4d5;
-  font-size: 9px;
+.visualCopy p {
+  color: #d0dfeb;
+  font-size: 16px;
+  line-height: 1.6;
+  max-width: 360px;
+  margin: 0;
 }
 .access {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 23px 39px 13px;
+  padding: 20px 40px 10px;
 }
 .topLinks {
   display: flex;
   justify-content: flex-end;
-  gap: 25px;
-  font-size: 10px;
-  color: #728598;
+  gap: 24px;
+  font-size: 14px;
+  color: #526579;
+}
+.topLinks a,
+.accessFoot a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
 }
 .formWrap {
   width: 100%;
-  max-width: 360px;
+  max-width: 400px;
   margin: auto;
-  padding: 52px 0;
+  padding: 50px 0;
 }
 .modes {
   display: flex;
-  border-bottom: 1px solid #dce4ea;
-  margin-bottom: 32px;
-  gap: 26px;
+  border-bottom: 1px solid #ccd8e3;
+  margin-bottom: 36px;
+  gap: 28px;
 }
-.modes button {
-  background: none;
-  border: 0;
+.modes a {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 8px 0 12px;
   border-bottom: 2px solid transparent;
-  padding: 0 0 12px;
-  color: #8494a3;
-  font-size: 12px;
-  cursor: pointer;
+  color: #526579;
+  font-size: 14px;
   margin-bottom: -1px;
 }
-.modes button[aria-pressed="true"] {
-  color: #193c5b;
-  border-color: #234c70;
-}
-.eyebrow {
-  display: block;
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: #8798a6;
-  margin-bottom: 14px;
+.modes a[aria-current="page"] {
+  color: #10243a;
+  border-color: #193e61;
+  font-weight: 550;
 }
 .formWrap h1 {
-  font-size: 37px;
-  font-weight: 450;
-  letter-spacing: -1.4px;
-  line-height: 1.12;
-  margin: 0 0 15px;
-  white-space: pre-line;
+  font-size: clamp(30px, 3.1vw, 42px);
+  font-weight: 500;
+  letter-spacing: -1.3px;
+  line-height: 1.15;
+  margin: 0 0 20px;
 }
 .intro {
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.7;
-  color: #748698;
-  margin: 0 0 29px;
-  max-width: 325px;
+  color: #526579;
+  margin: 0 0 28px;
 }
-.form {
-  display: flex;
-  flex-direction: column;
-}
-.form label {
-  font-size: 11px;
-  font-weight: 500;
-  margin-bottom: 8px;
-  color: #405b73;
-}
-.form > input,
-.password {
-  border: 1px solid #d7e0e7;
-  border-radius: 7px;
-  background: #fff;
-  min-height: 46px;
-  margin-bottom: 19px;
-}
-.form input {
-  font-size: 13px;
-  min-width: 0;
-  padding: 12px 13px;
-  color: #203d56;
-  outline-offset: 2px !important;
-  width: 100%;
-}
-.form input::placeholder {
-  color: #a0adb8;
-  font-size: 12px;
-}
-.passwordLabel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-}
-.passwordLabel button {
-  border: 0;
-  background: none;
-  font-size: 10px;
-  color: #7f91a0;
-  cursor: pointer;
-  padding: 0 0 8px;
-}
-.password {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0;
-  overflow: hidden;
-}
-.password input {
-  border: 0;
-  background: transparent;
-  flex: 1;
-}
-.password button {
-  font-size: 10px;
-  color: #8094a5;
-  background: none;
-  border: 0;
-  padding: 10px 13px;
-  cursor: pointer;
-}
-.hint {
-  font-size: 9px;
-  line-height: 1.6;
-  color: #8b9ca9;
-  margin-top: 9px;
-}
-.submit,
+.walletConnectButton,
 .primaryLink {
-  display: block;
-  width: 100%;
-  background: #153652;
-  color: #fff !important;
-  border: 1px solid #153652;
-  border-radius: 7px;
-  padding: 13px;
-  text-align: center;
-  font-size: 12px;
-  margin-top: 23px;
-  cursor: pointer;
-  min-height: 47px;
-}
-.submit:hover,
-.primaryLink:hover {
-  background: #204767;
-}
-.submit:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-.switch {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  font-size: 10px;
-  color: #8495a3;
-  margin-top: 22px;
-}
-.switch button {
-  font-size: 10px;
+  width: 100%;
+  border: 1px solid #196aff;
+  border-radius: 8px;
+  min-height: 52px;
+  padding: 14px 20px;
+  background: #196aff;
+  color: white !important;
+  font-size: 15px;
   font-weight: 500;
-  color: #355d7b;
-  background: none;
-  border: 0;
-  padding: 0;
   cursor: pointer;
+  text-align: center;
 }
-.error,
-.message {
-  font-size: 11px;
+.walletConnectButton:hover,
+.primaryLink:hover {
+  background: #0b58e0;
+}
+.page button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+.walletHint {
+  font-size: 13px;
   line-height: 1.7;
-  padding: 10px 12px;
-  border-radius: 6px;
-  margin: 14px 0 0;
+  color: #526579;
+  margin: 16px 0 28px;
+}
+.accessNote {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #526579;
+  border-top: 1px solid #d5dfe8;
+  padding-top: 20px;
 }
 .error {
-  background: #f7ebe7;
-  color: #995b49;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 12px 16px;
+  border-radius: 7px;
+  margin: 16px 0 0;
+  background: #fff0ee;
+  color: #873d33;
+  overflow-wrap: anywhere;
 }
-.message {
-  background: #eaf2ed;
-  color: #446b55;
-}
-.footer {
+.accessFoot {
   display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  color: #8a9ca9;
-  font-size: 9px;
-  padding-top: 20px;
+  font-size: 13px;
+  color: #526579;
+  margin-top: auto;
+  padding: 8px 0;
 }
 .mobileBrand {
   display: none;
 }
-.recoveryKey {
+.availability {
+  font-size: 13px;
+  color: #526579;
   display: block;
-  padding: 18px;
-  border: 1px solid #d5e0e8;
-  border-radius: 7px;
-  background: white;
-  overflow-wrap: anywhere;
-  font-size: 14px;
-  line-height: 1.8;
-  color: #2d5371;
+  margin-bottom: 20px;
 }
-.recoveryActions {
+.quietLink {
   display: flex;
-  gap: 12px;
-  margin-top: 16px;
-}
-.recoveryActions button {
-  background: white;
-  border: 1px solid #d4dfe7;
-  border-radius: 6px;
-  font-size: 11px;
-  color: #496c86;
-  padding: 10px 14px;
-  cursor: pointer;
-}
-@media (min-width: 1500px) {
-  .page {
-    grid-template-columns: minmax(0, 1.08fr) minmax(440px, 0.92fr);
-  }
-  .formWrap {
-    max-width: 390px;
-  }
-  .formWrap h1 {
-    font-size: 40px;
-  }
-  .visualCopy {
-    left: 56px;
-    right: 56px;
-    bottom: 40px;
-  }
-  .brand {
-    margin: 40px 52px;
-  }
-  .intro {
-    font-size: 13px;
-  }
-  .access {
-    padding-inline: 50px;
-  }
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  margin-top: 12px;
+  padding: 8px;
+  color: #193e61 !important;
 }
 @media (max-width: 1000px) {
   .page {
-    grid-template-columns: minmax(0, 0.9fr) minmax(380px, 1.1fr);
-  }
-  .brand {
-    margin: 27px;
-    font-size: 23px;
-  }
-  .visualCopy {
-    left: 29px;
-    right: 29px;
-    bottom: 27px;
-  }
-  .visualCopy h2 {
-    font-size: 35px;
-    letter-spacing: -1.3px;
-  }
-  .visualCopy > p {
-    font-size: 11px;
+    grid-template-columns: minmax(0, 0.9fr) minmax(370px, 1.1fr);
   }
   .access {
-    padding-inline: 24px;
+    padding-inline: 26px;
   }
-  .formWrap {
-    max-width: 330px;
+  .visualCopy {
+    left: 28px;
+    right: 28px;
   }
-  .formWrap h1 {
-    font-size: 33px;
+  .brand {
+    margin-inline: 28px;
   }
 }
 @media (max-width: 740px) {
@@ -382,12 +237,12 @@
     gap: 0;
   }
   .visual {
-    min-height: 205px;
-    height: 205px;
-    border-radius: 13px;
+    min-height: 168px;
+    height: 168px;
+    border-radius: 12px;
   }
   .brand {
-    margin: 22px;
+    margin: 20px 22px;
     font-size: 22px;
   }
   .brand img {
@@ -395,237 +250,131 @@
     height: 24px;
   }
   .photo {
-    object-position: center 35%;
+    object-position: center 40%;
   }
   .shade {
-    background:
-      linear-gradient(90deg, #08223b60, #0c2a3f10),
-      linear-gradient(0deg, #061e3665, transparent);
+    background: linear-gradient(0deg, #061c35e0, #071e3550);
   }
   .visualCopy {
     left: 22px;
     right: 22px;
     bottom: 22px;
   }
-  .visualCopy > span,
-  .visualCopy > p,
-  .visualFoot {
-    display: none;
-  }
   .visualCopy h2 {
-    font-size: 28px;
-    letter-spacing: -1px;
-    line-height: 1.06;
+    font-size: 25px;
+    letter-spacing: -0.7px;
     margin: 0;
   }
-  .visualCopy h2 br {
+  .visualCopy p {
     display: none;
   }
   .access {
-    padding: 0 21px 12px;
+    padding: 0 16px;
     flex: 1;
   }
   .topLinks {
     display: none;
   }
   .formWrap {
-    padding: 29px 0 35px;
-    max-width: 390px;
+    padding: 24px 0 28px;
   }
   .modes {
-    margin-bottom: 24px;
-    gap: 27px;
-  }
-  .modes button {
-    font-size: 11px;
-    padding-bottom: 10px;
-  }
-  .eyebrow {
-    font-size: 8px;
-    margin-bottom: 11px;
+    margin-bottom: 28px;
   }
   .formWrap h1 {
     font-size: 32px;
-    letter-spacing: -1px;
-    margin-bottom: 12px;
+    letter-spacing: -0.9px;
   }
-  .intro {
-    font-size: 11px;
-    max-width: 320px;
-    margin-bottom: 24px;
-  }
-  .form label {
-    font-size: 11px;
-  }
-  .form input {
-    font-size: 16px;
-    padding: 12px;
-  }
-  .form input::placeholder {
-    font-size: 12px;
-  }
-  .form > input {
-    margin-bottom: 16px;
-  }
-  .passwordLabel button {
-    font-size: 10px;
-  }
-  .password button {
-    font-size: 10px;
-  }
-  .submit {
-    font-size: 12px;
-    min-height: 48px;
-  }
-  .switch {
-    font-size: 10px;
-    margin-top: 22px;
-  }
-  .footer {
-    font-size: 8px;
-    padding: 19px 0 5px;
-  }
-  .hint {
-    font-size: 8px;
-  }
-  .recoveryKey {
-    font-size: 12px;
+  .accessFoot {
+    padding: 0 0 8px;
   }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .submit,
-  .primaryLink {
-    transition: background-color 0.2s ease;
-  }
-  .photo {
-    transition: opacity 0.25s ease;
-  }
-}
-
-.page button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-.modes a {
-  padding: 0 0 12px;
-  border-bottom: 2px solid transparent;
-  color: #6b8092;
-  font-size: 12px;
-  margin-bottom: -1px;
-}
-.modes a[aria-current="page"] {
-  color: #193c5b;
-  border-color: #234c70;
-}
-.walletConnectButton {
-  width: 100%;
-  border: 0;
-  border-radius: 10px;
-  min-height: 52px;
-  padding: 15px 20px;
-  background: #173d5e;
-  color: white;
-  font:
-    500 13px/1.5 var(--font-sans),
-    sans-serif;
-  cursor: pointer;
-}
-.walletConnectButton:hover {
-  background: #224f73;
-}
-.walletConnectButton:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
-.walletEmblem {
-  width: 66px;
-  height: 66px;
+.form {
   display: grid;
-  place-items: center;
-  border: 1px solid #dbe4eb;
-  border-radius: 20px;
-  background: #edf2f6;
-  color: #456985;
-  margin: 32px 0 25px;
+  gap: 16px;
 }
-.walletHint {
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: #526579;
+}
+.field input {
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid #c7d3de;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 15px;
+  color: #10243a;
+}
+.field input:focus {
+  border-color: #196aff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(25, 106, 255, 0.15);
+}
+.field small {
   font-size: 12px;
-  line-height: 1.8;
-  color: #647d92;
-  margin: 18px 0 30px;
+  color: #7b8898;
 }
-.accessNote {
-  font-size: 11px;
-  line-height: 1.8;
-  color: #6a8094;
-  border-top: 1px solid #dde5eb;
-  padding-top: 20px;
+.form .walletConnectButton {
+  margin-top: 6px;
 }
-.accessFoot {
+.success {
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 12px 16px;
+  border-radius: 7px;
+  margin: 0;
+  background: #e8f3ee;
+  color: #0f6b4c;
+}
+.form .error {
+  margin: 0;
+}
+.switchLinks {
   display: flex;
   justify-content: space-between;
-  gap: 18px;
-  font-size: 10px;
-  color: #6a8094;
-  margin-top: auto;
-  padding: 16px 0;
-  line-height: 1.5;
-}
-.availability {
-  font-size: 11px;
-  color: #55768e;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-bottom: 24px;
-}
-.availability > span {
-  width: 6px;
-  height: 6px;
-  background: #6d8aa1;
-  border-radius: 50%;
-}
-.previewFeatures {
-  border-top: 1px solid #dce4eb;
-  margin: 32px 0;
-}
-.previewFeatures > div {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 16px 0;
-  border-bottom: 1px solid #dce4eb;
-}
-.previewFeatures span {
-  font-size: 10px;
-  color: #8aa0b0;
-}
-.previewFeatures p {
-  margin: 0;
-  font-size: 13px;
-  color: #45627a;
-}
-.quietLink {
-  display: block;
-  font-size: 12px;
-  text-align: center;
+  gap: 16px;
   margin-top: 20px;
-  color: #59778e !important;
-  padding: 8px;
 }
-@media (min-width: 1100px) {
-  .formWrap {
-    max-width: 390px;
-  }
-  .formWrap h1 {
-    font-size: 46px;
-    letter-spacing: -1.9px;
-  }
-  .intro {
-    font-size: 14px;
-    max-width: 365px;
-  }
-  .visualCopy h2 {
-    font-size: clamp(40px, 4vw, 64px);
-  }
+.switchLinks button {
+  border: 0;
+  background: none;
+  padding: 6px 0;
+  color: #196aff;
+  font-size: 14px;
+}
+.recoveryKey {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px dashed #9fb2c4;
+  border-radius: 10px;
+  background: #f4f7fa;
+  margin-bottom: 18px;
+}
+.recoveryKey code {
+  flex: 1;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  color: #10243a;
+}
+.recoveryKey button {
+  border: 1px solid #c7d3de;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #10243a;
+  margin-bottom: 20px;
 }

@@ -1,13 +1,18 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal } from "../ui/primitives";
 import platform from "../platform.module.css";
-import { fmt, pct, Mark, stamp } from "./LivePanels";
+import { fmt, pct, stamp, downloadCsv } from "./LivePanels";
 import s from "./workspace.module.css";
+import q from "./sandbox.module.css";
+import { csvContent } from "../../lib/workspace-view.mjs";
 import BrandLoading from "../ui/BrandLoading";
 const requestId = () =>
   Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
 export default function TestAccount({ mode }) {
+  const fetching = useRef(null),
+    writing = useRef(false);
+  const [revision, setRevision] = useState(0);
   const [data, setData] = useState(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -15,18 +20,28 @@ export default function TestAccount({ mode }) {
     [amount, setAmount] = useState(""),
     [notice, setNotice] = useState("");
   useEffect(() => {
-    const controller = new AbortController();
+    let active = true;
     async function refresh() {
+      if (writing.current) return;
+      fetching.current?.abort();
+      const controller = new AbortController();
+      fetching.current = controller;
       try {
         const r = await fetch("/app/api?mode=" + mode, {
           cache: "no-store",
           signal: controller.signal,
         });
         if (!r.ok) throw new Error();
-        setData(await r.json());
+        const value = await r.json();
+        if (active && !controller.signal.aborted) {
+          setData(value);
+          setError("");
+        }
       } catch (e) {
-        if (e.name !== "AbortError")
-          setError("The test account could not load.");
+        if (active && e.name !== "AbortError")
+          setError(
+            "Sandbox could not refresh. Your last received balance is shown if available.",
+          );
       }
     }
     refresh();
@@ -34,11 +49,15 @@ export default function TestAccount({ mode }) {
       if (!document.hidden) refresh();
     }, 30000);
     return () => {
-      controller.abort();
+      active = false;
+      fetching.current?.abort();
       clearInterval(timer);
     };
-  }, [mode]);
+  }, [mode, revision]);
   async function send(body) {
+    if (writing.current) return;
+    writing.current = true;
+    fetching.current?.abort();
     setBusy(true);
     setError("");
     setNotice("");
@@ -54,14 +73,15 @@ export default function TestAccount({ mode }) {
       setOperation(null);
       setNotice(
         body.type === "fund"
-          ? "10,000 test USDC added to your account."
+          ? "10,000 simulated USDC added."
           : body.type === "deposit"
-            ? "Test deposit completed."
-            : "Test withdrawal completed.",
+            ? "Deposit completed in Sandbox."
+            : "Withdrawal completed in Sandbox.",
       );
     } catch (e) {
       setError(e.message);
     } finally {
+      writing.current = false;
       setBusy(false);
     }
   }
@@ -71,38 +91,89 @@ export default function TestAccount({ mode }) {
     setError("");
   }
   function exportCsv() {
-    const rows = [
-      ["Thesauros test account", "Simulated transactions"],
-      ["Type", "Amount USDC", "Timestamp UTC", "Reference"],
-      ...data.account.events.map((e) => [e.type, e.amount, e.at, e.id]),
-    ];
-    const url = URL.createObjectURL(
-      new Blob(
-        [
-          rows
-            .map((r) =>
-              r
-                .map((v) => '"' + String(v).replaceAll('"', '""') + '"')
-                .join(","),
-            )
-            .join("\n"),
-        ],
-        { type: "text/csv;charset=utf-8" },
-      ),
+    downloadCsv(
+      csvContent([
+        ["Thesauros Sandbox", "Simulated transactions — no onchain funds"],
+        ["Type", "Amount USDC", "Timestamp UTC", "Reference"],
+        ...data.account.events.map((e) => [e.type, e.amount, e.at, e.id]),
+      ]),
+      "thesauros-sandbox-transactions.csv",
     );
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "thesauros-test-transactions.csv";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   const account = data?.account;
+  const available =
+    operation?.type === "deposit" ? account?.cash : account?.earnBalance;
+  const hasWithdrawn = account?.events.some(
+    (event) => event.type === "withdraw",
+  );
+  const hasDeposited =
+    hasWithdrawn ||
+    account?.principal > 0 ||
+    account?.events.some((event) => event.type === "deposit");
+  const steps = [
+    {
+      title: "Add test funds",
+      description: "Start with 10,000 simulated USDC.",
+      complete: !!data?.funded,
+    },
+    {
+      title: "Make a deposit",
+      description: "Move an amount into your Earn balance.",
+      complete: !!hasDeposited,
+    },
+    {
+      title: "Try a withdrawal",
+      description: "Bring funds back to your available balance.",
+      complete: !!hasWithdrawn,
+    },
+  ];
+  const nextStep = steps.findIndex((step) => !step.complete);
+  const guidance = !data?.funded
+    ? [
+        "Start with a test balance.",
+        "Add 10,000 simulated USDC, then choose how much to put into Earn.",
+      ]
+    : !hasDeposited
+      ? [
+          "Your test funds are ready.",
+          "Choose Deposit to move some of your available USDC into Earn.",
+        ]
+      : !hasWithdrawn
+        ? [
+            "Now try taking funds out.",
+            "Withdraw any amount from Earn and see it return to your available balance.",
+          ]
+        : [
+            "You’ve completed the Earn journey.",
+            "Keep exploring deposits and withdrawals. Your balances and activity stay in this account.",
+          ];
   return (
-    <BrandLoading pending={!data && !error} label="Opening your test account">
+    <BrandLoading pending={!data && !error} label="Loading Sandbox">
       <div className={platform.shell + " " + s.testWrapper}>
+        <div className={q.introduction}>
+          <div>
+            <span className={q.simulation}>Simulated USDC</span>
+            <h2>Experience the Earn account.</h2>
+            <p>
+              Add a balance, put it to work, then withdraw. Explore the full
+              flow without moving funds from your wallet.
+            </p>
+          </div>
+          {account && (
+            <span className={q.progress}>
+              {steps.filter((step) => step.complete).length} of 3 steps explored
+            </span>
+          )}
+        </div>
         {error && !operation && (
           <p className={s.warning} role="alert">
-            {error}
+            {error}{" "}
+            <button
+              className={s.textButton}
+              onClick={() => setRevision((v) => v + 1)}
+            >
+              Retry
+            </button>
           </p>
         )}
         {notice && (
@@ -110,153 +181,186 @@ export default function TestAccount({ mode }) {
             {notice}
           </p>
         )}
-        {!data ? null : (
+        {account && (
           <>
-            <div className={s.twoColumn}>
-              <section className={s.testBalance}>
-                <div className={s.panelHead}>
-                  <span>
-                    {mode === "institution"
-                      ? "Treasury test account"
-                      : "Your test Earn account"}
+            <ol className={q.steps} aria-label="Your Sandbox journey">
+              {steps.map((step, index) => (
+                <li
+                  key={step.title}
+                  data-complete={step.complete}
+                  aria-current={index === nextStep ? "step" : undefined}
+                >
+                  <span className={q.stepNumber} aria-hidden="true">
+                    {step.complete ? (
+                      <svg viewBox="0 0 20 20" fill="none">
+                        <path
+                          d="m5 10 3.3 3.3L15 6.7"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : (
+                      String(index + 1).padStart(2, "0")
+                    )}
                   </span>
-                  <span className={s.pill}>Test USDC</span>
-                </div>
-                <div className={s.walletValue}>
-                  <span>Earn balance</span>
+                  <div>
+                    <strong>
+                      {step.title}
+                      {step.complete && (
+                        <span className={q.visuallyHidden}> · Completed</span>
+                      )}
+                    </strong>
+                    <span>{step.description}</span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <section className={q.account} aria-label="Simulated Earn account">
+              <div className={q.balanceGrid}>
+                <div className={q.earnBalance}>
+                  <div className={q.balanceHeading}>
+                    <img
+                      src="/brand/tokens/usdc.svg"
+                      alt=""
+                      width="28"
+                      height="28"
+                    />
+                    <h2>Earn account</h2>
+                  </div>
+                  <span>Earn balance · USDC</span>
                   <strong data-testid="earn-balance">
                     {fmt(account.earnBalance)}
                   </strong>
+                  <span className={q.rate}>
+                    {pct(data.netApy * 100)} fixed model APY
+                  </span>
                 </div>
-                <div className={s.testBalanceMeta}>
-                  <span>{pct(data.netApy * 100)} fixed test APY</span>
-                  <span>Earned {fmt(account.earned)} USDC</span>
+                <div className={q.secondaryBalances}>
+                  <div>
+                    <span>Available · USDC</span>
+                    <strong data-testid="available-balance">
+                      {fmt(account.cash)}
+                    </strong>
+                    <p>Ready for your next deposit.</p>
+                  </div>
+                  <div>
+                    <span>Accrued yield · USDC</span>
+                    <strong>{fmt(account.earned)}</strong>
+                    <p>Calculated over time at the fixed model rate.</p>
+                  </div>
                 </div>
-                <div className={s.buttonRow}>
+              </div>
+              <div className={q.nextAction}>
+                <div>
+                  <h3>{guidance[0]}</h3>
+                  <p>{guidance[1]}</p>
+                </div>
+                <div className={q.actions}>
+                  {!data.funded && (
+                    <button
+                      className={s.primaryButton}
+                      disabled={busy}
+                      onClick={() => send({ type: "fund" })}
+                    >
+                      {busy ? "Adding funds…" : "Add 10,000 USDC"}
+                    </button>
+                  )}
                   <button
+                    className={
+                      data.funded && (!hasDeposited || hasWithdrawn)
+                        ? s.primaryButton
+                        : s.secondaryButton
+                    }
                     onClick={() => open("deposit")}
                     disabled={!account.cash || busy}
                   >
-                    Test deposit
+                    Deposit
                   </button>
                   <button
+                    className={
+                      hasDeposited && !hasWithdrawn
+                        ? s.primaryButton
+                        : s.secondaryButton
+                    }
                     onClick={() => open("withdraw")}
                     disabled={!account.earnBalance || busy}
                   >
-                    Test withdrawal
+                    Withdraw
                   </button>
                 </div>
-                <div className={s.testCash}>
-                  <span>Available test balance</span>
-                  <strong data-testid="available-balance">
-                    {fmt(account.cash)} USDC
-                  </strong>
-                </div>
-                {!data.funded && (
-                  <button
-                    className={s.fundButton}
-                    disabled={busy}
-                    onClick={() => send({ type: "fund" })}
-                  >
-                    {busy ? "Adding funds…" : "Get 10,000 test USDC"}
-                  </button>
-                )}
-              </section>
-              <section className={s.panel}>
-                <span className={s.eyebrow}>Explore the experience</span>
-                <h2>
-                  From a balance
-                  <br />
-                  to an Earn account.
-                </h2>
-                <p>
-                  Try a deposit, follow simulated yield and withdraw to your
-                  test balance. Your test activity stays with this account.
-                </p>
-                <div className={s.testSteps}>
-                  <div>
-                    <span>01</span>
-                    <p>Add test funds</p>
-                  </div>
-                  <div>
-                    <span>02</span>
-                    <p>Make a test deposit</p>
-                  </div>
-                  <div>
-                    <span>03</span>
-                    <p>Withdraw when you choose</p>
-                  </div>
-                </div>
-                <p className={s.caption}>
-                  Test transactions use a fixed model rate and do not move funds
-                  onchain.
-                </p>
-              </section>
-            </div>
-            <section className={s.panel}>
-              <div className={s.panelHead}>
-                <div>
-                  <span className={s.eyebrow}>Test allocation</span>
-                  <h2>The flow underneath.</h2>
-                </div>
-                <span className={s.pill}>Simulation</span>
               </div>
-              <div className={s.testAllocation}>
-                {data.strategy.map((p) => (
-                  <div key={p.provider}>
-                    <Mark name={p.provider.toLowerCase()} />
-                    <strong>{p.provider}</strong>
-                    <span>{pct(p.weight * 100)} allocation</span>
-                    <small>{pct(p.apy * 100)} fixed gross APY</small>
-                  </div>
-                ))}
+              <div className={q.accountFoot}>
+                <span>
+                  Balances and yield are simulated. No funds move onchain.
+                </span>
+                <span>Updated {stamp(data.updatedAt)}</span>
               </div>
             </section>
             <section className={s.panel}>
               <div className={s.panelHead}>
-                <h2>Test account activity</h2>
-                <button className={s.textButton} onClick={exportCsv}>
+                <div>
+                  <h2>Transactions</h2>
+                  <p className={q.transactionIntro}>
+                    Your simulated deposits and withdrawals, in one place.
+                  </p>
+                </div>
+                <button
+                  className={s.secondaryButton}
+                  onClick={exportCsv}
+                  disabled={!account.events.length}
+                >
                   Export CSV
                 </button>
               </div>
-              <div
-                className={s.tableWrap}
-                tabIndex="0"
-                role="region"
-                aria-label="Test transactions"
-              >
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Action</th>
-                      <th>Amount · test USDC</th>
-                      <th>Time (UTC)</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {account.events.map((e) => (
-                      <tr key={e.id}>
-                        <td>
-                          {e.type === "fund"
-                            ? "Test funds added"
-                            : e.type === "deposit"
-                              ? "Test deposit"
-                              : "Test withdrawal"}
-                        </td>
-                        <td>{fmt(e.amount)}</td>
-                        <td>{stamp(e.at).replace(" UTC", "")}</td>
-                        <td>Completed</td>
+              {account.events.length ? (
+                <div
+                  className={s.tableWrap}
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Simulated transactions"
+                >
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Action</th>
+                        <th className={s.numeric}>Amount · USDC</th>
+                        <th>Time · UTC</th>
+                        <th>Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!account.events.length && (
-                  <div className={s.empty}>
-                    Your first test transaction will appear here.
-                  </div>
-                )}
-              </div>
+                    </thead>
+                    <tbody>
+                      {account.events.map((e) => (
+                        <tr key={e.id}>
+                          <td>
+                            {e.type === "fund"
+                              ? "Starting balance"
+                              : e.type === "deposit"
+                                ? "Deposit"
+                                : "Withdrawal"}
+                          </td>
+                          <td className={s.numeric}>{fmt(e.amount)}</td>
+                          <td>{stamp(e.at).replace(" UTC", "")}</td>
+                          <td>Completed</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className={q.empty}>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="5" y="3" width="14" height="18" rx="3" />
+                    <path d="M9 8h6M9 12h6M9 16h3" />
+                  </svg>
+                  <strong>Your first transaction starts here.</strong>
+                  <p>
+                    Add the test balance above. Every deposit and withdrawal
+                    will appear here.
+                  </p>
+                </div>
+              )}
             </section>
           </>
         )}
@@ -267,8 +371,8 @@ export default function TestAccount({ mode }) {
           }}
           title={
             operation?.type === "deposit"
-              ? "Make a test deposit"
-              : "Make a test withdrawal"
+              ? "Deposit to Earn"
+              : "Withdraw from Earn"
           }
         >
           {account && (
@@ -283,13 +387,8 @@ export default function TestAccount({ mode }) {
                 });
               }}
             >
-              <span className={s.caption}>
-                Test USDC ·{" "}
-                {operation?.type === "deposit"
-                  ? "Add to Earn"
-                  : "Return to your test balance"}
-              </span>
-              <label htmlFor="test-amount">Amount</label>
+              <p className={s.caption}>Sandbox · simulated USDC</p>
+              <label htmlFor="test-amount">Amount · USDC</label>
               <div className={s.amountInput}>
                 <input
                   id="test-amount"
@@ -298,11 +397,7 @@ export default function TestAccount({ mode }) {
                   inputMode="decimal"
                   min="0.01"
                   step="0.01"
-                  max={
-                    operation?.type === "deposit"
-                      ? account.cash
-                      : account.earnBalance
-                  }
+                  max={available}
                   value={amount}
                   onChange={(e) => {
                     setAmount(e.target.value);
@@ -315,36 +410,18 @@ export default function TestAccount({ mode }) {
                   type="button"
                   disabled={busy}
                   onClick={() => {
-                    setAmount(
-                      String(
-                        operation?.type === "deposit"
-                          ? account.cash
-                          : account.earnBalance,
-                      ),
-                    );
+                    setAmount(String(Math.floor(available * 100 + 1e-7) / 100));
                     setOperation((v) => ({ ...v, requestId: requestId() }));
                   }}
                 >
                   Max
                 </button>
               </div>
-              <p className={s.caption}>
-                Available:{" "}
-                {fmt(
-                  operation?.type === "deposit"
-                    ? account.cash
-                    : account.earnBalance,
-                )}{" "}
-                USDC
-              </p>
+              <p className={s.caption}>Available: {fmt(available)} USDC</p>
               <dl className={s.details}>
                 <div>
-                  <dt>Fixed test APY</dt>
-                  <dd>{pct(data?.netApy * 100)}</dd>
-                </div>
-                <div>
-                  <dt>Network transaction</dt>
-                  <dd>Simulated</dd>
+                  <dt>Model APY</dt>
+                  <dd>{pct(data.netApy * 100)} · fixed</dd>
                 </div>
               </dl>
               {error && (
@@ -356,8 +433,8 @@ export default function TestAccount({ mode }) {
                 {busy
                   ? "Updating…"
                   : operation?.type === "deposit"
-                    ? "Confirm test deposit"
-                    : "Confirm test withdrawal"}
+                    ? "Confirm deposit"
+                    : "Confirm withdrawal"}
               </button>
             </form>
           )}

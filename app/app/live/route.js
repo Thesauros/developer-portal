@@ -1,4 +1,4 @@
-import { userSession } from "../../../lib/auth.mjs";
+import { workspaceSession } from "../../../lib/auth.mjs";
 import {
   protocolData,
   marketData,
@@ -6,7 +6,7 @@ import {
 } from "../../../lib/live-data.mjs";
 export const dynamic = "force-dynamic";
 export async function GET(request) {
-  if (!(await userSession(request.headers)))
+  if (!(await workspaceSession(request.headers)))
     return Response.json({ error: "Sign in to continue." }, { status: 401 });
   const query = new URL(request.url).searchParams;
   let data;

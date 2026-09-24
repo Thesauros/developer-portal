@@ -12,6 +12,7 @@ export async function checkApplication(
   if (page.status !== 200) throw new Error("Sign-in page is not healthy");
   const html = await page.text();
   if (
+    !html.includes("Sign in with your wallet") &&
     !html.includes("Your wallet.") &&
     !(legacy && html.includes("Welcome back."))
   )
