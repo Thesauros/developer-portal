@@ -98,8 +98,11 @@ try {
     );
     const html = await response.text();
     check(
-      html.includes("Sign in with your wallet") &&
-        !html.includes("Coming soon."),
+      html.includes(
+        path === "/app/institution"
+          ? "Sign in to your workspace"
+          : "Sign in with your wallet",
+      ) && !html.includes("Coming soon."),
       `${path} renders the expected interface`,
     );
     for (const asset of new Set(
@@ -194,11 +197,14 @@ try {
   );
   const institution = await request("/app/institution");
   const institutionHtml = await institution.text();
-  check(institution.status === 200, "wallet session opens Institution route");
   check(
-    !institutionHtml.includes("Sign in with your wallet") &&
-      !institutionHtml.includes("Coming soon."),
-    "Institution renders the authenticated wallet workspace",
+    institution.status === 200,
+    "wallet session can visit Institution sign-in",
+  );
+  check(
+    institutionHtml.includes("Sign in to your workspace") &&
+      institutionHtml.includes('type="password"'),
+    "a wallet session does not bypass Institution account sign-in",
   );
   const logout = await request("/api/auth/sign-out", {});
   check(logout.status === 200, "native logout works");
