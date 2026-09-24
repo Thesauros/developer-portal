@@ -19,31 +19,16 @@ export default function AccessShell({ institution = false, children }) {
           Thesauros
         </a>
         <div className={s.visualCopy}>
-          <span>Capital, with clarity.</span>
           <h2>
-            {institution ? (
-              <>
-                A wider view.
-                <br /> A stronger connection.
-              </>
-            ) : (
-              <>
-                Your next move.
-                <br /> With a clearer view.
-              </>
-            )}
+            {institution
+              ? "Thesauros for institutions"
+              : "Your USDC. Put to work."}
           </h2>
           <p>
             {institution
-              ? "Your treasury, customers and infrastructure. One considered workspace."
-              : "See where capital goes. Understand what it earns. Stay in control of your next move."}
+              ? "Your treasury in Earn, the vaults behind it and the path to integration."
+              : "A clear view of your Earn balance, the vault behind it, and your next move."}
           </p>
-          <div className={s.visualFoot}>
-            <span>
-              Thesauros / {institution ? "Institution" : "Individual"}
-            </span>
-            <span>Capital, connected.</span>
-          </div>
         </div>
       </section>
       <section className={s.access}>
@@ -74,7 +59,6 @@ export default function AccessShell({ institution = false, children }) {
         </div>
         <div className={s.accessFoot}>
           <a href={marketingHref("/")}>Back to Thesauros</a>
-          <span>Your capital. Your choice.</span>
         </div>
       </section>
     </main>

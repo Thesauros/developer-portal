@@ -102,14 +102,82 @@ try {
   const a = browser(),
     b = browser();
   check((await api(a)).status === 401, "ledger rejects unsigned address");
+  // Institution accounts: email and password, recovery key, no wallet session.
+  const inst = browser();
   check(
-    (await post(a, "sign-up/email", { accountType: "institution" })).status ===
-      410,
-    "email signup closed",
+    (
+      await post(inst, "sign-up/email", {
+        name: "Ada",
+        email: "ada@example.com",
+        password: "long-enough-password",
+      })
+    ).status === 400,
+    "institution signup requires a company",
+  );
+  const signup = await post(inst, "sign-up/email", {
+    name: "Ada Lovelace",
+    company: "Analytical Engines",
+    email: "Ada@Example.com",
+    password: "long-enough-password",
+  });
+  check(signup.ok, "institution signup accepted");
+  const created = await signup.json();
+  check(/^[0-9a-f-]{50,}$/.test(created.recoveryKey), "recovery key issued");
+  check(!("token" in created), "signup does not expose the session token");
+  const instHeaders = new Headers({ cookie: cookieHeader(inst) });
+  const { institutionSession } = await import("../lib/auth.mjs");
+  const instSession = await institutionSession(instHeaders);
+  check(
+    instSession?.user.company === "Analytical Engines",
+    "institution session carries company",
   );
   check(
-    (await post(a, "sign-in/email")).status === 410,
-    "email sign-in closed",
+    !(await userSession(instHeaders)),
+    "institution session is not a wallet session",
+  );
+  const other = browser();
+  check(
+    (
+      await post(other, "sign-in/email", {
+        email: "ada@example.com",
+        password: "wrong-password-123",
+      })
+    ).status === 401,
+    "wrong password rejected",
+  );
+  const signin = await post(other, "sign-in/email", {
+    email: "ada@example.com",
+    password: "long-enough-password",
+  });
+  check(signin.ok, "institution email sign-in accepted");
+  check(!("token" in (await signin.json())), "sign-in token stays in cookie");
+  const recover = await import("../app/app/recover/route.js");
+  const reset = (key) =>
+    recover.POST(
+      new Request(origin + "/app/recover", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin },
+        body: JSON.stringify({
+          email: "ada@example.com",
+          key,
+          password: "a-brand-new-password",
+        }),
+      }),
+    );
+  check((await reset("0000-bad-key")).status === 400, "wrong recovery key");
+  check((await reset(created.recoveryKey)).ok, "recovery key resets password");
+  check(
+    !(await institutionSession(new Headers({ cookie: cookieHeader(other) }))),
+    "reset signs out existing sessions",
+  );
+  check(
+    (
+      await post(browser(), "sign-in/email", {
+        email: "ada@example.com",
+        password: "a-brand-new-password",
+      })
+    ).ok,
+    "new password works",
   );
   check(
     (await post(a, "siwe/nonce", {}, { origin: "https://foreign.invalid" }))

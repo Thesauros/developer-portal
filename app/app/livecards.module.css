@@ -1,0 +1,138 @@
+.mobileList {
+  display: none;
+}
+.metricHelp {
+  color: #526679;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-top: 14px !important;
+}
+@media (max-width: 680px) {
+  .desktopTable {
+    display: none;
+  }
+  .mobileList {
+    display: grid;
+    gap: 12px;
+  }
+  .card {
+    padding: 18px;
+    background: #fff;
+    border: 1px solid #dce5ed;
+    border-radius: 12px;
+    min-width: 0;
+  }
+  .card[data-selected="true"] {
+    border-color: #799bb8;
+    background: #f7fafc;
+  }
+  .cardHead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .cardHead > div {
+    min-width: 0;
+  }
+  .cardHead strong {
+    display: block;
+    font-size: 15px;
+    font-weight: 550;
+    color: #19334c;
+  }
+  .cardHead div > span {
+    display: block;
+    font-size: 14px;
+    color: #526679;
+    overflow-wrap: anywhere;
+  }
+  .network {
+    padding: 4px 8px;
+    background: #eef3f7;
+    border-radius: 5px;
+    color: #355770;
+    font-size: 13px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .values {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 14px;
+    margin: 18px 0 0 !important;
+  }
+  .values div {
+    min-width: 0;
+  }
+  .values dt {
+    color: #526679;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .values dd {
+    font-size: 20px;
+    line-height: 1.25;
+    font-weight: 500;
+    letter-spacing: -0.4px;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .values > div:nth-child(3) {
+    display: flex;
+    grid-column: 1/-1;
+    align-items: center;
+    gap: 12px;
+  }
+  .values > div:nth-child(3) dd {
+    font-size: 14px;
+  }
+  .values > div:nth-child(3) dt {
+    margin: 0;
+  }
+  .observed {
+    color: #617182;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-top: 12px !important;
+  }
+  .cardButton {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 44px;
+    width: 100%;
+    border: 1px solid #c4d3df;
+    background: #f8fafc;
+    color: #244e6e;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 7px;
+    margin-top: 16px;
+    padding: 10px 12px;
+  }
+  .cardButton:hover {
+    background: #eaf1f7;
+  }
+  .metricHelp {
+    margin-bottom: 4px !important;
+  }
+}
+@media (max-width: 360px) {
+  .card {
+    padding: 15px;
+  }
+  .cardHead {
+    gap: 8px;
+  }
+  .values {
+    gap: 12px;
+  }
+  .values dd {
+    font-size: 19px;
+  }
+  .network {
+    padding: 4px 6px;
+    font-size: 13px;
+  }
+}

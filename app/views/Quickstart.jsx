@@ -4,7 +4,7 @@ import { documentationHref } from '../../lib/site-links.mjs';
 import { useState } from 'react';
 import s from '../platform.module.css';
 import { CodeBlock, Badge, CopyButton } from '../ui/primitives';
-import { DEFAULT_KEY, IS_REAL } from '../lib/api';
+import { DEFAULT_KEY } from '../lib/api';
 import {
   QUICKSTART_INSTALL,
   QUICKSTART_INIT,
@@ -100,7 +100,7 @@ export default function Quickstart({ go }) {
         <IconKey size={18} style={{ color: 'var(--teal)', flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className={s.h3} style={{ fontSize: 13.5 }}>
-            {IS_REAL ? 'Default portal key' : 'Shared sandbox key'}
+            Shared sandbox key
           </div>
           <div className={`${s.mono} ${s.faint}`} style={{ fontSize: 12, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {DEFAULT_KEY}
@@ -146,6 +146,15 @@ export default function Quickstart({ go }) {
       >
         <CodeBlock {...QUICKSTART_MONITOR[lang]} />
       </Step>
+
+      <div className={`${s.card} ${s.cardPad} ${s.revealItem}`} style={{ marginBottom: 22 }}>
+        <div className={s.h3} style={{ fontSize: 13.5 }}>Published terms</div>
+        <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>
+          Thesauros charges a 25% performance fee on the yield generated and nothing on the
+          principal — if a period earns nothing, no fee is charged. Partners keep 50% of that fee as
+          standard, and up to 80% in specific cases: 12.5% to 20% of all yield generated.
+        </p>
+      </div>
 
       <div
         className={`${s.card} ${s.cardPad} ${s.revealItem}`}

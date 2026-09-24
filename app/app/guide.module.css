@@ -1,0 +1,473 @@
+.dialog {
+  width: min(940px, calc(100vw - 48px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  margin: auto;
+  border: 1px solid #dbe4ed;
+  border-radius: 22px;
+  color: #142b43;
+  background: #fff;
+  box-shadow: 0 30px 110px #061b3c45;
+  font-family: var(--font-sans), sans-serif;
+  overflow: hidden;
+}
+.dialog::backdrop {
+  background: #081b39a6;
+  backdrop-filter: blur(5px);
+}
+.dialog button,
+.dialog a {
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.dialog button {
+  cursor: pointer;
+}
+.dialog button:focus-visible,
+.dialog a:focus-visible {
+  outline: 3px solid #176ab1;
+  outline-offset: 3px;
+}
+.frame {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 50px);
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px 10px;
+  flex-shrink: 0;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 15px;
+  font-weight: 550;
+}
+.dialog .close {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #466078;
+  background: #eef3f7;
+}
+.close:hover {
+  background: #e2eaf2;
+}
+.close svg {
+  width: 22px;
+  height: 22px;
+}
+.progress {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 24px 18px;
+  flex-shrink: 0;
+}
+.dialog .progress button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 9px 12px;
+  background: #f4f7fa;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #53667a;
+  text-align: left;
+  font-size: 14px;
+}
+.progress button > span {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.dialog .progress button[aria-current="step"] {
+  background: #e8f0f7;
+  border-color: #b0c7db;
+  color: #173e64;
+  font-weight: 600;
+}
+.progress button:hover {
+  background: #e9f0f6;
+}
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.visual {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 34px;
+  color: #d9e5f0;
+  background: #102f4f;
+}
+.visualLabel {
+  display: block;
+  color: #bbcede;
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  margin-bottom: 24px;
+}
+.diagram {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.diagramCard {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  position: relative;
+  padding: 18px 15px;
+  border: 1px solid #617c9666;
+  border-radius: 13px;
+  background: #ffffff09;
+}
+.diagramCard + .diagramCard::before {
+  content: "";
+  position: absolute;
+  width: 1px;
+  height: 15px;
+  background: #708da7;
+  bottom: 100%;
+  left: 35px;
+}
+.diagramMain {
+  color: #193b5b;
+  background: #eef4fa;
+  border-color: #eef4fa;
+  box-shadow: 0 8px 25px #04152c29;
+}
+.icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #ffffff0b;
+}
+.diagramMain .icon {
+  background: #dbe7f1;
+}
+.icon svg {
+  width: 25px;
+  height: 25px;
+}
+.diagramCard > div {
+  min-width: 0;
+}
+.diagramCard strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.3;
+}
+.diagramCard div > span {
+  display: block;
+  color: #bbcddf;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.diagramMain div > span {
+  color: #4c657d;
+}
+.cardNumber {
+  margin-left: auto;
+  font-size: 11px;
+  color: #b6ccdf;
+}
+.diagramMain .cardNumber {
+  color: #527089;
+}
+.visual > p {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 24px 0 0;
+  color: #c6d6e5;
+}
+.copy {
+  padding: 38px 36px 34px;
+  align-self: center;
+}
+.eyebrow {
+  display: block;
+  font-size: 13px;
+  color: #5e7285;
+  margin-bottom: 16px;
+}
+.copy h2 {
+  font-size: clamp(26px, 3vw, 32px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.8px;
+  margin: 0 0 21px;
+}
+.copy h2:focus {
+  outline: none;
+}
+.copy > p {
+  color: #36526a;
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 0 0 17px;
+}
+.copy > .detail {
+  color: #587083;
+  font-size: 14px;
+}
+.dialog .contextAction {
+  color: #204f79;
+  font-size: 14px !important;
+  font-weight: 550 !important;
+  min-height: 44px;
+  border: 1px solid #c8d8e5;
+  border-radius: 8px;
+  background: #f1f6fa;
+  padding: 10px 16px;
+  margin-top: 3px;
+}
+.contextAction:hover {
+  background: #e4eef6;
+}
+.finalActions {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: flex-start;
+  margin-top: 24px;
+}
+.dialog .docsLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px !important;
+  color: #245478;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 24px;
+  border-top: 1px solid #e2eaf1;
+  background: #fff;
+  flex-shrink: 0;
+}
+.footer > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.primary,
+.back,
+.skip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 8px;
+  font-size: 14px !important;
+  padding: 10px 18px;
+}
+.dialog .primary {
+  color: #fff;
+  background: #183f63;
+  border: 1px solid #183f63;
+  font-weight: 500 !important;
+}
+.primary:hover {
+  background: #102e4c;
+}
+.dialog .back {
+  color: #294d6b;
+  border: 1px solid #cbd9e6;
+  background: #fff;
+}
+.back:hover {
+  background: #f1f6fa;
+}
+.dialog .skip {
+  color: #546c80;
+  border: 0;
+  background: none;
+  padding-inline: 0;
+  text-align: left;
+}
+.skip:hover {
+  color: #183f63;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+@media (max-width: 680px) {
+  .dialog {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 17px;
+  }
+  .frame {
+    max-height: calc(100dvh - 26px);
+  }
+  .header {
+    padding: 12px 16px 5px;
+  }
+  .brand {
+    gap: 8px;
+    font-size: 14px;
+  }
+  .progress {
+    gap: 5px;
+    padding: 8px 16px 14px;
+  }
+  .dialog .progress button {
+    justify-content: center;
+    flex-direction: column;
+    gap: 3px;
+    padding: 7px 4px;
+    font-size: 13px;
+  }
+  .progress button > span {
+    font-size: 12px;
+  }
+  .content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .visual {
+    padding: 19px 20px;
+  }
+  .visualLabel {
+    margin-bottom: 13px;
+    font-size: 10px;
+  }
+  .diagram {
+    flex-direction: row;
+    gap: 7px;
+  }
+  .diagramCard {
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 12px 9px;
+    border-radius: 9px;
+  }
+  .diagramCard + .diagramCard::before {
+    width: 8px;
+    height: 1px;
+    left: auto;
+    right: 100%;
+    top: 34px;
+    bottom: auto;
+  }
+  .icon {
+    width: 29px;
+    height: 29px;
+    border-radius: 7px;
+  }
+  .icon svg {
+    width: 21px;
+    height: 21px;
+  }
+  .diagramCard strong {
+    font-size: 13px;
+    overflow-wrap: break-word;
+  }
+  .diagramCard div > span,
+  .cardNumber {
+    display: none;
+  }
+  .visual > p {
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .copy {
+    padding: 25px 24px 27px;
+  }
+  .eyebrow {
+    margin-bottom: 11px;
+    font-size: 13px;
+  }
+  .copy h2 {
+    font-size: 28px;
+    margin-bottom: 17px;
+  }
+  .copy > p {
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .copy > .detail {
+    font-size: 14px;
+  }
+  .footer {
+    padding: 12px 16px;
+    gap: 8px;
+  }
+  .footer > div {
+    gap: 7px;
+  }
+  .primary,
+  .back {
+    padding: 10px 13px;
+  }
+  .dialog .skip {
+    max-width: 118px;
+    font-size: 13px !important;
+    line-height: 1.4;
+  }
+}
+@media (max-width: 680px) and (max-height: 650px) {
+  .visual {
+    padding-block: 13px;
+  }
+  .visualLabel,
+  .visual > p {
+    display: none;
+  }
+  .diagramCard {
+    padding-block: 10px;
+  }
+}
+@media (max-width: 360px) {
+  .progress {
+    padding-inline: 12px;
+  }
+  .visual {
+    padding-inline: 16px;
+  }
+  .copy {
+    padding-inline: 20px;
+  }
+  .copy h2 {
+    font-size: 25px;
+  }
+  .footer {
+    padding-inline: 12px;
+  }
+  .footer > div {
+    gap: 5px;
+  }
+  .primary,
+  .back {
+    padding-inline: 11px;
+    font-size: 13px !important;
+  }
+}

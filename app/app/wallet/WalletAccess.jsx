@@ -76,7 +76,7 @@ function Connect({ busy }) {
     </ConnectButton.Custom>
   );
 }
-function Access({ next }) {
+function Access({ next, mode }) {
   const [status, setStatus] = useState("unauthenticated"),
     [error, setError] = useState("");
   const { disconnectAsync } = useDisconnect();
@@ -111,7 +111,7 @@ function Access({ next }) {
             await post("siwe/verify", { message, signature });
             setStatus("authenticated");
             window.dispatchEvent(new Event("thesauros:navigating"));
-            const destination = workspaceDestination("individual", {
+            const destination = workspaceDestination(mode, {
               next,
               hash: location.hash,
               pathname: location.pathname,
@@ -136,7 +136,7 @@ function Access({ next }) {
           setStatus("unauthenticated");
         },
       }),
-    [next, disconnectAsync],
+    [next, mode, disconnectAsync],
   );
   return (
     <RainbowKitAuthenticationProvider adapter={adapter} status={status}>
@@ -151,10 +151,10 @@ function Access({ next }) {
     </RainbowKitAuthenticationProvider>
   );
 }
-export default function WalletAccess({ next = "" }) {
+export default function WalletAccess({ next = "", mode = "individual" }) {
   return (
     <WalletProvider>
-      <Access next={next} />
+      <Access next={next} mode={mode} />
     </WalletProvider>
   );
 }

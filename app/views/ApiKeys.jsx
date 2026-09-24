@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, post, del, maskKey, timeAgo, DEFAULT_KEY, IS_REAL, REAL_BASE, REAL_ADMIN_KEY } from '../lib/api';
+import { get, post, del, maskKey, timeAgo, DEFAULT_KEY } from '../lib/api';
 import { Badge, Modal, CopyButton, Empty, Spinner } from '../ui/primitives';
 import { IconKey, IconPlus, IconTrash, IconShield } from '../lib/icons';
 
@@ -16,19 +16,13 @@ export default function ApiKeys({ apiKey, setApiKey }) {
   const [newSecret, setNewSecret] = useState(null); // shown once after create
   const [error, setError] = useState(null);
 
-  // Real mode manages keys against the production Partner API. Key
-  // management needs keys:admin, which the partner-scoped session key lacks —
-  // so the admin surface runs on the seeded admin key.
-  const API_BASE = IS_REAL ? REAL_BASE : undefined;
-  const adminKey = apiKey;
-
   const load = useCallback(() => {
     setLoading(true);
-    get('/keys', { key: adminKey, base: API_BASE })
+    get('/keys', { key: apiKey })
       .then(({ data }) => setKeys(Array.isArray(data) ? data : []))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [adminKey, API_BASE]);
+  }, [apiKey]);
 
   useEffect(() => {
     load();
@@ -42,7 +36,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
       const { data } = await post(
         '/keys',
         { label: label || 'Untitled key', environment: env },
-        { key: adminKey, base: API_BASE },
+        { key: apiKey },
       );
       setNewSecret(data);
       setLabel('');
@@ -57,7 +51,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
   async function revoke(id) {
     setError(null);
     try {
-      await del(`/keys/${id}`, { key: adminKey, base: API_BASE });
+      await del(`/keys/${id}`, { key: apiKey });
       load();
     } catch (err) {
       setError(err.message);
@@ -72,7 +66,6 @@ export default function ApiKeys({ apiKey, setApiKey }) {
           <h1 className={s.viewTitle}>API Keys</h1>
           <p className={s.viewLead}>
             Manage credentials for this workspace. The API URL selects the environment; a key prefix does not switch it. Store newly issued secrets in your backend configuration.
-            {IS_REAL ? ' Key management requires a keys:admin credential.' : ''}
           </p>
         </div>
         <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => { setNewSecret(null); setCreateOpen(true); }}>
@@ -94,7 +87,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
             <CopyButton text={apiKey} label="Copy" />
             {apiKey !== DEFAULT_KEY ? (
               <button type="button" className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} onClick={() => setApiKey(DEFAULT_KEY)}>
-                {IS_REAL ? 'Reset to default' : 'Reset to sandbox'}
+                Reset to sandbox
               </button>
             ) : null}
           </div>

@@ -1,9 +1,9 @@
 # Project: Thesauros Developer Portal
 
-Next.js developer portal + built-in sandbox API. Real-data mode proxies the
-Partner API (/api/v1/real/*) and the monitoring service (/api/v1/monitor/*).
-Backend lives in Thesauros/developer.thesauros.io; on-chain metrics source of
-truth in Thesauros/thesauros_monitoring_service.
+Next.js account app + developer portal with a built-in sandbox API. On-chain
+metrics are read server-side by lib/live-data.mjs; there is no browser-side
+proxy to the Partner API. Backend lives in Thesauros/developer.thesauros.io;
+on-chain metrics source of truth in Thesauros/thesauros_monitoring_service.
 
 ## Agent skills (always active)
 
