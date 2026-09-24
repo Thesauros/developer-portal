@@ -109,6 +109,16 @@ function Access({ next, mode }) {
         verify: async ({ message, signature }) => {
           try {
             await post("siwe/verify", { message, signature });
+            // Signing in from the Institution page opens the Institution workspace.
+            if (mode === "institution") {
+              const joined = await fetch("/app/account", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "join" }),
+              });
+              if (!joined.ok)
+                throw new Error("Could not open the Institution workspace.");
+            }
             setStatus("authenticated");
             window.dispatchEvent(new Event("thesauros:navigating"));
             const destination = workspaceDestination(mode, {

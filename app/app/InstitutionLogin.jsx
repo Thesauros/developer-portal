@@ -1,7 +1,42 @@
 "use client";
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import AccessShell from "./AccessShell";
 import s from "./login.module.css";
+
+const WalletAccess = dynamic(() => import("./wallet/WalletAccess"), {
+  ssr: false,
+  loading: () => (
+    <button className={s.walletConnectButton} disabled>
+      Opening wallets…
+    </button>
+  ),
+});
+
+function WalletOption() {
+  const [ready, setReady] = useState(false);
+  return (
+    <div className={s.altAccess}>
+      <div className={s.divider}>
+        <span>or</span>
+      </div>
+      {ready ? (
+        <WalletAccess mode="institution" />
+      ) : (
+        <button
+          type="button"
+          className={s.walletSecondary}
+          onClick={() => setReady(true)}
+        >
+          Continue with a wallet
+        </button>
+      )}
+      <p className={s.walletHint}>
+        The sign-in message confirms wallet ownership. It does not move funds.
+      </p>
+    </div>
+  );
+}
 
 async function post(url, body) {
   const response = await fetch(url, {
@@ -95,8 +130,8 @@ export default function InstitutionLogin() {
         <>
           <h1>Sign in to your workspace</h1>
           <p className={s.intro}>
-            Track your treasury in Earn, compare vaults and manage your
-            integration.
+            Sign in with your work email or a wallet. Track your treasury in
+            Earn, compare vaults and manage your integration.
           </p>
           <form
             className={s.form}
@@ -140,6 +175,7 @@ export default function InstitutionLogin() {
               {busy ? "Signing in…" : "Sign in"}
             </button>
           </form>
+          <WalletOption />
           <div className={s.switchLinks}>
             <button type="button" onClick={() => go("signup")}>
               Create an account

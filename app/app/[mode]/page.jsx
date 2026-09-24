@@ -4,6 +4,7 @@ import { institutionSession, userSession } from "../../../lib/auth.mjs";
 import WalletWorkspace from "../wallet/WalletWorkspace";
 import Login from "../Login";
 import InstitutionLogin from "../InstitutionLogin";
+import InstitutionEmail from "../InstitutionEmail";
 export async function generateMetadata({ params }) {
   const { mode } = await params;
   return {
@@ -17,6 +18,8 @@ export default async function Page({ params }) {
   if (mode === "institution") {
     const session = await institutionSession(requestHeaders);
     if (!session) return <InstitutionLogin />;
+    if (session.user.askForEmail)
+      return <InstitutionEmail company={session.user.company || ""} />;
     return (
       <WalletWorkspace
         mode="institution"
@@ -27,6 +30,9 @@ export default async function Page({ params }) {
           email: session.user.email,
           company: session.user.company,
           walletAddress: session.user.walletAddress,
+          signInWallet: session.user.signInWallet,
+          treasuryWallet: session.user.treasuryWallet,
+          hasPassword: session.user.hasPassword,
         }}
       />
     );
