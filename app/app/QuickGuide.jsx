@@ -309,11 +309,6 @@ export default function QuickGuide({
                 </button>
               </div>
             )}
-            <div className={s.finalActions}>
-              <button className={s.docsLink} onClick={() => visit("test")}>
-                Prefer test funds? Open Sandbox
-              </button>
-            </div>
           </section>
         </div>
         <footer className={s.footer}>

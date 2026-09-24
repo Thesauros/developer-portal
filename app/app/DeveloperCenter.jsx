@@ -361,13 +361,6 @@ export default function DeveloperCenter({ user, navigate }) {
                 >
                   Open API Sandbox
                 </button>
-                <button
-                  type="button"
-                  className={s.textButton}
-                  onClick={() => navigate("test")}
-                >
-                  Try the customer demo
-                </button>
               </div>
             </section>
           </div>

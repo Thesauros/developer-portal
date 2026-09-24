@@ -8,7 +8,6 @@ export default function WalletFunding({
   owner,
   onClose,
   onRefresh,
-  onSandbox,
   returnFocusRef,
   loading = false,
 }) {
@@ -57,12 +56,6 @@ export default function WalletFunding({
   function dismiss() {
     dialog.current?.close();
     onClose();
-  }
-
-  function visitSandbox() {
-    restoreFocus.current = false;
-    dismiss();
-    requestAnimationFrame(() => onSandbox());
   }
 
   async function copyAddress(event) {
@@ -277,9 +270,6 @@ export default function WalletFunding({
             {checking || loading
               ? "Checking wallet balance…"
               : "Check wallet balance"}
-          </button>
-          <button className={s.secondary} onClick={visitSandbox}>
-            Try Sandbox
           </button>
         </footer>
       </div>

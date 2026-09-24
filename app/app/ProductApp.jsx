@@ -16,7 +16,6 @@ import InstitutionSettings from "./cabinet/InstitutionSettings";
 import BrandLoading from "../ui/BrandLoading";
 import s from "./workspace.module.css";
 const loading = () => <BrandLoading />;
-const TestAccount = dynamic(() => import("./TestAccount"), { loading });
 const AccountSettings = dynamic(() => import("./AccountSettings"), { loading });
 const QuickGuide = dynamic(() => import("./QuickGuide"));
 const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
@@ -26,7 +25,6 @@ const labels = {
   activity: "Activity",
   earn: "Deposit & withdraw",
   markets: "Market rates",
-  test: "Sandbox",
   developers: "Developers",
   settings: "Account",
 };
@@ -36,7 +34,6 @@ const descriptions = {
     "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
   earn: "Move USDC between your wallet and Earn.",
   markets: "Stablecoin lending rates across DeFi, for comparison.",
-  test: "Practise with simulated USDC. Nothing moves onchain.",
 };
 
 const icons = {
@@ -78,9 +75,6 @@ const icons = {
       <rect x="3" y="14" width="7" height="7" rx="1.5" />
       <path d="M17.5 14v7M14 17.5h7" />
     </>
-  ),
-  test: (
-    <path d="M9 3h6m-5 0v6l-5 8a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-8V3M8 14h8" />
   ),
   settings: (
     <>
@@ -292,7 +286,6 @@ export default function ProductApp({ mode = "individual", user }) {
           {icons[id]}
         </svg>
         <span>{compact && id === "earn" ? "Move" : labels[id]}</span>
-        {id === "test" && <span className={s.navBadge}>Test</span>}
       </button>
     );
   }
@@ -356,7 +349,7 @@ export default function ProductApp({ mode = "individual", user }) {
             </div>
             <div className={s.navGroup}>
               <span className={s.navGroupLabel}>Tools</span>
-              {["markets", "test", "developers", "settings"].map((id) =>
+              {["markets", "developers", "settings"].map((id) =>
                 navigationButton(id),
               )}
             </div>
@@ -475,9 +468,6 @@ export default function ProductApp({ mode = "individual", user }) {
           )}
           {current === "developers" && (
             <DeveloperCenter user={user} navigate={navigate} />
-          )}
-          {current === "test" && (
-            <TestAccount mode="individual" navigate={navigate} />
           )}
           {current === "settings" &&
             (institution ? (

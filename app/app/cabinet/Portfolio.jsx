@@ -415,12 +415,6 @@ export default function Portfolio({
                     Deposit USDC
                   </button>
                 )}
-                <button
-                  className={c.secondary}
-                  onClick={() => navigate("test")}
-                >
-                  Try with test funds
-                </button>
               </div>
             </div>
             <Calculator vault={featured} />

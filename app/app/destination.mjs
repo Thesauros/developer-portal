@@ -11,7 +11,6 @@ export function workspaceDestination(
     "activity",
     "earn",
     "markets",
-    "test",
     "developers",
     "settings",
   ];
@@ -49,6 +48,8 @@ export function workspaceDestination(
   if (pathname.startsWith("/developers") && technical.includes(fragment))
     tab = "developers";
   if (vaultViews.includes(tab)) tab = "vaults";
+  // The test-funds sandbox was removed in 2026-09; old links open Portfolio.
+  if (tab === "test") tab = "overview";
   if (pathname.startsWith("/monitoring")) tab = "vaults";
   // Legacy console links land in the unified Developers center.
   if (tab === "customers" || tab.startsWith("integrations")) tab = "developers";

@@ -343,7 +343,6 @@ export default function EarnWorkspace({
             setLocked={setLocked}
             pending={pending}
             onFunding={openFunding}
-            onSandbox={() => navigate("test")}
           />
         </div>
       </div>
@@ -362,10 +361,6 @@ export default function EarnWorkspace({
             );
           }}
           loading={account.loading}
-          onSandbox={() => {
-            setFunding(false);
-            navigate("test");
-          }}
           returnFocusRef={fundingOpener}
         />
       )}
@@ -383,7 +378,6 @@ function TransactionPanel({
   setLocked,
   pending,
   onFunding,
-  onSandbox,
 }) {
   const { address, connector, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
@@ -738,9 +732,6 @@ function TransactionPanel({
             Add enough for the {tokenAmount(position.minAssets)} {vault.symbol}{" "}
             minimum, and keep {vault.gasToken} for network fees.
           </p>
-          <button className={p.textButton} onClick={onSandbox}>
-            Practise with test funds
-          </button>
         </div>
       ) : noPosition && !busy && !pending ? (
         <div className={e.nextStep}>
@@ -1064,7 +1055,7 @@ function TransactionPanel({
 function TransactionList({
   transactions,
   emptyAction,
-  emptyActionLabel = "Practise in Sandbox first",
+  emptyActionLabel = "Open Earn",
 }) {
   if (!transactions.length)
     return (
