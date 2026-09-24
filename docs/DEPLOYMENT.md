@@ -61,6 +61,16 @@ Use persistent Turso storage for deployed accounts, with the existing wallet
 schema initialized from a checkout before serving sign-ins. SQLite in the
 serverless filesystem is not persistent account storage.
 
+Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in Vercel's Production
+environment (and use a separate database for Preview). A self-hosted libSQL
+server with HTTPS and token authentication is also supported. Initialize the
+schema using `node --env-file=.env.local scripts/init-auth.mjs` with the same
+database credentials before deploying. Missing database configuration fails
+the build explicitly instead of falling back to a local SQLite file.
+
+Only disposable market/rebalance caches use Vercel's writable temporary
+directory. Accounts, sessions and workspaces always use the external database.
+
 Set `BETTER_AUTH_URL` to the exact HTTPS origin users visit, for the relevant
 Production or Preview environment. Preserve a stable `BETTER_AUTH_SECRET`.
 WalletConnect uses the existing public project by default; an override is

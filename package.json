@@ -9,7 +9,7 @@
     "start": "next start",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "test": "node test/workspace-destination.mjs && node test/platform-view.mjs && node test/partner-api-catalog.mjs && node test/earn-presentation.mjs && node test/vault-transactions.mjs && node test/earn-account.mjs && node test/workspace-view.mjs && node test/product-ledger.mjs && node test/live-data.mjs && node test/live-cache.mjs && node test/crypto.mjs && node test/wallet-auth.mjs && node test/wallet-auth.mjs --libsql",
+    "test": "node test/workspace-destination.mjs && node test/platform-view.mjs && node test/partner-api-catalog.mjs && node test/earn-presentation.mjs && node test/vault-transactions.mjs && node test/earn-account.mjs && node test/workspace-view.mjs && node test/product-ledger.mjs && node test/live-data.mjs && node test/live-cache.mjs && node test/vercel-storage.mjs && node test/crypto.mjs && node test/wallet-auth.mjs && node test/wallet-auth.mjs --libsql",
     "test:routes": "node test/routes.mjs"
   },
   "dependencies": {
