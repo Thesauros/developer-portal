@@ -286,10 +286,8 @@ export async function GET(request) {
           ? transactionResult.value
           : null;
       if (!transaction) {
-        if (receipt)
-          throw new Error(
-            "Receipt exists but transaction input is unavailable.",
-          );
+        // Load-balanced public nodes can return the receipt before the
+        // transaction; check again on the next poll.
         return Response.json(
           { status: "pending", found: false, hash },
           { headers },

@@ -23,6 +23,7 @@ export default function useEarnAccount(owner) {
   const [history, setHistory] = useState(emptyHistory);
   const [storageError, setStorageError] = useState("");
   const [receiptError, setReceiptError] = useState("");
+  const unavailableSince = useRef({});
   const historyRef = useRef(emptyHistory);
   const requestRef = useRef(null);
   const generation = useRef(0);
@@ -404,6 +405,13 @@ export default function useEarnAccount(owner) {
               signal: controller.signal,
             });
             const receipt = await response.json();
+            // Public RPCs lag or time out now and then. Keep polling quietly
+            // and only report a status problem that lasts two minutes.
+            if (response.status === 503) {
+              const since = (unavailableSince.current[record.hash] ??=
+                Date.now());
+              if (Date.now() - since < 120000) continue;
+            } else delete unavailableSince.current[record.hash];
             if (!response.ok)
               throw new Error(
                 receipt.error ||

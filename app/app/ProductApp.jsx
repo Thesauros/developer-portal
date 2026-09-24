@@ -133,6 +133,24 @@ export default function ProductApp({ mode = "individual", user }) {
   const insightTabs = ["overview", "vaults", "activity"];
   const market = useInsights("market", period, insightTabs.includes(tab));
   const mine = useInsights("account", "", insightTabs.includes(tab));
+  // When a deposit, withdrawal or approval confirms, reload vault stats and
+  // the event history instead of waiting for the next two-minute refresh.
+  const confirmedCount = (account.transactions || []).filter(
+    (t) => t.status === "success",
+  ).length;
+  const seenConfirmed = useRef(null);
+  useEffect(() => {
+    if (seenConfirmed.current === null) {
+      seenConfirmed.current = confirmedCount;
+      return;
+    }
+    if (confirmedCount > seenConfirmed.current) {
+      market.refresh();
+      mine.refresh(true);
+    }
+    seenConfirmed.current = confirmedCount;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmedCount]);
   const networkOptions = [
     ...new Set((markets.data?.data || []).map((m) => m.chain)),
   ].sort();

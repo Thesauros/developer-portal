@@ -1,5 +1,6 @@
 import { workspaceSession } from "../../../lib/auth.mjs";
 import { accountInsights, marketInsights } from "../../../lib/insights.mjs";
+import { refreshVaultEvents } from "../../../lib/vault-events.mjs";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(request) {
@@ -17,6 +18,8 @@ export async function GET(request) {
         { owner: null, vaults: [], transactions: [] },
         { headers },
       );
+    if (query.get("fresh") === "1")
+      await refreshVaultEvents(["arbitrum", "base", "monad", "plasma"]);
     return Response.json(await accountInsights(session.user.walletAddress), {
       headers,
     });
