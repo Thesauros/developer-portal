@@ -12,6 +12,7 @@ import useInsights from "./cabinet/useInsights";
 import Portfolio from "./cabinet/Portfolio";
 import Vaults from "./cabinet/Vaults";
 import Activity from "./cabinet/Activity";
+import OurMarkets from "./cabinet/OurMarkets";
 import InstitutionSettings from "./cabinet/InstitutionSettings";
 import BrandLoading from "../ui/BrandLoading";
 import s from "./workspace.module.css";
@@ -124,7 +125,7 @@ export default function ProductApp({ mode = "individual", user }) {
     menuButton = useRef(null),
     heading = useRef(null);
   const markets = useLive("markets", tab === "markets");
-  const insightTabs = ["overview", "vaults", "activity"];
+  const insightTabs = ["overview", "vaults", "activity", "markets"];
   const market = useInsights("market", period, insightTabs.includes(tab));
   const mine = useInsights("account", "", insightTabs.includes(tab));
   // When a deposit, withdrawal or approval confirms, reload vault stats and
@@ -464,7 +465,10 @@ export default function ProductApp({ mode = "individual", user }) {
             />
           )}
           {current === "markets" && (
-            <Markets feed={markets} networks={selection} />
+            <>
+              <OurMarkets market={market} />
+              <Markets feed={markets} networks={selection} />
+            </>
           )}
           {current === "developers" && (
             <DeveloperCenter user={user} navigate={navigate} />
