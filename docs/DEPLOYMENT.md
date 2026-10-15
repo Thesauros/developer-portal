@@ -5,6 +5,42 @@ public routes; a standalone deployment on Vercel or `next start` needs no URL
 rewrites. The separate `Thesauros/developer.thesauros.io` repository contains
 the Partner API backend and SDKs.
 
+## Containers
+
+This repository ships a `Dockerfile` that builds the app into a runnable image.
+The build context is the repository root, routes stay native, and no path prefix
+is baked in.
+
+```bash
+docker build -t thesauros-portal .
+docker run --rm -p 18880:18880 \
+  -e BETTER_AUTH_SECRET=... \
+  -e BETTER_AUTH_URL=http://localhost:18880 \
+  -v thesauros_portal_state:/app/private-state \
+  thesauros-portal
+```
+
+`BETTER_AUTH_SECRET` is mandatory: `docker-entrypoint.sh` refuses to start
+without it rather than fall back to a guessable session secret. The entrypoint
+runs `scripts/init-auth.mjs` on every start, which is idempotent, so the accounts
+database on the volume stays in step with the image across upgrades. Accounts and
+the public rate cache both live under `/app/private-state`, which is a declared
+volume — losing it loses every account on that container.
+
+The full stand (Postgres, the Partner API, this app and an nginx proxy behind one
+origin) lives in `Thesauros/developer.thesauros.io`, not here. Its
+`docker-compose.stand.yml` builds this image from a sibling checkout:
+
+```bash
+cd ../developer.thesauros.io
+cp .env.stand.example .env.stand   # then fill in the secrets
+./deploy/stand.sh up
+```
+
+Point `PORTAL_DIR` in `.env.stand` at this checkout if it is not a sibling
+directory. The stand's proxy forwards every path to Next unchanged, per the
+migration rule below.
+
 ## Local setup
 
 ```bash

@@ -131,6 +131,7 @@ function buildDoc() {
       { name: 'webhooks', description: 'Webhook endpoints & events' },
       { name: 'reconciliation', description: 'Ledger, balances & reconciliation' },
       { name: 'analytics', description: 'Uplift, decision log, signals, regime & advisor' },
+      { name: 'lab', description: 'Strategy Lab: backtests, variant comparison & hypothesis verdicts' },
       { name: 'telemetry', description: 'Usage & status' },
     ],
     security: AUTH,
@@ -478,6 +479,66 @@ function buildDoc() {
           responses: withErrors({ 200: single('Advisor', 'Advisor summary') }, [401, 429, 500]),
         },
       },
+      '/lab/catalog': {
+        get: {
+          tags: ['lab'],
+          summary: 'Strategy catalog',
+          description:
+            'Policies, named presets, market regimes, comparable metrics and accepted parameter ranges — everything needed to construct a valid strategy object.',
+          responses: withErrors({ 200: single('StrategyCatalog', 'Catalog') }, [401, 429, 500]),
+        },
+      },
+      '/lab/market': {
+        get: {
+          tags: ['lab'],
+          summary: 'Inspect rate paths',
+          description:
+            'The daily APY series a backtest would run on, without running one. mode=synthetic returns a seeded simulation reproducible from (seed, regime); mode=historical returns real DeFiLlama pool history and may shorten the window to the days every venue covers.',
+          parameters: [
+            q('mode', 'Rate source', { enum: ['synthetic', 'historical'], default: 'synthetic' }),
+            q('asset', 'Stablecoin asset', { enum: ['USDC', 'USDT'], default: 'USDC' }),
+            q('days', 'Window length in days', { type: 'integer', minimum: 14, maximum: 365, default: 90 }),
+            q('seed', 'Synthetic determinism seed'),
+            q('regime', 'Synthetic market regime', {
+              enum: ['stable', 'rising', 'falling', 'volatile', 'dispersed'],
+              default: 'stable',
+            }),
+          ],
+          responses: withErrors({ 200: single('LabMarket', 'Venues with their APY series') }, [
+            400, 401, 429, 500,
+          ]),
+        },
+      },
+      '/lab/backtest': {
+        post: {
+          tags: ['lab'],
+          summary: 'Backtest one strategy',
+          description:
+            'Runs a strategy over one market window. Returns its equity curve, decision log and metrics next to four baselines: passive bluechip, route-once-and-hold, equal weight, and the ex-post best venue as an unattainable ceiling. Creates nothing — read scope is sufficient despite the POST.',
+          requestBody: {
+            required: false,
+            content: { 'application/json': { schema: ref('BacktestRequest') } },
+          },
+          responses: withErrors({ 200: single('Backtest', 'Run, baselines and comparison') }, [
+            400, 401, 429, 500,
+          ]),
+        },
+      },
+      '/lab/experiments': {
+        post: {
+          tags: ['lab'],
+          summary: 'Compare variants and judge a hypothesis',
+          description:
+            'Runs every variant against identical markets, repeatedly, and reports the paired difference per metric with a 95% interval, a win rate and a p-value. When a hypothesis is supplied the response carries a verdict: supported, refuted, negligible, underpowered or inconclusive. Creates nothing — read scope is sufficient despite the POST.',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: ref('ExperimentRequest') } },
+          },
+          responses: withErrors({ 200: single('Experiment', 'Distributions, comparisons, verdict') }, [
+            400, 401, 429, 500,
+          ]),
+        },
+      },
       '/usage': {
         get: {
           tags: ['telemetry'],
@@ -517,6 +578,388 @@ function buildDoc() {
         },
       },
       schemas: {
+        Strategy: {
+          type: 'object',
+          description:
+            'A routing policy and the constraints it operates under. Every field is optional; omitted fields take the shipped defaults returned by /lab/catalog.',
+          properties: {
+            policy: {
+              type: 'string',
+              enum: ['hold', 'best_apy', 'risk_adjusted', 'momentum', 'top_k', 'equal_weight'],
+              default: 'risk_adjusted',
+              description: 'Venue selection rule.',
+            },
+            rebalance_threshold_bps: {
+              type: 'number', minimum: 0, maximum: 5000, default: 40,
+              description: 'Minimum annualized score advantage, in bps, before capital moves.',
+              example: 40,
+            },
+            min_hold_hours: {
+              type: 'number', minimum: 0, maximum: 8760, default: 48,
+              description: 'Cooldown after a move.', example: 48,
+            },
+            cost_horizon_days: {
+              type: 'number', minimum: 1, maximum: 365, default: 30,
+              description: 'Window a move must earn its cost back within when cost_aware is true.',
+              example: 30,
+            },
+            lookback_days: {
+              type: 'number', minimum: 1, maximum: 90, default: 7,
+              description: 'Days of rate history the signal smooths over.', example: 7,
+            },
+            vol_penalty: {
+              type: 'number', minimum: 0, maximum: 50, default: 0.5,
+              description: 'Score penalty per unit of APY standard deviation.', example: 0.5,
+            },
+            momentum_weight: {
+              type: 'number', minimum: 0, maximum: 50, default: 1.5,
+              description: 'Weight on the trend term (momentum policy only).', example: 1.5,
+            },
+            max_venues: {
+              type: 'integer', minimum: 1, maximum: 12, default: 1,
+              description: 'Venues held simultaneously.', example: 1,
+            },
+            max_alloc_pct: {
+              type: 'number', minimum: 0.05, maximum: 1, default: 1,
+              description: 'Cap on any single venue share, as a fraction.', example: 0.5,
+            },
+            tx_cost_bps: {
+              type: 'number', minimum: 0, maximum: 1000, default: 3,
+              description: 'Proportional cost of moving capital, in bps of the amount moved.',
+              example: 3,
+            },
+            gas_cost_usd: {
+              type: 'number', minimum: 0, maximum: 10000, default: 1.2,
+              description: 'Fixed cost per venue touched in a rebalance.', example: 1.2,
+            },
+            perf_fee_pct: {
+              type: 'number', minimum: 0, maximum: 0.5, default: 0.25,
+              description: 'Protocol performance fee charged on positive yield.', example: 0.25,
+            },
+            allowed_tiers: {
+              type: 'array',
+              items: { type: 'string', enum: ['bluechip', 'core', 'opportunistic'] },
+              description: 'Risk tiers the strategy may route into.',
+              example: ['bluechip', 'core'],
+            },
+            risk_penalty: {
+              type: 'object',
+              description: 'APY multiplier per risk tier.',
+              example: { bluechip: 1, core: 0.92, opportunistic: 0.82 },
+            },
+            capacity_aware: {
+              type: 'boolean', default: true,
+              description: 'Dilute a venue rate by our share of it and respect its capacity.',
+              example: true,
+            },
+            cost_aware: {
+              type: 'boolean', default: true,
+              description: 'Require a move to earn back its cost inside cost_horizon_days.',
+              example: true,
+            },
+            pin_venue: {
+              type: 'string', nullable: true,
+              description: 'Force 100% into one venue id, ignoring the policy.',
+              example: null,
+            },
+          },
+        },
+        BacktestRequest: {
+          type: 'object',
+          properties: {
+            mode: { type: 'string', enum: ['synthetic', 'historical'], default: 'synthetic', example: 'synthetic' },
+            asset: { type: 'string', enum: ['USDC', 'USDT'], default: 'USDC', example: 'USDC' },
+            days: { type: 'integer', minimum: 14, maximum: 365, default: 90, example: 90 },
+            capital: { type: 'number', minimum: 1000, maximum: 10000000000, default: 1000000, example: 1000000 },
+            seed: { type: 'string', description: 'Synthetic determinism seed.', example: 'lab' },
+            regime: {
+              type: 'string',
+              enum: ['stable', 'rising', 'falling', 'volatile', 'dispersed'],
+              example: 'dispersed',
+            },
+            venue_ids: { type: 'array', items: { type: 'string' }, description: 'Restrict the venue set.' },
+            label: { type: 'string', example: 'strategy' },
+            strategy: ref('Strategy'),
+          },
+        },
+        BacktestMetrics: {
+          type: 'object',
+          properties: {
+            final_value: { type: 'number', example: 1012170.62 },
+            pnl: { type: 'number', example: 12170.62 },
+            total_return_pct: { type: 'number', example: 1.217 },
+            net_apy: { type: 'number', description: 'Compounded annualized return after fees and costs.', example: 0.05028 },
+            gross_apy: { type: 'number', description: 'Same window with no fee, cost or price impact.', example: 0.07364 },
+            drag_bps: { type: 'number', description: 'gross_apy minus net_apy, in bps.', example: 233.56 },
+            fees_usd: { type: 'number', example: 4209.23 },
+            costs_usd: { type: 'number', example: 457.08 },
+            rebalances: { type: 'integer', description: 'Moves after the initial routing.', example: 1 },
+            turnover_pct: { type: 'number', example: 112.4 },
+            avg_hold_days: { type: 'number', nullable: true, example: 45 },
+            max_drawdown_pct: { type: 'number', example: 0.0156 },
+            apy_volatility: { type: 'number', description: 'Annualized stddev of daily returns.', example: 0.0021 },
+            idle_days: { type: 'integer', description: 'Days capital sat unallocated because caps blocked it.', example: 0 },
+            time_in_venue: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  vault_id: { type: 'string', example: 'vault_morpho_base_usdc' },
+                  name: { type: 'string', example: 'Morpho Blue USDC Yield' },
+                  days: { type: 'integer', example: 62 },
+                  share_pct: { type: 'number', example: 68.89 },
+                },
+              },
+            },
+          },
+        },
+        BacktestDecision: {
+          type: 'object',
+          properties: {
+            day: { type: 'integer', example: 34 },
+            at: { type: 'string', format: 'date-time', example: '2026-08-31T12:00:00.000Z' },
+            type: { type: 'string', enum: ['initial_routing', 'rebalance'], example: 'rebalance' },
+            from: { type: 'array', items: { type: 'object' } },
+            to: { type: 'array', items: { type: 'object' } },
+            moved_usd: { type: 'number', example: 1004312.55 },
+            turnover_pct: { type: 'number', example: 100 },
+            cost_usd: { type: 'number', example: 302.49 },
+            apy_before: { type: 'number', example: 0.0512 },
+            apy_after: { type: 'number', example: 0.0671 },
+            gain_bps: { type: 'number', example: 159 },
+            rationale: { type: 'string', example: 'Moved $1,004,312 into Morpho Blue USDC Yield for 159 bps of quoted rate, costing $302.49.' },
+          },
+        },
+        Backtest: {
+          type: 'object',
+          properties: {
+            object: { type: 'string', example: 'backtest' },
+            as_of: { type: 'string', format: 'date-time' },
+            capital: { type: 'number', example: 1000000 },
+            market: ref('LabMarket'),
+            run: {
+              type: 'object',
+              properties: {
+                object: { type: 'string', example: 'backtest_run' },
+                label: { type: 'string', example: 'strategy' },
+                strategy: ref('Strategy'),
+                metrics: ref('BacktestMetrics'),
+                series: {
+                  type: 'object',
+                  properties: {
+                    t: { type: 'array', items: { type: 'integer' }, description: 'Epoch ms per day.' },
+                    equity: { type: 'array', items: { type: 'number' } },
+                    gross_equity: { type: 'array', items: { type: 'number' } },
+                    allocation: {
+                      type: 'array',
+                      items: { type: 'array', items: { type: 'number' } },
+                      description: 'Per-day weight per venue, aligned to market.venues.',
+                    },
+                  },
+                },
+                decisions: { type: 'array', items: ref('BacktestDecision') },
+              },
+            },
+            baselines: {
+              type: 'array',
+              description: 'bluechip_hold, hold_best_at_start, equal_weight and oracle_best.',
+              items: {
+                type: 'object',
+                properties: {
+                  label: { type: 'string', example: 'bluechip_hold' },
+                  note: { type: 'string', nullable: true },
+                  metrics: ref('BacktestMetrics'),
+                  series: { type: 'object', properties: { equity: { type: 'array', items: { type: 'number' } } } },
+                },
+              },
+            },
+            comparison: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  baseline: { type: 'string', example: 'bluechip_hold' },
+                  uplift_usd: { type: 'number', example: 5175.93 },
+                  uplift_bps: { type: 'number', example: 216.12 },
+                  beats: { type: 'boolean', example: true },
+                },
+              },
+            },
+            disclaimer: { type: 'string' },
+          },
+        },
+        LabMarket: {
+          type: 'object',
+          properties: {
+            mode: { type: 'string', enum: ['synthetic', 'historical'], example: 'synthetic' },
+            provenance: { type: 'string', description: 'Where these rates came from and what they can support.' },
+            asset: { type: 'string', example: 'USDC' },
+            days: { type: 'integer', example: 90 },
+            seed: { type: 'string', nullable: true, example: 'lab' },
+            regime: { type: 'string', nullable: true, example: 'dispersed' },
+            start: { type: 'integer', description: 'Epoch ms of day 0.' },
+            warnings: { type: 'array', items: { type: 'string' } },
+            venues: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', example: 'vault_morpho_base_usdc' },
+                  name: { type: 'string', example: 'Morpho Blue USDC Yield' },
+                  provider: { type: 'string', example: 'morpho' },
+                  chain: { type: 'string', example: 'base' },
+                  risk_tier: { type: 'string', enum: ['bluechip', 'core', 'opportunistic'] },
+                  tvl_usd: { type: 'number', example: 21700000 },
+                  capacity_usd: { type: 'number', example: 60000000 },
+                  apy_mean: { type: 'number', example: 0.0696 },
+                  apy_stddev: { type: 'number', example: 0.0064 },
+                  apy: { type: 'array', items: { type: 'number' }, description: 'Daily APY, decimal fractions.' },
+                },
+              },
+            },
+          },
+        },
+        ExperimentRequest: {
+          type: 'object',
+          required: ['variants'],
+          properties: {
+            mode: { type: 'string', enum: ['synthetic', 'historical'], default: 'synthetic' },
+            asset: { type: 'string', enum: ['USDC', 'USDT'], default: 'USDC' },
+            days: { type: 'integer', minimum: 14, maximum: 365, default: 90, example: 90 },
+            capital: { type: 'number', default: 1000000, example: 1000000 },
+            seed: { type: 'string', example: 'exp' },
+            regime: { type: 'string', enum: ['stable', 'rising', 'falling', 'volatile', 'dispersed'] },
+            samples: {
+              type: 'integer', minimum: 1, maximum: 200, default: 40,
+              description: 'Independent synthetic paths. Ignored in historical mode.', example: 40,
+            },
+            block_days: {
+              type: 'integer', minimum: 14, default: 30,
+              description: 'Historical mode: length of each non-overlapping sample block.', example: 30,
+            },
+            baseline_variant: { type: 'string', description: 'Variant id every other is compared against.', example: 'B' },
+            variants: {
+              type: 'array', minItems: 1, maxItems: 6,
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', example: 'A' },
+                  label: { type: 'string', example: 'Thesauros default' },
+                  strategy: ref('Strategy'),
+                },
+              },
+            },
+            hypothesis: {
+              type: 'object',
+              properties: {
+                statement: { type: 'string', example: 'A threshold plus cost awareness beats naive APY chasing' },
+                metric: {
+                  type: 'string',
+                  enum: ['net_apy', 'final_value', 'total_return_pct', 'max_drawdown_pct', 'rebalances', 'costs_usd', 'turnover_pct', 'apy_volatility', 'drag_bps'],
+                  default: 'net_apy',
+                },
+                variant: { type: 'string', example: 'A' },
+                direction: { type: 'string', enum: ['greater', 'less'], default: 'greater' },
+                min_effect: {
+                  type: 'number', default: 0,
+                  description: 'Smallest effect worth acting on, in the metric unit (bps for net_apy).',
+                  example: 10,
+                },
+                alpha: { type: 'number', default: 0.05, example: 0.05 },
+              },
+            },
+          },
+        },
+        Verdict: {
+          type: 'object',
+          properties: {
+            object: { type: 'string', example: 'verdict' },
+            statement: { type: 'string' },
+            outcome: {
+              type: 'string',
+              enum: ['supported', 'refuted', 'negligible', 'underpowered', 'inconclusive'],
+              description:
+                'supported: right direction, material size, significant. refuted: significant the other way. negligible: significant but below min_effect. underpowered: too few samples to judge. inconclusive: inside the noise.',
+              example: 'supported',
+            },
+            reason: { type: 'string' },
+            metric: { type: 'string', example: 'net_apy' },
+            unit: { type: 'string', example: 'bps' },
+            variant: { type: 'string', example: 'A' },
+            baseline: { type: 'string', example: 'B' },
+            observed_effect: { type: 'number', example: 33.92 },
+            min_effect: { type: 'number', example: 10 },
+            ci95: { type: 'array', items: { type: 'number' }, example: [22.1, 45.73] },
+            win_rate: { type: 'number', description: 'Fraction of samples the variant won.', example: 0.75 },
+            p_value: { type: 'number', nullable: true, description: 'Floored at 1e-6.', example: 0.000001 },
+            alpha: { type: 'number', example: 0.05 },
+            samples: { type: 'integer', example: 40 },
+            underpowered: { type: 'boolean', example: false },
+            evidence_strength: { type: 'string' },
+          },
+        },
+        Experiment: {
+          type: 'object',
+          properties: {
+            object: { type: 'string', example: 'experiment' },
+            as_of: { type: 'string', format: 'date-time' },
+            mode: { type: 'string', enum: ['synthetic', 'historical'] },
+            samples: { type: 'integer', example: 40 },
+            capital: { type: 'number', example: 1000000 },
+            baseline_variant: { type: 'string', example: 'B' },
+            market: ref('LabMarket'),
+            variants: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', example: 'A' },
+                  label: { type: 'string', example: 'Thesauros default' },
+                  strategy: ref('Strategy'),
+                  metrics: {
+                    type: 'object',
+                    description: 'Per metric: mean, median, stddev, p5 and p95 across samples.',
+                  },
+                  example: {
+                    type: 'object',
+                    nullable: true,
+                    description: 'One representative run (the first sample) for charting.',
+                  },
+                },
+              },
+            },
+            comparisons: {
+              type: 'array',
+              description: 'Paired differences against baseline_variant, per metric.',
+              items: {
+                type: 'object',
+                properties: {
+                  variant: { type: 'string', example: 'A' },
+                  variant_label: { type: 'string', example: 'Thesauros default' },
+                  baseline: { type: 'string', example: 'B' },
+                  metrics: { type: 'object' },
+                },
+              },
+            },
+            hypothesis: { type: 'object', nullable: true },
+            verdict: { ...ref('Verdict'), nullable: true },
+            warnings: { type: 'array', items: { type: 'string' } },
+            disclaimer: { type: 'string' },
+          },
+        },
+        StrategyCatalog: {
+          type: 'object',
+          properties: {
+            object: { type: 'string', example: 'strategy_catalog' },
+            policies: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, description: { type: 'string' } } } },
+            presets: { type: 'array', items: { type: 'object' } },
+            regimes: { type: 'array', items: { type: 'object' } },
+            metrics: { type: 'array', items: { type: 'object' } },
+            defaults: ref('Strategy'),
+            limits: { type: 'object' },
+          },
+        },
+
         RevokedKey: { type: 'object', required: ['id','object','revoked'], properties: { id: {type:'string'}, object: {type:'string',const:'api_key'}, revoked: {type:'boolean'} } },
         DeletedWebhook: { type: 'object', required: ['id','object','deleted'], properties: { id: {type:'string'}, object: {type:'string',const:'webhook'}, deleted: {type:'boolean'} } },
         ListMeta: {

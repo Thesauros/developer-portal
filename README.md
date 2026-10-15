@@ -39,7 +39,11 @@ initialize auth, build Next.js and open `/app/individual` directly. No URL rewri
   exact-amount approval, fresh previews, simulation, wallet execution and confirmed receipts.
 - `LivePanels.jsx`, `lib/live-data.mjs`: external market research and explicitly indexed protocol activity.
 - `TestAccount.jsx`, `lib/product-ledger.mjs`: persistent test balances and idempotent simulated deposits/withdrawals.
-- `DeveloperTools.jsx` and the seven `app/views/` components: the Institution integration sandbox.
+- `DeveloperTools.jsx` and the eight `app/views/` components: the Institution integration sandbox.
+- `StrategyLab.jsx`, `lib/api/strategy.js`, `lib/api/market-paths.js`: the Strategy Lab — a
+  parameterized backtester for routing policies, its baselines, and the paired A/B experiment
+  that turns a hypothesis into a verdict. It is a view inside the Institution developer tools,
+  reached from its tab rather than by URL. See [Strategy Lab](docs/STRATEGY-LAB.md).
 - `app/api/v1/` and `lib/api/`: existing sandbox handlers and resource contracts.
 
 Developer tools, Sandbox and account settings load when opened. External market and indexed protocol requests start only on their respective pages.
