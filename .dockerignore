@@ -1,0 +1,10 @@
+node_modules
+.next
+.next-*
+.git
+private-state
+.env
+.env.local
+.env.*.local
+test
+*.md

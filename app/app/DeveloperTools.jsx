@@ -8,6 +8,7 @@ import Webhooks from "../views/Webhooks";
 import Usage from "../views/Usage";
 import Reconciliation from "../views/Reconciliation";
 import Users from "../views/Users";
+import StrategyLab from "../views/StrategyLab";
 import { DEFAULT_KEY } from "../lib/api";
 import platform from "../platform.module.css";
 import s from "./workspace.module.css";
@@ -19,6 +20,7 @@ const views = {
   usage: Usage,
   reconciliation: Reconciliation,
   users: Users,
+  lab: StrategyLab,
 };
 const labels = {
   quickstart: "Quickstart",
@@ -28,6 +30,7 @@ const labels = {
   usage: "Usage",
   reconciliation: "Reconciliation",
   users: "Test customers",
+  lab: "Strategy lab",
 };
 export default function DeveloperTools({
   view = "quickstart",

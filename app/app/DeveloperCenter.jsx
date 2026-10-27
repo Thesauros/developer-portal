@@ -28,6 +28,7 @@ const sandboxViews = new Set([
   "usage",
   "reconciliation",
   "users",
+  "lab",
 ]);
 // Existing tools have a legacy build-time configuration. Never present an
 // external or legacy-real target as the built-in sample API.

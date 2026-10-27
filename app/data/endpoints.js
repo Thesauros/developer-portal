@@ -447,6 +447,101 @@ export const ENDPOINT_GROUPS = [
       },
     ],
   },
+  {
+    id: 'lab',
+    label: 'Strategy lab',
+    blurb: 'Backtest a routing strategy, compare variants and judge a hypothesis.',
+    endpoints: [
+      {
+        id: 'lab-catalog',
+        method: 'GET',
+        path: '/lab/catalog',
+        summary: 'Policies, presets and limits',
+        description:
+          'Everything needed to build a strategy object: the available policies, the named presets, the market regimes, the comparable metrics and the accepted ranges.',
+        params: [],
+        returns: '200 \u2014 StrategyCatalog',
+      },
+      {
+        id: 'lab-market',
+        method: 'GET',
+        path: '/lab/market',
+        summary: 'Inspect the rate paths',
+        description:
+          'The daily APY series a backtest would run on, without running one. mode=synthetic is a seeded simulation; mode=historical is real DeFiLlama pool history.',
+        params: [
+          { name: 'mode', in: 'query', type: 'enum', required: false, options: ['synthetic', 'historical'], desc: 'Rate source', example: 'synthetic' },
+          { name: 'asset', in: 'query', type: 'enum', required: false, options: ['USDC', 'USDT'], desc: 'Stablecoin asset', example: 'USDC' },
+          { name: 'days', in: 'query', type: 'number', required: false, desc: 'Window length, 14\u2013365', example: '90' },
+          { name: 'seed', in: 'query', type: 'string', required: false, desc: 'Synthetic determinism seed', example: 'lab' },
+          { name: 'regime', in: 'query', type: 'enum', required: false, options: ['stable', 'rising', 'falling', 'volatile', 'dispersed'], desc: 'Synthetic market regime', example: 'dispersed' },
+        ],
+        returns: '200 \u2014 LabMarket',
+      },
+      {
+        id: 'lab-backtest',
+        method: 'POST',
+        path: '/lab/backtest',
+        summary: 'Backtest one strategy',
+        description:
+          'Runs a strategy over one market window and returns its equity curve, decision log and metrics alongside four baselines: passive bluechip, route-once-and-hold, equal weight, and the ex-post best venue as the unattainable ceiling.',
+        params: [
+          { name: 'mode', in: 'body', type: 'enum', required: false, options: ['synthetic', 'historical'], desc: 'Rate source', example: 'synthetic' },
+          { name: 'asset', in: 'body', type: 'enum', required: false, options: ['USDC', 'USDT'], desc: 'Stablecoin asset', example: 'USDC' },
+          { name: 'days', in: 'body', type: 'number', required: false, desc: 'Window length, 14\u2013365', example: '90' },
+          { name: 'capital', in: 'body', type: 'number', required: false, desc: 'Starting capital in USD', example: '1000000' },
+          { name: 'regime', in: 'body', type: 'enum', required: false, options: ['stable', 'rising', 'falling', 'volatile', 'dispersed'], desc: 'Synthetic market regime', example: 'dispersed' },
+          { name: 'seed', in: 'body', type: 'string', required: false, desc: 'Synthetic determinism seed', example: 'lab' },
+          { name: 'strategy', in: 'body', type: 'object', required: false, desc: 'Strategy overrides; omit for the shipped defaults', example: '' },
+        ],
+        bodyExample: {
+          mode: 'synthetic',
+          asset: 'USDC',
+          days: 90,
+          capital: 1000000,
+          regime: 'dispersed',
+          seed: 'lab',
+          strategy: { policy: 'risk_adjusted', rebalance_threshold_bps: 40, min_hold_hours: 48 },
+        },
+        returns: '200 \u2014 Backtest',
+      },
+      {
+        id: 'lab-experiment',
+        method: 'POST',
+        path: '/lab/experiments',
+        summary: 'Compare variants, judge a hypothesis',
+        description:
+          'Runs every variant against the same markets, repeatedly, and reports the paired difference with a confidence interval, a win rate and a verdict on the stated hypothesis. Synthetic mode samples independent seeds; historical mode samples non-overlapping blocks of one real history.',
+        params: [
+          { name: 'mode', in: 'body', type: 'enum', required: false, options: ['synthetic', 'historical'], desc: 'Rate source', example: 'synthetic' },
+          { name: 'days', in: 'body', type: 'number', required: false, desc: 'Window length per sample', example: '90' },
+          { name: 'samples', in: 'body', type: 'number', required: false, desc: 'Synthetic paths, 1\u2013200', example: '40' },
+          { name: 'variants', in: 'body', type: 'array', required: true, desc: 'Up to 6 { id, label, strategy } entries', example: '' },
+          { name: 'baseline_variant', in: 'body', type: 'string', required: false, desc: 'Variant id every other is compared against', example: 'A' },
+          { name: 'hypothesis', in: 'body', type: 'object', required: false, desc: '{ statement, metric, variant, direction, min_effect, alpha }', example: '' },
+        ],
+        bodyExample: {
+          mode: 'synthetic',
+          days: 90,
+          samples: 40,
+          regime: 'dispersed',
+          variants: [
+            { id: 'A', label: 'Thesauros default', strategy: {} },
+            { id: 'B', label: 'Naive APY chaser', strategy: { policy: 'best_apy', rebalance_threshold_bps: 0, min_hold_hours: 0, cost_aware: false } },
+          ],
+          baseline_variant: 'B',
+          hypothesis: {
+            statement: 'A threshold plus cost awareness beats naive APY chasing',
+            metric: 'net_apy',
+            variant: 'A',
+            direction: 'greater',
+            min_effect: 10,
+          },
+        },
+        returns: '200 \u2014 Experiment with a verdict',
+      },
+    ],
+  },
 ];
 
 export const WEBHOOK_EVENTS = [
