@@ -22,3 +22,32 @@ Harness convention: pull each skill before work, push after every
 significant data write (founder pre-approved immediate pushes for skill
 repos on 2026-08-11). Pushes to product repos (this one, backend) require
 explicit founder approval per push batch.
+
+## CTO Skill
+
+This project uses the CTO skill at `.cto-skill/`.
+- Read `.cto-skill/SKILL.md` and relevant context before implementation.
+- Follow `.cto-skill/AGENT_INSTRUCTIONS.md` and use its templates.
+- Write durable decisions/context to `.cto-skill/data/`.
+
+## Orchestrator Skill
+
+This project uses the Orchestrator skill at `.orchestrator-skill/`.
+- Read `.orchestrator-skill/SKILL.md` and relevant `data/state/` before work.
+- Follow its agent instructions and use its handoff templates.
+- Update project state after significant events.
+
+## Product Squad Skill
+
+This project uses the Product Squad skill at `.product-squad-skill/`.
+- Read its skill instructions and relevant context before defining scope.
+- Complete opportunity research or record why it is not applicable before implementation.
+- Store the written acceptance criteria and decisions under its `data/`.
+
+## Security Engineer Skill
+
+This project uses the Security Engineer skill at `.security-engineer-skill/`.
+- Read its instructions and relevant context before security review.
+- Use its templates and preserve evidence in `data/`.
+- Current user authorization overrides harness defaults. Commit and network actions
+  require applicable authorization; a user prohibition on pushing applies to skill repos too.

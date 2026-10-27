@@ -151,8 +151,11 @@ export default function Quickstart({ go }) {
         <div className={s.h3} style={{ fontSize: 13.5 }}>Published terms</div>
         <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>
           Thesauros charges a 25% performance fee on the yield generated and nothing on the
-          principal — if a period earns nothing, no fee is charged. Partners keep 50% of that fee as
-          standard, and up to 80% in specific cases: 12.5% to 20% of all yield generated.
+          principal — if a period earns nothing, no fee is charged. The standard partner share is
+          30% of that fee, or 7.5% of gross yield. A temporary pre-TGE incentive offers up to 50%
+          through 60 days after TGE. The planned post-TGE Yield Booster offers up to 80% through
+          token bonding. Existing signed agreements apply.{' '}
+          <a href="https://tokenomics.thesauros.io/#s3-3">Review the transition and bonding rules.</a>
         </p>
       </div>
 
