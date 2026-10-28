@@ -1,0 +1,15 @@
+services:
+  portal-crosschain:
+    build:
+      context: ..
+    ports:
+      - "127.0.0.1:${CROSSCHAIN_PORT:-18890}:18880"
+    environment:
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set the public HTTPS stand origin}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Generate a unique stand secret}
+      THESAUROS_AUTH_DB: /app/private-state/accounts.sqlite
+    volumes:
+      - crosschain-accounts:/app/private-state
+    restart: unless-stopped
+volumes:
+  crosschain-accounts:

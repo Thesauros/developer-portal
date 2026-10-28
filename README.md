@@ -22,6 +22,12 @@ The Quickstart view states the same terms, and the sandbox partner seeds in `lib
 
 ## Local development and deployment
 
+The `сcrosschain` branch adds a separate cross-chain stand. Run
+`npm run crosschain:local -- --build` with Node.js 22 and dependencies installed.
+It creates a private SQLite database and session secret, builds into
+`.next-crosschain` and serves `http://127.0.0.1:18890/app/individual#crosschain`.
+See [cross-chain setup, backend readiness and server deployment](docs/CROSSCHAIN-STAND.md).
+
 This directory has its own `package.json` and lockfile. Run `npm ci` from the repository root, then
 follow [setup and routing](docs/DEPLOYMENT.md) to configure the account database,
 initialize auth, build Next.js and open `/app/individual` directly. No URL rewrite is required. The NestJS backend and SDKs live separately in `Thesauros/developer.thesauros.io`.

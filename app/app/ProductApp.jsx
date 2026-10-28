@@ -21,7 +21,11 @@ const AccountSettings = dynamic(() => import("./AccountSettings"), { loading });
 const QuickGuide = dynamic(() => import("./QuickGuide"));
 const PlatformGuide = dynamic(() => import("./PlatformGuide"));
 const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
+const CrosschainWorkspace = dynamic(() => import("./CrosschainWorkspace"), {
+  loading,
+});
 const labels = {
+  crosschain: "Cross-chain",
   overview: "Portfolio",
   vaults: "Vaults",
   activity: "Activity",
@@ -32,6 +36,7 @@ const labels = {
   settings: "Account",
 };
 const descriptions = {
+  crosschain: "USDC across Base and Arbitrum, with epoch settlement on Base.",
   vaults: "Rates, allocation and history for every Thesauros vault.",
   activity:
     "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
@@ -41,6 +46,13 @@ const descriptions = {
 };
 
 const icons = {
+  crosschain: (
+    <>
+      <circle cx="6" cy="7" r="3" />
+      <circle cx="18" cy="17" r="3" />
+      <path d="M9 7h8v7M15 17H7v-7" />
+    </>
+  ),
   overview: (
     <>
       <rect x="3" y="3" width="7" height="8" rx="1.5" />
@@ -332,8 +344,8 @@ export default function ProductApp({ mode = "individual", user }) {
           </button>
           <nav aria-label="Account navigation">
             <div className={s.navGroup}>
-              {["overview", "vaults", "activity", "earn"].map((id) =>
-                navigationButton(id),
+              {["crosschain", "overview", "vaults", "activity", "earn"].map(
+                (id) => navigationButton(id),
               )}
             </div>
             <div className={s.navGroup}>
@@ -387,6 +399,7 @@ export default function ProductApp({ mode = "individual", user }) {
               </button>
             </div>
           )}
+          {current === "crosschain" && <CrosschainWorkspace user={user} />}
           {current === "overview" && (
             <Portfolio
               mode={mode}

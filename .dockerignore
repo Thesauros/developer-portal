@@ -6,5 +6,6 @@ private-state
 .env
 .env.local
 .env.*.local
+deploy/crosschain.env
 test
 *.md
