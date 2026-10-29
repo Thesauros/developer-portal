@@ -6,12 +6,7 @@ import { documentationHref, marketingHref } from "../../lib/site-links.mjs";
 import { workspaceDestination } from "./destination.mjs";
 import { useLive, Markets } from "./LivePanels";
 import NetworkFilter from "./NetworkFilter";
-import EarnWorkspace from "./EarnWorkspace";
-import useEarnAccount from "./useEarnAccount";
-import useInsights from "./cabinet/useInsights";
-import Portfolio from "./cabinet/Portfolio";
-import Vaults from "./cabinet/Vaults";
-import Activity from "./cabinet/Activity";
+import { crosschainAccountViews } from "../../lib/crosschain-feed.mjs";
 import InstitutionSettings from "./cabinet/InstitutionSettings";
 import BrandLoading from "../ui/BrandLoading";
 import s from "./workspace.module.css";
@@ -21,7 +16,11 @@ const AccountSettings = dynamic(() => import("./AccountSettings"), { loading });
 const QuickGuide = dynamic(() => import("./QuickGuide"));
 const PlatformGuide = dynamic(() => import("./PlatformGuide"));
 const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
+const CrosschainWorkspace = dynamic(() => import("./CrosschainWorkspace"), {
+  loading,
+});
 const labels = {
+  crosschain: "Cross-chain",
   overview: "Portfolio",
   vaults: "Vaults",
   activity: "Activity",
@@ -32,15 +31,24 @@ const labels = {
   settings: "Account",
 };
 const descriptions = {
-  vaults: "Rates, allocation and history for every Thesauros vault.",
+  crosschain: "USDC across Base and Arbitrum, with epoch settlement on Base.",
+  vaults:
+    "The cross-chain USDC vault, its accepted NAV and allocation across Base and Arbitrum.",
   activity:
-    "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
-  earn: "Move USDC between your wallet and Earn.",
+    "Your cross-chain requests, claims and cancellations, indexed from EpochVault events.",
+  earn: "Request deposits and withdrawals on Base, then claim after epoch settlement.",
   markets: "Stablecoin lending rates across DeFi, for comparison.",
   test: "Practise with simulated USDC. Nothing moves onchain.",
 };
 
 const icons = {
+  crosschain: (
+    <>
+      <circle cx="6" cy="7" r="3" />
+      <circle cx="18" cy="17" r="3" />
+      <path d="M9 7h8v7M15 17H7v-7" />
+    </>
+  ),
   overview: (
     <>
       <rect x="3" y="3" width="7" height="8" rx="1.5" />
@@ -92,23 +100,6 @@ const icons = {
 };
 export default function ProductApp({ mode = "individual", user }) {
   const { disconnectAsync } = useDisconnect();
-  const account = useEarnAccount(user.walletAddress);
-  const [earnVault, setEarnVault] = useState("arbitrum");
-  const vaultPreferenceKey =
-    "thesauros.earn.network." + user.walletAddress?.toLowerCase();
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(vaultPreferenceKey);
-      if (["arbitrum", "base"].includes(saved)) setEarnVault(saved);
-    } catch {}
-  }, [vaultPreferenceKey]);
-  function chooseEarnVault(id) {
-    if (!["arbitrum", "base"].includes(id)) return;
-    setEarnVault(id);
-    try {
-      localStorage.setItem(vaultPreferenceKey, id);
-    } catch {}
-  }
   const [tab, setTab] = useState("overview"),
     [menu, setMenu] = useState(false);
   const [selection, setSelection] = useState(null);
@@ -117,8 +108,6 @@ export default function ProductApp({ mode = "individual", user }) {
   function closeGuide() {
     setGuide(null);
   }
-  const [earnAction, setEarnAction] = useState({ action: "deposit", n: 0 });
-  const [period, setPeriod] = useState("30d");
   const guideOpener = useRef(null);
   function openGuide(event) {
     guideOpener.current = event?.currentTarget || document.activeElement;
@@ -130,9 +119,6 @@ export default function ProductApp({ mode = "individual", user }) {
     menuButton = useRef(null),
     heading = useRef(null);
   const markets = useLive("markets", tab === "markets");
-  const insightTabs = ["overview", "vaults", "activity"];
-  const market = useInsights("market", period, insightTabs.includes(tab));
-  const mine = useInsights("account", "", insightTabs.includes(tab));
   const networkOptions = [
     ...new Set((markets.data?.data || []).map((m) => m.chain)),
   ].sort();
@@ -233,11 +219,6 @@ export default function ProductApp({ mode = "individual", user }) {
     markets.refresh();
   }
   const refreshing = markets.loading;
-  function openEarn(id, action = "deposit") {
-    chooseEarnVault(id);
-    setEarnAction((a) => ({ action, n: a.n + 1 }));
-    navigate("earn");
-  }
   const toolbar = (
     <div className={s.toolbar}>
       <NetworkFilter
@@ -387,69 +368,11 @@ export default function ProductApp({ mode = "individual", user }) {
               </button>
             </div>
           )}
-          {current === "overview" && (
-            <Portfolio
-              mode={mode}
-              needsWallet={!user.walletAddress}
-              account={account}
-              market={market}
-              mine={mine}
-              period={period}
-              setPeriod={setPeriod}
-              navigate={navigate}
-              onEarn={openEarn}
-            />
-          )}
-          {current === "vaults" && (
-            <Vaults
-              account={account}
-              market={market}
-              mine={mine}
-              period={period}
-              setPeriod={setPeriod}
-              onEarn={openEarn}
-              navigate={navigate}
-              needsWallet={!user.walletAddress}
-            />
-          )}
-          {current === "activity" && (
-            <Activity
-              account={account}
-              mine={mine}
-              market={market}
-              onEarn={openEarn}
-              navigate={navigate}
-              needsWallet={!user.walletAddress}
-            />
-          )}
-          {current === "earn" && !user.walletAddress && (
-            <div className={s.linkWallet}>
-              <p>
-                Link your treasury wallet to deposit and withdraw. Transactions
-                are signed in that wallet.
-              </p>
-              <button
-                className={s.secondaryButton}
-                onClick={() => navigate("settings")}
-              >
-                Link a wallet
-              </button>
-            </div>
-          )}
-          {current === "earn" && user.walletAddress && (
-            <EarnWorkspace
-              key={earnAction.n}
-              initialAction={earnAction.action}
+          {crosschainAccountViews.includes(current) && (
+            <CrosschainWorkspace
               user={user}
+              view={current}
               navigate={navigate}
-              onGuide={(event) => {
-                guideOpener.current =
-                  event?.currentTarget || document.activeElement;
-                setGuide("earn");
-              }}
-              account={account}
-              selectedVault={earnVault}
-              onSelectVault={chooseEarnVault}
             />
           )}
           {current === "markets" && (

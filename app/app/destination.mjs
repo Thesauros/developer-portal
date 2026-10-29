@@ -6,6 +6,7 @@ export function workspaceDestination(
 ) {
   const view = mode === "institution" ? "institution" : "individual";
   const allowed = [
+    "crosschain",
     "overview",
     "vaults",
     "activity",
