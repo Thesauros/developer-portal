@@ -18,6 +18,15 @@ contracts. No sandbox or legacy-vault data may stand in for cross-chain data.
 
 ## Acceptance criteria
 
+User corrections, 2026-10-28: Portfolio, Vaults, Activity and Deposit & withdraw
+must all use the cross-chain stand. A separate Cross-chain tab does not satisfy
+the request. These screens must not mount the legacy Earn/insights hooks or read
+the old monitoring/API/vault datasets. Activity must recover requests from actual
+EpochVault events using a persistent local index with explicit coverage, rather
+than treating browser storage as full history. Backend identity failures must
+not be mislabeled as missing allocation/account data. Missing earnings/history
+remain unavailable until the necessary evidence is indexed.
+
 1. Pin hub/spoke addresses and implementation hashes to the stand manifests.
 2. Use a same-origin, GET-only proxy with a fixed HTTPS upstream, bounded timeouts,
    an explicit route allowlist, and no forwarded credentials or redirects.
@@ -83,10 +92,28 @@ Do not configure an ERC-4626-only backend to treat EpochVault as a synchronous
 vault. The backend operator must validate its ABI and indexing configuration.
 `npm run check:crosschain` exits nonzero while the mappings are inconsistent.
 
-Requests created by this view are tracked by their receipt event IDs in browser
-storage and verified on chain. Add an older request ID manually to recover it.
-This is explicitly not full indexed history. In-flight bridge totals remain
-unknown until an indexer is connected. Instant redemption is not exposed here.
+All four primary account tabs use the same verified cross-chain feed.
+They do not mount `useEarnAccount` or `useInsights`, call the legacy `/app/onchain`
+and `/app/insights` sources, or show legacy vaults. Deposit & withdraw reads the
+actual Base wallet USDC, allowance, shares and ETH and uses EpochVault requests.
+
+The local indexer recovers EpochVault requests, claims and cancellations plus
+accepted TickAccountant NAV observations from deployment block 51905646.
+History is persisted in `history.sqlite` alongside the account DB. It scans
+confirmed blocks, replays an overlap for shallow reorgs and resumes after restart.
+The UI reports indexed range, freshness, errors and truncation. Wallet history is
+filtered server-side to the authenticated wallet. Known request IDs can also be
+added manually; their ownership and state are checked on chain.
+
+Activity displays actual decoded events and receipt links. Portfolio uses current
+shares and accepted NAV; it does not invent daily earnings. Its pending totals
+are withheld until history coverage is complete. Vaults shows hub cash, liabilities,
+network allocations, current epoch and an observed share-price chart. In-flight
+bridge totals and personal cost-basis earnings remain unavailable. Instant
+redemption is not exposed here.
+
+Backend mapping failures are reported separately from contract/account failures;
+a legacy backend row no longer produces a false allocation warning.
 
 ## Local stand
 
@@ -100,11 +127,17 @@ npm run crosschain:local -- --build
 
 The launcher creates `.env.crosschain.local` with a unique random secret (0600),
 initializes `private-state/crosschain/accounts.sqlite`, builds `.next-crosschain`,
-and starts `http://127.0.0.1:18890/app/individual#crosschain`. Existing environment
+and starts the application and event indexer at `http://127.0.0.1:18890/app/individual`.
+Existing environment
 files, accounts and builds are not overwritten. Subsequent starts can omit
 `--build`; include it after source edits. The local launcher never uses Turso.
 Stop with Ctrl-C. The database persists. Use `--init-only` to initialize without
 starting the server.
+The history DB is rebuildable; the account DB is not disposable. The indexer can
+also run separately with the stand environment and `npm run index:crosschain`.
+Docker Compose enables the worker with `CROSSCHAIN_INDEXER=true` and persists both
+databases on the same dedicated volume. This requires a persistent Node server;
+the history worker is not designed for a serverless Vercel deployment.
 
 Verification:
 

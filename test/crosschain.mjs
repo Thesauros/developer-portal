@@ -139,6 +139,8 @@ test("requests follow epoch clearing and funding, including late deposit cancell
     depositsCleared: false,
     redeemsCleared: false,
     funded: false,
+    rateOffer: 10n ** 18n,
+    priceRedeem: 10n ** 18n,
   };
   assert.equal(deriveEpochRequest(request, 1n, epoch).state, "pending");
   assert.equal(deriveEpochRequest(request, 2n, epoch).cancellable, true);

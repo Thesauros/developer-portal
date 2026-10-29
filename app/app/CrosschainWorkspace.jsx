@@ -14,6 +14,11 @@ import {
 } from "../../lib/crosschain-transactions.mjs";
 import { vaultClients } from "../../lib/vault-rpc.mjs";
 import { receiptRequestIds } from "../../lib/crosschain-reads.mjs";
+import { loadCrosschainFeed } from "../../lib/crosschain-feed.mjs";
+import CrosschainPanels, {
+  CrosschainStatus,
+  amount as displayUnits,
+} from "./CrosschainPanels";
 import s from "./crosschain.module.css";
 
 const short = (value) => value.slice(0, 6) + "…" + value.slice(-4);
@@ -32,7 +37,11 @@ async function read(resource) {
 }
 const locks = new Set();
 
-export default function CrosschainWorkspace({ user }) {
+export default function CrosschainWorkspace({
+  user,
+  view = "overview",
+  navigate = () => {},
+}) {
   const owner = user.walletAddress;
   const walletAccount = useAccount();
   const { switchChainAsync } = useSwitchChain();
@@ -76,30 +85,9 @@ export default function CrosschainWorkspace({ user }) {
     let active = true;
     async function load() {
       try {
-        const vault = await read("vault");
-        assertCrosschainIdentity(vault);
-        const results = await Promise.allSettled([
-          read("allocation"),
-          owner
-            ? read("user?requests=" + requestIds.join(","))
-            : Promise.resolve(null),
-          read("health"),
-          read("backend-base"),
-          read("backend-arbitrum"),
-        ]);
+        const value = await loadCrosschainFeed(owner, requestIds, read);
+        if (value.vault) assertCrosschainIdentity(value.vault);
         if (!active) return;
-        const value = {
-          health: results[2].status === "fulfilled" ? results[2].value : null,
-          vault,
-          observedAt: Date.now(),
-          allocation:
-            results[0].status === "fulfilled" ? results[0].value : null,
-          user: results[1].status === "fulfilled" ? results[1].value : null,
-          partial: results.some((result) => result.status === "rejected"),
-          backendError:
-            results.slice(2).find((result) => result.status === "rejected")
-              ?.reason.message || "",
-        };
         setFeed(value);
         setError("");
       } catch (failure) {
@@ -290,8 +278,35 @@ export default function CrosschainWorkspace({ user }) {
     }
   }
   const vault = feed?.vault;
-  const blocked = busy || !!pending || !storageReady || !feed || !owner;
+  const blocked =
+    busy || !!pending || !storageReady || !feed?.vault || !feed?.user || !owner;
   const newRequestsBlocked = blocked || !!feed?.backendError;
+  if (view !== "earn")
+    return (
+      <div className={s.workspace}>
+        <div className={s.intro}>
+          <span className={s.badge}>Cross-chain stand · Base + Arbitrum</span>
+          <button onClick={refresh} disabled={loading}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+        <CrosschainStatus feed={feed} loading={loading} />
+        <CrosschainPanels
+          view={view}
+          feed={feed}
+          loading={loading}
+          navigate={navigate}
+        />
+        {pending && (
+          <p className={s.notice}>
+            A wallet submission is unresolved.{" "}
+            <button onClick={() => navigate("earn")}>
+              Check its confirmation
+            </button>
+          </p>
+        )}
+      </div>
+    );
   return (
     <div className={s.workspace}>
       <section className={s.intro}>
@@ -321,33 +336,23 @@ export default function CrosschainWorkspace({ user }) {
           the service recovers.
         </p>
       )}
-      {feed?.partial && (
-        <p className={s.notice}>
-          Some allocation or account data could not be loaded.
-        </p>
-      )}
-      {feed?.backendError && (
-        <p className={s.notice} role="status">
-          {feed.backendError} New requests are disabled. Epoch state and
-          balances below come directly from the contracts.
-        </p>
-      )}
+      <CrosschainStatus feed={feed} loading={loading} />
       <section className={s.metrics} aria-label="Cross-chain vault state">
         <article>
-          <span>Net asset value · USDC</span>
-          <strong>{units(vault?.tick?.navBid)}</strong>
+          <span>USDC in your Base wallet</span>
+          <strong>{units(feed?.user?.cash)}</strong>
         </article>
         <article>
-          <span>Current epoch</span>
-          <strong>{vault?.epoch?.id ?? "—"}</strong>
+          <span>Current USDC allowance</span>
+          <strong>{units(feed?.user?.allowance)}</strong>
         </article>
         <article>
           <span>Your shares</span>
           <strong>{units(feed?.user?.shares)}</strong>
         </article>
         <article>
-          <span>Your value · USDC estimate</span>
-          <strong>{units(feed?.user?.valueBid)}</strong>
+          <span>ETH for gas on Base</span>
+          <strong>{displayUnits(feed?.user?.eth, 18)}</strong>
         </article>
       </section>
       {vault && (
@@ -370,6 +375,13 @@ export default function CrosschainWorkspace({ user }) {
           <p>
             All operations are signed by your wallet on Base. Approval does not
             create a deposit.
+          </p>
+          <p>
+            Minimum deposit: {units(vault?.limits?.minDeposit)} USDC. Available:{" "}
+            {action === "deposit"
+              ? units(feed?.user?.cash) + " USDC"
+              : units(feed?.user?.shares) + " vault shares"}
+            .
           </p>
           <form
             onSubmit={(event) => {
@@ -494,9 +506,12 @@ export default function CrosschainWorkspace({ user }) {
       <section className={s.card}>
         <h3>Your epoch requests</h3>
         <p>
-          Requests created in this browser are tracked locally and verified on
-          chain. Add a request ID from your transaction receipt to recover an
-          older request. This is not a complete indexed history.
+          Requests are recovered from the local EpochVault event index and
+          verified on chain. You can also add a request ID from a receipt while
+          the index catches up.
+          {feed?.user?.coverage &&
+            !feed.user.coverage.complete &&
+            " Event indexing is in progress; this list may be incomplete."}
         </p>
         <form onSubmit={trackManualRequest}>
           <label>
@@ -512,7 +527,11 @@ export default function CrosschainWorkspace({ user }) {
         {!feed?.user ? (
           <p>Account requests are unavailable.</p>
         ) : !feed.user.requests?.length ? (
-          <p>No tracked requests in this browser.</p>
+          <p>
+            {feed?.user?.coverage?.complete
+              ? "No EpochVault requests found for this wallet."
+              : "No requests found yet. Event indexing is in progress."}
+          </p>
         ) : (
           <div className={s.requests}>
             {feed.user.requests.map((request) => (

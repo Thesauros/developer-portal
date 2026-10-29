@@ -53,6 +53,11 @@ if (!["127.0.0.1", "localhost"].includes(origin.hostname))
   );
 console.log(`Cross-chain stand: ${origin.origin}/app/individual#crosschain`);
 console.log(`Account database: ${env.THESAUROS_AUTH_DB}`);
+const indexer = spawn(process.execPath, ["scripts/index-crosschain.mjs"], {
+  cwd: root,
+  env,
+  stdio: "inherit",
+});
 const server = spawn(
   process.execPath,
   [
@@ -66,5 +71,11 @@ const server = spawn(
   { cwd: root, env, stdio: "inherit" },
 );
 for (const signal of ["SIGINT", "SIGTERM"])
-  process.on(signal, () => server.kill(signal));
-server.on("exit", (code) => process.exit(code || 0));
+  process.on(signal, () => {
+    indexer.kill(signal);
+    server.kill(signal);
+  });
+server.on("exit", (code) => {
+  indexer.kill("SIGTERM");
+  process.exit(code || 0);
+});

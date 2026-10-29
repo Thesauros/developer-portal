@@ -15,4 +15,8 @@ fi
 echo "web: preparing accounts database at ${THESAUROS_AUTH_DB:-../private-state/accounts.sqlite}"
 node scripts/init-auth.mjs
 
+if [ "${CROSSCHAIN_INDEXER:-}" = "true" ]; then
+  node scripts/index-crosschain.mjs &
+fi
+
 exec "$@"

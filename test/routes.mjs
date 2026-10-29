@@ -166,6 +166,10 @@ try {
     "cross-chain account reads require a wallet session",
   );
   check(
+    (await request("/api/crosschain/activity")).status === 401,
+    "indexed cross-chain history requires a wallet session",
+  );
+  check(
     (await request("/api/crosschain/keys")).status === 404,
     "cross-chain proxy rejects unlisted upstream routes",
   );

@@ -27,6 +27,10 @@ The `сcrosschain` branch adds a separate cross-chain stand. Run
 It creates a private SQLite database and session secret, builds into
 `.next-crosschain` and serves `http://127.0.0.1:18890/app/individual#crosschain`.
 See [cross-chain setup, backend readiness and server deployment](docs/CROSSCHAIN-STAND.md).
+Portfolio, Vaults, Activity and Deposit & withdraw all use the new EpochVault.
+The local launcher also starts a persistent event indexer for actual requests,
+claims, cancellations and NAV history. The legacy cabinet source modules remain
+in the repository but are not mounted by this stand's account shell.
 
 This directory has its own `package.json` and lockfile. Run `npm ci` from the repository root, then
 follow [setup and routing](docs/DEPLOYMENT.md) to configure the account database,

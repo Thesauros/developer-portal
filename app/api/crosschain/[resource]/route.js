@@ -4,6 +4,7 @@ import {
   validateCrosschainResponse,
 } from "../../../../lib/crosschain-api.mjs";
 import { workspaceSession } from "../../../../lib/auth.mjs";
+import { readIndexedActivity } from "../../../../lib/crosschain-history.mjs";
 import {
   readCrosschainVault,
   readCrosschainAllocation,
@@ -16,7 +17,7 @@ export async function GET(request, { params }) {
   const { resource } = await params;
   let owner;
   let ids = [];
-  if (resource === "user") {
+  if (resource === "user" || resource === "activity") {
     const session = await workspaceSession(request.headers);
     owner = session?.user?.walletAddress;
     if (!owner)
@@ -33,7 +34,7 @@ export async function GET(request, { params }) {
     ids = raw ? [...new Set(raw.split(","))] : [];
   }
   try {
-    if (!["vault", "allocation", "user"].includes(resource))
+    if (!["vault", "allocation", "user", "activity"].includes(resource))
       crosschainPath(resource);
   } catch {
     return Response.json(
@@ -42,14 +43,29 @@ export async function GET(request, { params }) {
     );
   }
   try {
+    const history = ["user", "activity"].includes(resource)
+      ? readIndexedActivity(owner)
+      : null;
+    const requestIds = history
+      ? [...new Set([...history.requestIds, ...ids])].slice(0, 100)
+      : ids;
     const value =
       resource === "vault"
         ? await readCrosschainVault()
         : resource === "allocation"
           ? await readCrosschainAllocation()
-          : resource === "user"
-            ? await readCrosschainUser(owner, ids)
-            : await readCrosschain(resource);
+          : resource === "activity"
+            ? history
+            : resource === "user"
+              ? {
+                  ...(await readCrosschainUser(owner, requestIds)),
+                  coverage: history.coverage,
+                  historyScope:
+                    "Indexed EpochVault events plus explicitly tracked request IDs",
+                  truncated:
+                    history.truncated || history.requestIds.length > 100,
+                }
+              : await readCrosschain(resource);
     return Response.json(validateCrosschainResponse(resource, value, owner), {
       headers,
     });
