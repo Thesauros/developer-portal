@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import s from '../platform.module.css';
-import { get, post, del, timeAgo, fmtMs, shortHash } from '../lib/api';
+import { BASE, get, post, del, timeAgo, fmtMs, shortHash } from '../lib/api';
 import { Badge, Modal, CodeBlock, Empty, Spinner, CopyButton } from '../ui/primitives';
 import { WEBHOOK_EVENTS } from '../data/endpoints';
 import { WEBHOOK_VERIFY } from '../data/code';
@@ -15,6 +15,7 @@ const LANGS = [
 ];
 
 export default function Webhooks({ apiKey }) {
+  const sandbox = BASE === '/api/v1';
   const [hooks, setHooks] = useState(null);
   const [events, setEvents] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +90,9 @@ export default function Webhooks({ apiKey }) {
           <span className={s.kicker}>Events</span>
           <h1 className={s.viewTitle}>Webhooks</h1>
           <p className={s.viewLead}>
-            Connect account events to your backend. Register a receiver, verify its signing secret and inspect delivery attempts. A test sends an HTTP request to your receiver.
+            {sandbox
+              ? 'Sandbox events are simulated. Use an example.com receiver to inspect signed payloads; no requests leave this sandbox.'
+              : 'Connect account events to your backend. Register a receiver, verify its signing secret and inspect delivery attempts. A test sends an HTTP request to your receiver.'}
           </p>
         </div>
         <div className={s.row}>
@@ -147,7 +150,7 @@ export default function Webhooks({ apiKey }) {
                         onClick={() => testHook(h.id)}
                         disabled={testing === h.id}
                       >
-                        {testing === h.id ? <span className={s.spinner} /> : null} Test
+                        {testing === h.id ? <span className={s.spinner} /> : null} {sandbox ? 'Simulate' : 'Test'}
                       </button>
                       <button type="button" className={`${s.btn} ${s.btnDanger} ${s.btnSm}`} onClick={() => removeHook(h.id)}>
                         <IconTrash size={12} />
@@ -159,7 +162,7 @@ export default function Webhooks({ apiKey }) {
             </tbody>
           </table>
         ) : (
-          <Empty>No endpoints yet. Add one to start receiving signed events.</Empty>
+          <Empty>{sandbox ? 'Add an example.com receiver to inspect a simulated signed event.' : 'No endpoints yet. Add one to start receiving signed events.'}</Empty>
         )}
       </div>
 
@@ -194,7 +197,9 @@ export default function Webhooks({ apiKey }) {
                     {d.url || (d.webhook_id || '').slice(0, 12)}
                   </td>
                   <td>
-                    {d.status === 'delivered' ? <Badge tone="green" dot>delivered</Badge> : <Badge tone="red">failed</Badge>}
+                    {d.simulated ? <Badge tone="teal">simulated</Badge>
+                      : d.blocked ? <Badge tone="gray">blocked</Badge>
+                      : d.status === 'delivered' ? <Badge tone="green" dot>delivered</Badge> : <Badge tone="red">failed</Badge>}
                   </td>
                   <td className={s.num}>{d.attempts}</td>
                   <td className={s.num}>{d.latency_ms ? fmtMs(d.latency_ms) : '—'}</td>
@@ -205,7 +210,7 @@ export default function Webhooks({ apiKey }) {
             </tbody>
           </table>
         ) : (
-          <Empty>No deliveries yet. Send a test event from an endpoint above.</Empty>
+          <Empty>{sandbox ? 'No events yet. Simulate an event from an example receiver above.' : 'No deliveries yet. Send a test event from an endpoint above.'}</Empty>
         )}
       </div>
 
@@ -256,7 +261,7 @@ export default function Webhooks({ apiKey }) {
               <input
                 id="wh-url"
                 className={`${s.input} ${s.inputMono}`}
-                placeholder="https://api.yourapp.com/webhooks/thesauros"
+                placeholder={sandbox ? 'https://example.com/webhooks/thesauros' : 'https://api.yourapp.com/webhooks/thesauros'}
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 required

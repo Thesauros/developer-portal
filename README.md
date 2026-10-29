@@ -48,7 +48,7 @@ initialize auth, build Next.js and open `/app/individual` directly. No URL rewri
 
 Developer tools, Sandbox and account settings load when opened. External market and indexed protocol requests start only on their respective pages.
 
-Accounts and test transactions persist in the private SQLite or configured Turso database. The separate API sandbox retains shared sample data and its original contract; it does not represent connected company customers. Test webhook controls send requests only to the receiver configured by the user. Current company reporting remains empty until a partner integration is connected.
+Accounts and test transactions persist in the private SQLite or configured Turso database. The separate API sandbox retains shared sample data; it does not represent connected company customers. Sandbox webhook tests never send network requests: reserved example receivers simulate success, and other receivers record a blocked delivery with zero attempts. Real webhook delivery belongs to the separately authenticated partner API. Current company reporting remains empty until a partner integration is connected.
 
 ## Verification
 
