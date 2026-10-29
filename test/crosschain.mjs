@@ -122,9 +122,81 @@ test("legacy backend funds cannot masquerade as cross-chain metrics", () => {
     /does not reference/,
   );
   const matching = [
-    { token: "USDC", vaultAddress: crosschain.networks[0].strategy },
+    {
+      token: "USDC",
+      vaultAddress: crosschain.vault,
+      strategyAddress: crosschain.networks[0].strategy,
+    },
   ];
   assert.equal(validateCrosschainResponse("backend-base", matching), matching);
+});
+test("both networks use the Base EpochVault and their own strategy", async () => {
+  for (const network of crosschain.networks) {
+    const resource = `backend-${network.name.toLowerCase()}`;
+    const rows = [
+      {
+        token: "USDC",
+        vaultAddress: crosschain.vault.toLowerCase(),
+        strategyAddress: network.strategy.toLowerCase(),
+        funds: 0,
+      },
+    ];
+    assert.equal(validateCrosschainResponse(resource, rows), rows);
+    assert.deepEqual(
+      await readCrosschain(resource, undefined, async (url) => {
+        assert.equal(
+          url,
+          `${CROSSCHAIN_API_ORIGIN}/lending?network=${network.name}`,
+        );
+        return Response.json(rows);
+      }),
+      rows,
+    );
+  }
+});
+test("backend identity requires both the hub vault and the network strategy", () => {
+  for (const network of crosschain.networks) {
+    const resource = `backend-${network.name.toLowerCase()}`;
+    const matching = {
+      token: "USDC",
+      vaultAddress: crosschain.vault,
+      strategyAddress: network.strategy,
+    };
+    const otherNetwork = crosschain.networks.find(
+      (candidate) => candidate.chainId !== network.chainId,
+    );
+    for (const patch of [
+      { vaultAddress: undefined },
+      { vaultAddress: null },
+      { vaultAddress: "not-an-address" },
+      { vaultAddress: other },
+      { vaultAddress: network.strategy },
+      { vaultAddress: otherNetwork.strategy },
+      { strategyAddress: undefined },
+      { strategyAddress: null },
+      { strategyAddress: "not-an-address" },
+      { strategyAddress: other },
+      { strategyAddress: crosschain.vault },
+      { strategyAddress: otherNetwork.strategy },
+    ]) {
+      const mismatched = { ...matching, ...patch };
+      assert.throws(
+        () => validateCrosschainResponse(resource, [mismatched]),
+        /does not reference/,
+        `${network.name} must reject ${JSON.stringify(patch)}`,
+      );
+      assert.throws(
+        () => validateCrosschainResponse(resource, [matching, mismatched]),
+        /does not reference/,
+        `${network.name} must validate every USDC row`,
+      );
+    }
+    for (const value of [null, {}, matching, [], [{ token: "USDT" }]])
+      assert.throws(
+        () => validateCrosschainResponse(resource, value),
+        /does not reference/,
+      );
+  }
 });
 test("requests follow epoch clearing and funding, including late deposit cancellation", () => {
   const request = {
