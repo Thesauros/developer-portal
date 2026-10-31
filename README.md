@@ -16,9 +16,9 @@ Individual and Institution use wallet connection and Sign-In with Ethereum. The 
 
 ## Published economics
 
-Thesauros charges a 25% performance fee on the yield generated and nothing on the principal — if a period earns nothing, no fee is charged. Partners keep 50% of that fee as standard, and up to 80% in specific cases: 12.5% to 20% of all yield generated.
+Thesauros charges a 25% performance fee on the yield generated and nothing on the principal — if a period earns nothing, no fee is charged. Under the [Tokenomics Blueprint](https://tokenomics.thesauros.io/#s3), partners keep 30% of that fee as standard, up to 50% before the token launch and for 60 days after it, and up to 80% through bonding.
 
-The Quickstart view states the same terms, and the sandbox partner seeds in `lib/api/store.js` carry `revenue_share_pct` 0.5 and 0.8 so sample data does not contradict the published deal.
+The Quickstart view states the same terms, and the sandbox partner seeds in `lib/api/store.js` carry `revenue_share_pct` 0.3 and 0.8 so sample data does not contradict the published deal.
 
 ## Local development and deployment
 
