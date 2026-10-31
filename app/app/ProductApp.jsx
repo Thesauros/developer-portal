@@ -38,11 +38,9 @@ const labels = {
   settings: "Account",
 };
 const crosschainDescriptions = {
-  vaults:
-    "The cross-chain USDC vault, its accepted NAV and allocation across Base and Arbitrum.",
-  activity:
-    "Your cross-chain requests, claims and cancellations, indexed from EpochVault events.",
-  earn: "Request deposits and withdrawals on Base, then claim after epoch settlement.",
+  vaults: "One USDC vault working across Base and Arbitrum.",
+  activity: "Your deposits, withdrawals and claims on Base.",
+  earn: "Request a deposit or withdrawal on Base. It settles with the next batch, then you claim it.",
   markets: "Stablecoin lending rates across DeFi, for comparison.",
 };
 const descriptions = crosschainProduct

@@ -9,23 +9,24 @@ import {
   sameAddress,
 } from "../../lib/crosschain-config.mjs";
 import {
+  crosschainAmount,
   executeCrosschain,
+  receiptShowsCall,
   verifyCrosschainReceipt,
 } from "../../lib/crosschain-transactions.mjs";
 import { vaultClients } from "../../lib/vault-rpc.mjs";
 import { receiptRequestIds } from "../../lib/crosschain-reads.mjs";
 import { loadCrosschainFeed } from "../../lib/crosschain-feed.mjs";
 import CrosschainPanels, {
+  Batch,
+  ContractDetails,
   CrosschainStatus,
-  amount as displayUnits,
+  EarlyNotice,
+  RequestList,
+  usdc,
 } from "./CrosschainPanels";
 import s from "./crosschain.module.css";
 
-const short = (value) => value.slice(0, 6) + "…" + value.slice(-4);
-const units = (value) => {
-  if (!/^\d+$/.test(String(value ?? ""))) return "—";
-  return formatUnits(BigInt(value), 6);
-};
 async function read(resource) {
   const response = await fetch("/api/crosschain/" + resource, {
     cache: "no-store",
@@ -243,6 +244,18 @@ export default function CrosschainWorkspace({
         client.getTransaction({ hash }),
         client.getChainId(),
       ]);
+      // A wallet relay changes the sender and target; the events still show the call.
+      if (
+        chainId === crosschain.chainId &&
+        receipt.transactionHash.toLowerCase() === hash.toLowerCase() &&
+        receiptShowsCall(receipt, owner, pending.address, pending.data)
+      ) {
+        trackIds(receiptRequestIds(receipt, owner));
+        savePending(null);
+        setMessage("Transaction confirmed on Base.");
+        refresh();
+        return;
+      }
       if (
         chainId !== crosschain.chainId ||
         !sameAddress(transaction.from, owner) ||
@@ -281,303 +294,265 @@ export default function CrosschainWorkspace({
   const blocked =
     busy || !!pending || !storageReady || !feed?.vault || !feed?.user || !owner;
   const newRequestsBlocked = blocked || !!feed?.backendError;
+  const bar = (
+    <div className={s.bar}>
+      <EarlyNotice vault={vault} />
+      <button onClick={refresh} disabled={loading}>
+        {loading ? "Refreshing…" : "Refresh"}
+      </button>
+    </div>
+  );
+  const unresolved = pending && (
+    <div className={s.notice} role="status">
+      <p>
+        A transaction is still unconfirmed. New actions stay locked until it is
+        checked.
+      </p>
+      {view === "earn" ? (
+        <div className={s.actions}>
+          {pending.hash ? (
+            <a
+              href={crosschain.explorer + "/tx/" + pending.hash}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View transaction ↗
+            </a>
+          ) : (
+            <label className={s.field}>
+              Transaction hash from your wallet
+              <input
+                value={recoveryHash}
+                onChange={(event) => setRecoveryHash(event.target.value)}
+              />
+            </label>
+          )}
+          <button onClick={recover} disabled={busy}>
+            Check confirmation
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => navigate("earn")}>Check it</button>
+      )}
+    </div>
+  );
   if (view !== "earn")
     return (
       <div className={s.workspace}>
-        <div className={s.intro}>
-          <span className={s.badge}>Cross-chain stand · Base + Arbitrum</span>
-          <button onClick={refresh} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
+        {bar}
         <CrosschainStatus feed={feed} loading={loading} />
+        {unresolved}
+        {message && (
+          <p role="status" className={s.notice}>
+            {message}
+          </p>
+        )}
         <CrosschainPanels
           view={view}
           feed={feed}
-          loading={loading}
-          navigate={navigate}
+          onStart={(next) => {
+            setAction(next);
+            setAmount("");
+            navigate("earn");
+          }}
+          onClaim={(id) => submit("claim", id)}
+          onCancel={(id) => submit("cancel", id)}
+          blocked={blocked}
+          owner={owner}
         />
-        {pending && (
-          <p className={s.notice}>
-            A wallet submission is unresolved.{" "}
-            <button onClick={() => navigate("earn")}>
-              Check its confirmation
-            </button>
-          </p>
-        )}
       </div>
     );
+  const deposit = action === "deposit";
+  const available = deposit ? feed?.user?.cash : feed?.user?.shares;
+  let parsed = null;
+  try {
+    if (amount) parsed = crosschainAmount(amount);
+  } catch {
+    parsed = null;
+  }
+  const allowance = /^\d+$/.test(String(feed?.user?.allowance ?? ""))
+    ? BigInt(feed.user.allowance)
+    : 0n;
+  const needsApproval = deposit && parsed != null && allowance < parsed;
+  const minimum = vault?.limits?.minDeposit;
+  const problem = !amount
+    ? ""
+    : parsed == null
+      ? "Enter an amount with up to 6 decimal places."
+      : /^\d+$/.test(String(available ?? "")) && parsed > BigInt(available)
+        ? deposit
+          ? "That is more than the USDC in your wallet on Base."
+          : "That is more than the shares you hold."
+        : deposit && minimum && parsed < BigInt(minimum)
+          ? `The minimum deposit is ${usdc(minimum)} USDC.`
+          : "";
+  const price = vault?.tick?.rateBid;
+  const estimate =
+    !deposit && parsed != null && /^\d+$/.test(String(price ?? ""))
+      ? String((parsed * BigInt(price)) / 10n ** 18n)
+      : null;
+  const noGas =
+    /^\d+$/.test(String(feed?.user?.eth ?? "")) && BigInt(feed.user.eth) === 0n;
+  const ownRequests = feed?.user?.requests || [];
   return (
     <div className={s.workspace}>
-      <section className={s.intro}>
-        <div>
-          <span className={s.badge}>Cross-chain stand · Base + Arbitrum</span>
-          <h2>One vault, two networks</h2>
-          <p>
-            Deposit USDC on Base. Capital can earn on Base and Arbitrum.
-            Deposits and withdrawals settle through an epoch queue, followed by
-            a claim.
-          </p>
-          <a
-            href={crosschain.explorer + "/address/" + crosschain.vault}
-            target="_blank"
-            rel="noreferrer"
-          >
-            EpochVault {short(crosschain.vault)} ↗
-          </a>
-        </div>
-        <button onClick={refresh} disabled={loading}>
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </section>
+      {bar}
       {error && (
-        <p className={s.notice} role="alert">
-          {error} Financial data and new requests are unavailable. Refresh after
-          the service recovers.
+        <p className={s.notice} role="alert" title={error}>
+          The vault's data could not load, so new requests are unavailable. Your
+          funds are not affected. Try Refresh.
         </p>
       )}
       <CrosschainStatus feed={feed} loading={loading} />
-      <section className={s.metrics} aria-label="Cross-chain vault state">
-        <article>
-          <span>USDC in your Base wallet</span>
-          <strong>{units(feed?.user?.cash)}</strong>
-        </article>
-        <article>
-          <span>Current USDC allowance</span>
-          <strong>{units(feed?.user?.allowance)}</strong>
-        </article>
-        <article>
-          <span>Your shares</span>
-          <strong>{units(feed?.user?.shares)}</strong>
-        </article>
-        <article>
-          <span>ETH for gas on Base</span>
-          <strong>{displayUnits(feed?.user?.eth, 18)}</strong>
-        </article>
-      </section>
-      {vault && (
-        <p className={s.muted}>
-          Epoch can close from{" "}
-          {new Date(vault.epoch.earliestCloseAt * 1000).toLocaleString()} and by{" "}
-          {new Date(vault.epoch.latestCloseAt * 1000).toLocaleString()}.
-          Settlement and liquidity funding may take longer. Valuation{" "}
-          {vault.tick.frozen
-            ? "frozen"
-            : vault.tick.quarantined
-              ? "quarantined"
-              : "accepted"}
-          ; age {vault.tick.ageSeconds ?? "unknown"} seconds.
-        </p>
-      )}
+      {unresolved}
       <div className={s.columns}>
-        <section className={s.card}>
-          <h3>Request a deposit or withdrawal</h3>
-          <p>
-            All operations are signed by your wallet on Base. Approval does not
-            create a deposit.
-          </p>
-          <p>
-            Minimum deposit: {units(vault?.limits?.minDeposit)} USDC. Available:{" "}
-            {action === "deposit"
-              ? units(feed?.user?.cash) + " USDC"
-              : units(feed?.user?.shares) + " vault shares"}
-            .
-          </p>
+        <section className={s.card} aria-label="Deposit or withdraw">
+          <div className={s.segmented} role="group" aria-label="Action">
+            {[
+              ["deposit", "Deposit"],
+              ["redeem", "Withdraw"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={action === value}
+                disabled={busy}
+                onClick={() => {
+                  setAction(value);
+                  setAmount("");
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <form
+            className={s.form}
             onSubmit={(event) => {
               event.preventDefault();
-              submit(action, amount);
+              submit(needsApproval ? "approve" : action, amount);
             }}
           >
-            <label>
-              Operation
-              <select
-                value={action}
-                onChange={(event) => setAction(event.target.value)}
-                disabled={busy}
-              >
-                <option value="deposit">Deposit USDC</option>
-                <option value="redeem">Withdraw vault shares</option>
-              </select>
-            </label>
-            <label>
-              {action === "deposit"
-                ? "USDC amount"
-                : "Share amount (6 decimals)"}
-              <input
-                inputMode="decimal"
-                autoComplete="off"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                placeholder="0.00"
-                disabled={busy}
-                required
-              />
-            </label>
-            <div className={s.actions}>
-              {action === "deposit" && (
+            <label className={s.field}>
+              {deposit ? "Amount" : "Shares to withdraw"}
+              <span className={s.amount}>
+                <input
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  placeholder="0.00"
+                  disabled={busy}
+                  required
+                />
+                {deposit ? "USDC" : "shares"}
                 <button
                   type="button"
-                  disabled={newRequestsBlocked || !amount}
-                  onClick={() => submit("approve", amount)}
+                  disabled={
+                    busy ||
+                    !/^\d+$/.test(String(available ?? "")) ||
+                    available === "0"
+                  }
+                  onClick={() => setAmount(formatUnits(BigInt(available), 6))}
                 >
-                  Approve exact USDC
+                  Max
                 </button>
+              </span>
+            </label>
+            <p className={problem ? s.hintBad : s.hint} role="status">
+              {problem ||
+                (estimate
+                  ? `About ${usdc(estimate)} USDC at the current share price. The final amount is set when the batch settles.`
+                  : deposit
+                    ? `${usdc(available)} USDC in your wallet on Base.`
+                    : `You hold ${usdc(available, 4)} shares.`)}
+            </p>
+            <ol className={s.plan}>
+              {deposit && (
+                <li>
+                  Approve this exact amount
+                  {parsed != null && !needsApproval ? " (done)" : ""}.
+                </li>
               )}
-              <button type="submit" disabled={newRequestsBlocked || !amount}>
-                Request {action === "deposit" ? "deposit" : "withdrawal"}
-              </button>
-            </div>
+              <li>
+                {deposit
+                  ? "Request the deposit. It joins the current batch."
+                  : "Request the withdrawal. Your shares join the current batch."}
+              </li>
+              <li>
+                When the batch settles, claim your {deposit ? "shares" : "USDC"}
+                .
+              </li>
+            </ol>
+            <button
+              type="submit"
+              className={s.primary}
+              disabled={newRequestsBlocked || !parsed || !!problem}
+            >
+              {busy
+                ? "Check your wallet…"
+                : needsApproval
+                  ? `Approve ${usdc(String(parsed))} USDC`
+                  : deposit
+                    ? "Request deposit"
+                    : "Request withdrawal"}
+            </button>
           </form>
-          {!owner && <p>Sign in with a wallet to manage requests.</p>}
-          {pending && (
-            <div className={s.notice}>
-              <p>
-                A submission is unresolved. New operations are locked until its
-                receipt is checked.
-              </p>
-              {pending.hash ? (
-                <a
-                  href={crosschain.explorer + "/tx/" + pending.hash}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  View submitted transaction ↗
-                </a>
-              ) : (
-                <label>
-                  Transaction hash from your wallet
-                  <input
-                    value={recoveryHash}
-                    onChange={(event) => setRecoveryHash(event.target.value)}
-                  />
-                </label>
-              )}
-              <button onClick={recover} disabled={busy}>
-                Check confirmation
-              </button>
-            </div>
+          {noGas && (
+            <p className={s.hintBad}>
+              You have no ETH on Base. Some wallets can pay network fees in
+              USDC; otherwise add a little ETH first.
+            </p>
           )}
+          {!owner && <p>Sign in with a wallet to manage requests.</p>}
           {message && (
             <p role="status" className={s.notice}>
               {message}
             </p>
           )}
         </section>
-        <section className={s.card}>
-          <h3>Capital across networks</h3>
-          {crosschain.networks.map((network) => {
-            const allocation = feed?.allocation?.chains?.find(
-              (chain) => chain.chainId === network.chainId,
-            );
-            return (
-              <article className={s.network} key={network.chainId}>
-                <h4>
-                  {network.name} · {network.role === "hub" ? "Hub" : "Spoke"}
-                </h4>
-                <p>
-                  Strategy: {units(allocation?.strategyValue)} USDC · Idle:{" "}
-                  {units(allocation?.idle)} USDC
-                </p>
-                <a
-                  href={network.explorer + "/address/" + network.agent}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  ChainAgent {short(network.agent)} ↗
-                </a>
-                <a
-                  href={network.explorer + "/address/" + network.strategy}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Strategy {short(network.strategy)} ↗
-                </a>
-              </article>
-            );
-          })}
-          <p className={s.muted}>
-            Capital in transit:{" "}
-            {feed?.allocation ? (feed.allocation.inFlight?.length ?? "—") : "—"}{" "}
-            transfers.
-          </p>
+        <section className={s.card} aria-label="Your requests">
+          <h3>Your requests</h3>
+          {!feed?.user ? (
+            <p className={s.muted}>
+              Your requests could not be read right now.
+            </p>
+          ) : !ownRequests.length ? (
+            <p className={s.muted}>
+              {feed.user.coverage?.complete
+                ? "Nothing yet. A request you make appears here until you claim it."
+                : "Nothing found yet. History is still being read from Base."}
+            </p>
+          ) : (
+            <RequestList
+              requests={ownRequests}
+              price={price}
+              onClaim={(id) => submit("claim", id)}
+              onCancel={(id) => submit("cancel", id)}
+              blocked={blocked}
+              owner={owner}
+            />
+          )}
+          <details className={s.details}>
+            <summary>Can't see a request?</summary>
+            <form className={s.form} onSubmit={trackManualRequest}>
+              <label className={s.field}>
+                Request ID from your transaction
+                <span className={s.amount}>
+                  <input
+                    value={manualId}
+                    inputMode="numeric"
+                    onChange={(event) => setManualId(event.target.value)}
+                  />
+                  <button disabled={!owner || !manualId || busy}>Add</button>
+                </span>
+              </label>
+            </form>
+          </details>
         </section>
       </div>
-      <section className={s.card}>
-        <h3>Your epoch requests</h3>
-        <p>
-          Requests are recovered from the local EpochVault event index and
-          verified on chain. You can also add a request ID from a receipt while
-          the index catches up.
-          {feed?.user?.coverage &&
-            !feed.user.coverage.complete &&
-            " Event indexing is in progress; this list may be incomplete."}
-        </p>
-        <form onSubmit={trackManualRequest}>
-          <label>
-            Request ID
-            <input
-              value={manualId}
-              inputMode="numeric"
-              onChange={(event) => setManualId(event.target.value)}
-            />
-          </label>
-          <button disabled={!owner || !manualId || busy}>Track request</button>
-        </form>
-        {!feed?.user ? (
-          <p>Account requests are unavailable.</p>
-        ) : !feed.user.requests?.length ? (
-          <p>
-            {feed?.user?.coverage?.complete
-              ? "No EpochVault requests found for this wallet."
-              : "No requests found yet. Event indexing is in progress."}
-          </p>
-        ) : (
-          <div className={s.requests}>
-            {feed.user.requests.map((request) => (
-              <article className={s.network} key={request.id}>
-                <h4>
-                  #{request.id} ·{" "}
-                  {request.kind === "deposit" ? "Deposit" : "Withdrawal"} ·
-                  Epoch {request.epoch}
-                </h4>
-                <p>
-                  {units(request.amount)}{" "}
-                  {request.kind === "deposit" ? "USDC" : "shares"} ·{" "}
-                  {String(request.state).replaceAll("_", " ")}
-                </p>
-                <div className={s.actions}>
-                  {request.state === "claimable" && (
-                    <button
-                      disabled={blocked}
-                      onClick={() => submit("claim", request.id)}
-                    >
-                      Claim
-                    </button>
-                  )}
-                  {request.cancellable && sameAddress(request.owner, owner) && (
-                    <button
-                      disabled={blocked}
-                      onClick={() => submit("cancel", request.id)}
-                    >
-                      Cancel request
-                    </button>
-                  )}
-                  {/^0x[0-9a-f]{64}$/i.test(request.requestedTx || "") && (
-                    <a
-                      href={crosschain.explorer + "/tx/" + request.requestedTx}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View request ↗
-                    </a>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+      <Batch vault={vault} />
+      <ContractDetails vault={vault} allocation={feed?.allocation} />
     </div>
   );
 }

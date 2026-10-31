@@ -79,7 +79,9 @@ export default function BlueChips() {
           <>
             <Summary list={list} />
             <Markets feed={feed} />
-            <p className={s.source}>Source: DefiLlama, read every 10 minutes.</p>
+            <p className={s.source}>
+              Source: DefiLlama, read every 10 minutes.
+            </p>
           </>
         )}
       </div>

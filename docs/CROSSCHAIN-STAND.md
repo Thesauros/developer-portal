@@ -1,5 +1,10 @@
 # Cross-chain stand — delivery contract
 
+**Build flag.** The cross-chain product is the same codebase as the standard
+workspace. `NEXT_PUBLIC_THESAUROS_PRODUCT=crosschain` at build time gives the
+separate deployment, including the public read-only page at `/live`; without it
+the standard vault tabs are unchanged. Compose and `npm run crosschain:local` set it.
+
 Change: `crosschain-stand-20261028`. Branch: `сcrosschain` (initial Cyrillic `с`).
 
 ## Outcome and evidence

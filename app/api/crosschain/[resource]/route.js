@@ -1,3 +1,4 @@
+import { zeroAddress } from "viem";
 import {
   readCrosschain,
   crosschainPath,
@@ -34,7 +35,9 @@ export async function GET(request, { params }) {
     ids = raw ? [...new Set(raw.split(","))] : [];
   }
   try {
-    if (!["vault", "allocation", "user", "activity"].includes(resource))
+    if (
+      !["vault", "allocation", "user", "activity", "prices"].includes(resource)
+    )
       crosschainPath(resource);
   } catch {
     return Response.json(
@@ -52,20 +55,25 @@ export async function GET(request, { params }) {
     const value =
       resource === "vault"
         ? await readCrosschainVault()
-        : resource === "allocation"
-          ? await readCrosschainAllocation()
-          : resource === "activity"
-            ? history
-            : resource === "user"
-              ? {
-                  ...(await readCrosschainUser(owner, requestIds)),
-                  coverage: history.coverage,
-                  historyScope:
-                    "Indexed EpochVault events plus explicitly tracked request IDs",
-                  truncated:
-                    history.truncated || history.requestIds.length > 100,
-                }
-              : await readCrosschain(resource);
+        : resource === "prices"
+          ? // Accepted valuations are public; no wallet's events are read here.
+            (({ ticks, coverage }) => ({ ticks, coverage }))(
+              readIndexedActivity(zeroAddress),
+            )
+          : resource === "allocation"
+            ? await readCrosschainAllocation()
+            : resource === "activity"
+              ? history
+              : resource === "user"
+                ? {
+                    ...(await readCrosschainUser(owner, requestIds)),
+                    coverage: history.coverage,
+                    historyScope:
+                      "Indexed EpochVault events plus explicitly tracked request IDs",
+                    truncated:
+                      history.truncated || history.requestIds.length > 100,
+                  }
+                : await readCrosschain(resource);
     return Response.json(validateCrosschainResponse(resource, value, owner), {
       headers,
     });

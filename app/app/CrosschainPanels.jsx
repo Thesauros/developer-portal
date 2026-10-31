@@ -1,321 +1,690 @@
 "use client";
-import { formatUnits } from "viem";
+import { useMemo, useState } from "react";
 import { crosschain } from "../../lib/crosschain-config.mjs";
-import { crosschainPersonalTotals } from "../../lib/crosschain-feed.mjs";
+import {
+  capitalMap,
+  crosschainPersonalTotals,
+  rateOnAllCapital,
+  realizedRate,
+  REQUEST_STEPS,
+  requestStage,
+  valuationState,
+} from "../../lib/crosschain-feed.mjs";
 import s from "./crosschain.module.css";
 
-export const amount = (value, decimals = 6) =>
-  value == null || !/^\d+$/.test(String(value))
-    ? "—"
-    : formatUnits(BigInt(value), decimals);
 const short = (value) => value.slice(0, 6) + "…" + value.slice(-4);
+const isUnits = (value) => /^\d+$/.test(String(value ?? ""));
+export const usdc = (value, digits = 2) => {
+  if (!isUnits(value)) return "—";
+  const number = Number(value) / 1e6;
+  if (number > 0 && number < 10 ** -digits) return "<" + 10 ** -digits;
+  return number.toLocaleString("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+};
+const money = (number) =>
+  number == null
+    ? "—"
+    : number.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+const percent = (number) => (number == null ? "—" : number.toFixed(2) + "%");
+const sharePrice = (rate) =>
+  isUnits(rate) ? (Number(rate) / 1e18).toFixed(6) : "—";
+function ago(seconds) {
+  if (!Number.isFinite(seconds)) return "unknown";
+  if (seconds < 90) return "just now";
+  if (seconds < 5400) return Math.round(seconds / 60) + " min ago";
+  if (seconds < 129600) return Math.round(seconds / 3600) + " hours ago";
+  return Math.round(seconds / 86400) + " days ago";
+}
+function clock(ms) {
+  return new Date(ms).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+const dayLabel = (ms) =>
+  new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+// Problems in plain words. Only what the person can act on or needs to know.
 export function CrosschainStatus({ feed, loading }) {
   if (!feed)
     return (
-      <p className={s.muted}>
+      <p className={loading ? s.muted : s.notice} role="status">
         {loading
-          ? "Reading the cross-chain contracts…"
-          : "Cross-chain data is unavailable."}
+          ? "Reading the vault from Base…"
+          : "The vault's data could not load. Your funds are not affected. Try Refresh."}
       </p>
     );
+  const valuation = valuationState(feed.vault);
+  const names = {
+    vault: "The vault's state",
+    allocation: "Where the money sits",
+    account: "Your wallet balances",
+    activity: "Your history",
+  };
+  const failed = Object.entries(feed.sourceErrors).filter(([, e]) => e);
   return (
     <>
-      {Object.entries(feed.sourceErrors)
-        .filter(([, error]) => error)
-        .map(([source, error]) => (
-          <p className={s.notice} role="alert" key={source}>
-            {
-              {
-                vault: "Vault state",
-                allocation: "Network allocation",
-                account: "Your wallet balances",
-                activity: "Your activity",
-              }[source]
-            }{" "}
-            could not load: {error}
-          </p>
-        ))}
+      {failed.map(([source, error]) => (
+        <p className={s.notice} role="alert" key={source} title={error}>
+          {names[source]} could not load. Other figures on this page are
+          current. Try Refresh.
+        </p>
+      ))}
       {feed.backendError && (
-        <p className={s.notice} role="status">
-          {feed.backendError} New requests are disabled. Current balances,
-          allocation and epoch state are read from the cross-chain contracts.
+        <p className={s.notice} role="status" title={feed.backendError}>
+          New requests are paused while the data service catches up. Your
+          balance and existing requests are not affected.
         </p>
       )}
-      {feed.vault && (
-        <p className={s.muted}>
-          Verified EpochVault on Base · Block {feed.vault.blockNumber} ·{" "}
-          {new Date(feed.vault.observedAt).toLocaleString()} ·{" "}
-          <a
-            target="_blank"
-            rel="noreferrer"
-            href={crosschain.explorer + "/address/" + crosschain.vault}
-          >
-            {short(crosschain.vault)} ↗
-          </a>
-          {" · NAV updated "}
-          {new Date(
-            Number(feed.vault.tick.committedAt) * 1000,
-          ).toLocaleString()}
-          {feed.vault.tick.ageSeconds == null ||
-          feed.vault.tick.ageSeconds > feed.vault.risk.maxTickAge
-            ? " (stale or not yet published)"
-            : ""}
+      {valuation.level === "stale" && (
+        <p className={s.notice} role="status">
+          The vault was last valued {ago(valuation.ageSeconds)}. New requests
+          wait until the next valuation.
+        </p>
+      )}
+      {valuation.level === "frozen" && (
+        <p className={s.notice} role="alert">
+          Settlement is paused while the vault's valuation is frozen. New
+          requests and settlements wait until it resumes.
+        </p>
+      )}
+      {valuation.level === "review" && (
+        <p className={s.notice} role="alert">
+          A valuation is under review. New requests and settlements wait until
+          it is resolved.
         </p>
       )}
     </>
   );
 }
-function Metrics({ items }) {
+
+export function EarlyNotice({ vault }) {
+  if (crosschain.profile !== "stand") return null;
   return (
-    <section className={s.metrics}>
-      {items.map(([label, value]) => (
-        <article key={label}>
-          <span>{label}</span>
-          <strong>{value}</strong>
-        </article>
-      ))}
-    </section>
-  );
-}
-export function CrosschainNetworks({ feed }) {
-  return (
-    <section className={s.card}>
-      <h3>Capital across networks</h3>
-      <p>
-        One user position on Base. The strategy can allocate fund capital to
-        both networks.
-      </p>
-      {crosschain.networks.map((network) => {
-        const allocation = feed?.allocation?.chains?.find(
-          (chain) => chain.chainId === network.chainId,
-        );
-        return (
-          <article className={s.network} key={network.chainId}>
-            <h4>
-              {network.name} · {network.role === "hub" ? "Hub" : "Spoke"}
-            </h4>
-            <p>
-              Invested: {amount(allocation?.strategyValue)} USDC · Agent cash:{" "}
-              {amount(allocation?.idle)} USDC
-            </p>
-            <a
-              target="_blank"
-              rel="noreferrer"
-              href={network.explorer + "/address/" + network.strategy}
-            >
-              Strategy {short(network.strategy)} ↗
-            </a>
-            <a
-              target="_blank"
-              rel="noreferrer"
-              href={network.explorer + "/address/" + network.agent}
-            >
-              ChainAgent {short(network.agent)} ↗
-            </a>
-            {allocation && (
-              <p className={s.muted}>
-                Read from {network.name} block {allocation.blockNumber}.
-              </p>
-            )}
-          </article>
-        );
-      })}
-      <p className={s.muted}>
-        Bridge transfers in flight: unavailable. No transfer index has been
-        connected.
-      </p>
-    </section>
-  );
-}
-function Coverage({ history }) {
-  if (!history) return <p className={s.muted}>Event history has not loaded.</p>;
-  const coverage = history.coverage;
-  return (
-    <p className={s.muted}>
-      {coverage.complete
-        ? "Event index is up to date"
-        : "Event history is being indexed"}
-      : blocks {coverage.fromBlock}–{coverage.indexedTo} of{" "}
-      {coverage.headBlock ?? "unknown"}.
-      {coverage.lastSync && (
-        <> Updated {new Date(coverage.lastSync).toLocaleString()}.</>
-      )}
-      {coverage.error && <> Indexer error: {coverage.error}</>}
-      {history.truncated && <> Showing the latest 500 events.</>}
+    <p className={s.early}>
+      Early deployment.{" "}
+      {vault?.limits?.maxEpochDeposits
+        ? `Deposits are limited to ${usdc(vault.limits.maxEpochDeposits, 0)} USDC per batch.`
+        : "Limits apply."}
     </p>
   );
 }
-function SharePrice({ history }) {
-  const ticks = [...(history?.ticks || [])].sort((a, b) => a.at - b.at);
-  const points = ticks
-    .filter((tick) => tick.rateBid != null)
-    .map((tick) => ({
-      at: tick.at,
-      value: Number(formatUnits(BigInt(tick.rateBid), 18)),
-    }));
-  const min = Math.min(...points.map((point) => point.value)),
-    max = Math.max(...points.map((point) => point.value));
-  const span = Math.max(max - min, max * 0.00001),
-    first = points[0]?.at,
-    last = points.at(-1)?.at;
-  const path = points
-    .map((point, index) => {
-      const x = 15 + ((point.at - first) / Math.max(last - first, 1)) * 670;
-      const y = 165 - ((point.value - min) / span) * 140;
-      return `${index ? "H" : "M"}${x.toFixed(2)}${index ? "V" : ","}${y.toFixed(2)}`;
-    })
-    .join(" ");
+
+// The single yield figure for all capital.
+function YieldFigure({ map }) {
+  return (
+    <div className={s.figure}>
+      <span>Yield on all capital, now</span>
+      <strong>{percent(rateOnAllCapital(map))}</strong>
+      <details className={s.why}>
+        <summary>How this is calculated</summary>
+        <p>
+          Calculated by Thesauros, not read from a contract: each strategy's
+          current rate, weighted by its share of everything the vault holds.
+          Cash kept on Base for withdrawals earns nothing, so this figure is
+          lower than the rate of any single strategy and should not be compared
+          with them directly.
+        </p>
+      </details>
+    </div>
+  );
+}
+
+function Journey({ stage }) {
+  return (
+    <ol className={s.journey} data-cancelled={stage.cancelled || undefined}>
+      {REQUEST_STEPS.map((label, index) => (
+        <li
+          key={label}
+          data-state={
+            index < stage.step
+              ? "done"
+              : index === stage.step
+                ? stage.step === 3
+                  ? "done"
+                  : "current"
+                : "next"
+          }
+        >
+          <span aria-hidden="true" />
+          {label}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export function RequestList({
+  requests,
+  price,
+  onClaim,
+  onCancel,
+  blocked,
+  owner,
+}) {
+  return (
+    <div className={s.requests}>
+      {requests.map((request) => {
+        const stage = requestStage(request);
+        const deposit = request.kind === "deposit";
+        const estimate =
+          !deposit && isUnits(price)
+            ? String((BigInt(request.amount) * BigInt(price)) / 10n ** 18n)
+            : null;
+        return (
+          <article className={s.request} key={request.id}>
+            <header>
+              <h4>
+                {deposit ? "Deposit" : "Withdrawal"}{" "}
+                {deposit
+                  ? usdc(request.amount) + " USDC"
+                  : usdc(request.amount, 4) + " shares"}
+              </h4>
+              <span>
+                Batch {request.epoch}
+                {estimate && !["claimed", "cancelled"].includes(request.state)
+                  ? ` · about ${usdc(estimate)} USDC`
+                  : ""}
+              </span>
+            </header>
+            {!stage.cancelled && <Journey stage={stage} />}
+            <p className={stage.ready ? s.ready : s.muted}>{stage.note}</p>
+            <div className={s.actions}>
+              {request.state === "claimable" && (
+                <button
+                  className={s.primary}
+                  disabled={blocked}
+                  onClick={() => onClaim(request.id)}
+                >
+                  Claim
+                </button>
+              )}
+              {request.cancellable &&
+                owner &&
+                request.owner?.toLowerCase() === owner.toLowerCase() && (
+                  <button
+                    disabled={blocked}
+                    onClick={() => onCancel(request.id)}
+                  >
+                    Cancel request
+                  </button>
+                )}
+              {/^0x[0-9a-f]{64}$/i.test(request.requestedTx || "") && (
+                <a
+                  href={crosschain.explorer + "/tx/" + request.requestedTx}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Transaction ↗
+                </a>
+              )}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+const SWATCH = { Base: "#196aff", Arbitrum: "#0f2437", cash: "#a9b8c7" };
+export function MoneyMap({ vault, allocation }) {
+  const map = capitalMap(vault, allocation);
+  if (!map)
+    return (
+      <section className={s.card}>
+        <h3>Where the money is</h3>
+        <p className={s.muted}>This could not be read right now.</p>
+      </section>
+    );
   return (
     <section className={s.card}>
-      <h3>Share price · USDC per share</h3>
-      {points.length < 2 ? (
-        <p>
-          Waiting for at least two accepted NAV observations. No estimated curve
-          is shown.
+      <header className={s.cardHead}>
+        <h3>Where the money is</h3>
+        <span className={s.num}>{money(map.held)} USDC held</span>
+      </header>
+      <div className={s.stack} aria-hidden="true">
+        {map.parts.map((part) => (
+          <span
+            key={part.key}
+            style={{
+              width: Math.max(part.share, part.amount > 0 ? 0.6 : 0) + "%",
+              background: SWATCH[part.key],
+            }}
+          />
+        ))}
+      </div>
+      <table className={s.map}>
+        <tbody>
+          {map.parts.map((part) => (
+            <tr key={part.key}>
+              <th scope="row">
+                <i style={{ background: SWATCH[part.key] }} />
+                {part.label}
+              </th>
+              <td>{money(part.amount)} USDC</td>
+              <td>{part.share.toFixed(1)}%</td>
+              <td>
+                {part.key === "cash"
+                  ? "kept for withdrawals"
+                  : percent(part.rate)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {(map.pendingDeposits > 0 || map.owed > 0) && (
+        <p className={s.muted}>
+          Of this, {money(map.pendingDeposits)} USDC is waiting to become shares
+          and {money(map.owed)} USDC is owed to settled withdrawals.
         </p>
-      ) : (
-        <>
-          <svg
-            className={s.chart}
-            viewBox="0 0 700 185"
-            role="img"
-            aria-label={`Accepted share price observations from ${new Date(first).toLocaleDateString()} to ${new Date(last).toLocaleDateString()}`}
-          >
-            <path d={path} fill="none" stroke="#196aff" strokeWidth="2.5" />
-          </svg>
-          <p>
-            {new Date(first).toLocaleDateString()}: {points[0].value.toFixed(6)}{" "}
-            → {new Date(last).toLocaleDateString()}:{" "}
-            {points.at(-1).value.toFixed(6)} USDC/share.
-          </p>
-        </>
       )}
-      <Coverage history={history} />
+      <p className={s.muted}>
+        Money moving between networks is not shown here yet.
+      </p>
     </section>
   );
 }
-export default function CrosschainPanels({ view, feed, navigate, loading }) {
-  const vault = feed?.vault,
-    user = feed?.user,
-    totals =
-      user?.coverage?.complete && !user.truncated
-        ? crosschainPersonalTotals(user)
-        : null;
-  if (view === "activity") return <CrosschainActivity feed={feed} />;
-  if (view === "vaults")
-    return (
-      <>
-        <Metrics
-          items={[
-            ["Fund NAV · USDC", amount(vault?.tick.navBid)],
-            [
-              "Share price · USDC",
-              amount(vault?.tick.rateBid, 18).replace(/(\.\d{8})\d+$/, "$1"),
-            ],
-            ["Total vault shares", amount(vault?.totalSupply)],
-            ["Current epoch", vault?.epoch.id ?? "—"],
-          ]}
+
+export function Batch({ vault }) {
+  if (!vault) return null;
+  const { epoch } = vault;
+  const now = vault.observedAt;
+  const start = (epoch.openedAt ?? epoch.earliestCloseAt) * 1000;
+  const earliest = epoch.earliestCloseAt * 1000;
+  const latest = epoch.latestCloseAt * 1000;
+  const span = Math.max(latest - start, 1);
+  const position = Math.min(Math.max((now - start) / span, 0), 1) * 100;
+  return (
+    <section className={s.card}>
+      <header className={s.cardHead}>
+        <h3>Current batch</h3>
+        <span className={s.num}>Batch {epoch.id}</span>
+      </header>
+      <p>
+        Deposits and withdrawals are collected into a batch and settled
+        together, then you claim the result.
+      </p>
+      <div className={s.window} aria-hidden="true">
+        <span
+          className={s.windowOpen}
+          style={{
+            left: ((earliest - start) / span) * 100 + "%",
+            right: 0,
+          }}
         />
-        <section className={s.card}>
-          <h3>{vault?.symbol || "Cross-chain USDC EpochVault"}</h3>
-          <p>
-            Deposits and withdrawals are requested on Base and settled in
-            epochs. Arbitrum holds strategy capital; it is not a second user
-            vault.
-          </p>
-          <div className={s.actions}>
-            <button onClick={() => navigate("earn")}>Deposit & withdraw</button>
-            <a
-              target="_blank"
-              rel="noreferrer"
-              href={crosschain.explorer + "/address/" + crosschain.accountant}
-            >
-              View NAV accountant ↗
-            </a>
-          </div>
-          <p>
-            Hub cash: {amount(vault?.accounting.cash)} USDC · Pending deposits:{" "}
-            {amount(vault?.accounting.pendingDeposits)} USDC · Redemption
-            liabilities: {amount(vault?.accounting.liabilities)} USDC.
-          </p>
-          <p>
-            Minimum deposit: {amount(vault?.limits.minDeposit)} USDC. Deposit
-            requests:{" "}
-            {vault ? (vault.depositPaused ? "paused" : "open") : "unknown"}.
-            Withdrawal requests:{" "}
-            {vault ? (vault.redeemPaused ? "paused" : "open") : "unknown"}.
-          </p>
-          <p className={s.muted}>
-            Fund NAV and hub cash are different accounting measures. Pending
-            deposits and redemption liabilities are shown separately.
-          </p>
-        </section>
-        <CrosschainNetworks feed={feed} />
-        <SharePrice history={feed?.activity} />
-      </>
+        <i style={{ left: position + "%" }} />
+      </div>
+      <p className={s.num}>
+        {now >= latest
+          ? "Closing now"
+          : `Closes between ${clock(earliest)} and ${clock(latest)}`}
+      </p>
+      <p className={s.muted}>
+        Deposits {vault.depositPaused ? "paused" : "open"} · Withdrawals{" "}
+        {vault.redeemPaused ? "paused" : "open"}. A withdrawal larger than the
+        cash on Base waits until funds return from the strategies.
+      </p>
+    </section>
+  );
+}
+
+const PERIODS = [
+  [7, "7d"],
+  [30, "30d"],
+  [null, "All"],
+];
+export function PriceChart({ ticks, now = Date.now() }) {
+  const [days, setDays] = useState(30);
+  const [hover, setHover] = useState(null);
+  const all = useMemo(
+    () =>
+      [...(ticks || [])]
+        .filter((tick) => tick.rateBid != null && tick.at != null)
+        .map((tick) => ({ at: tick.at, price: Number(tick.rateBid) / 1e18 }))
+        .sort((a, b) => a.at - b.at),
+    [ticks],
+  );
+  const points = days
+    ? all.filter((point) => point.at >= now - days * 86400000)
+    : all;
+  const realized = realizedRate(ticks, days || 36500, now);
+  const head = (
+    <header className={s.cardHead}>
+      <div>
+        <h3>Share price</h3>
+        <p className={s.muted}>
+          {realized
+            ? `Holders received ${percent(realized.rate)} a year over the last ${realized.days} days.`
+            : "What one share is worth in USDC."}
+        </p>
+      </div>
+      <div className={s.segmented} role="group" aria-label="Period">
+        {PERIODS.map(([value, label]) => (
+          <button
+            key={label}
+            aria-pressed={days === value}
+            onClick={() => setDays(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </header>
+  );
+  if (points.length < 2)
+    return (
+      <section className={s.card}>
+        {head}
+        <p className={s.muted}>
+          {all.length
+            ? "Not enough valuations in this period to draw a line."
+            : "Price history is still loading."}
+        </p>
+      </section>
     );
+  const W = 720,
+    H = 210,
+    left = 8,
+    right = 8,
+    top = 12,
+    bottom = 24;
+  const prices = points.map((point) => point.price);
+  const min = Math.min(...prices),
+    max = Math.max(...prices);
+  const range = Math.max(max - min, max * 0.00002);
+  const first = points[0].at,
+    last = points.at(-1).at;
+  const x = (at) =>
+    left + ((at - first) / Math.max(last - first, 1)) * (W - left - right);
+  const y = (price) => top + (1 - (price - min) / range) * (H - top - bottom);
+  // A long silence between valuations is drawn dashed: the price was not
+  // observed then, and a solid flat line would claim that it was.
+  const SILENCE = 6 * 3600000;
+  let solid = "",
+    silent = "";
+  points.forEach((point, index) => {
+    const px = x(point.at).toFixed(1),
+      py = y(point.price).toFixed(1);
+    if (!index) {
+      solid = `M${px},${py}`;
+      return;
+    }
+    const previous = points[index - 1];
+    if (point.at - previous.at > SILENCE) {
+      silent += `M${x(previous.at).toFixed(1)},${y(previous.price).toFixed(1)}L${px},${py}`;
+      solid += `M${px},${py}`;
+    } else solid += `H${px}V${py}`;
+  });
+  const shown = hover ?? points.at(-1);
+  function move(event) {
+    const box = event.currentTarget.getBoundingClientRect();
+    const at =
+      first +
+      (((event.clientX - box.left) / box.width) * W - left) /
+        ((W - left - right) / Math.max(last - first, 1));
+    setHover(
+      points.reduce((a, b) =>
+        Math.abs(b.at - at) < Math.abs(a.at - at) ? b : a,
+      ),
+    );
+  }
+  return (
+    <section className={s.card}>
+      {head}
+      <p className={s.num}>
+        <strong>{shown.price.toFixed(6)} USDC</strong>{" "}
+        <span className={s.muted}>{clock(shown.at)}</span>
+      </p>
+      <svg
+        className={s.chart}
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label={`Share price from ${points[0].price.toFixed(6)} on ${dayLabel(first)} to ${points.at(-1).price.toFixed(6)} USDC on ${dayLabel(last)}`}
+        onPointerMove={move}
+        onPointerLeave={() => setHover(null)}
+      >
+        <path d={solid} fill="none" stroke="#196aff" strokeWidth="2" />
+        {silent && (
+          <path
+            d={silent}
+            fill="none"
+            stroke="#196aff"
+            strokeOpacity="0.45"
+            strokeWidth="1.5"
+            strokeDasharray="4 4"
+          />
+        )}
+        {hover && (
+          <>
+            <line
+              x1={x(hover.at)}
+              x2={x(hover.at)}
+              y1={top}
+              y2={H - bottom}
+              stroke="#142b40"
+              strokeOpacity="0.25"
+            />
+            <circle cx={x(hover.at)} cy={y(hover.price)} r="4" fill="#196aff" />
+          </>
+        )}
+        <text x={left} y={H - 6} className={s.axis}>
+          {dayLabel(first)}
+        </text>
+        <text x={W - right} y={H - 6} textAnchor="end" className={s.axis}>
+          {dayLabel(last)}
+        </text>
+      </svg>
+      {silent && (
+        <p className={s.muted}>
+          The dashed line marks a period when no valuation was published.
+        </p>
+      )}
+    </section>
+  );
+}
+
+export function ContractDetails({ vault, allocation }) {
+  const link = (explorer, address, label) => (
+    <li key={label}>
+      <span>{label}</span>
+      <a
+        href={explorer + "/address/" + address}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {short(address)} ↗
+      </a>
+    </li>
+  );
+  return (
+    <details className={s.details}>
+      <summary>Contracts and data sources</summary>
+      <ul>
+        {link(crosschain.explorer, crosschain.vault, "Vault on Base")}
+        {link(crosschain.explorer, crosschain.accountant, "Valuation contract")}
+        {crosschain.networks.flatMap((network) => [
+          link(network.explorer, network.strategy, network.name + " strategy"),
+          link(network.explorer, network.agent, network.name + " agent"),
+        ])}
+      </ul>
+      {vault && (
+        <p className={s.muted}>
+          Read from Base block {vault.blockNumber}. Last valuation{" "}
+          {ago(vault.tick?.ageSeconds)}.
+          {allocation?.chains
+            ?.filter((chain) => chain.name !== "Base")
+            .map((chain) => ` ${chain.name} block ${chain.blockNumber}.`)}
+        </p>
+      )}
+    </details>
+  );
+}
+
+// The vault for anyone, signed in or not.
+export function VaultOverview({ vault, allocation, ticks, now }) {
+  const map = capitalMap(vault, allocation);
   return (
     <>
-      <Metrics
-        items={[
-          ["Your shares · USDC estimate", amount(user?.valueBid)],
-          ["USDC in your Base wallet", amount(user?.cash)],
-          ["Your available vault shares", amount(user?.shares)],
-          [
-            "Pending deposits · USDC",
-            totals ? amount(totals.pendingDeposit) : "—",
-          ],
-        ]}
-      />
-      <section className={s.card}>
-        <h3>Your cross-chain position</h3>
-        <p>
-          Your vault position is held on Base. Its value uses the latest
-          accepted NAV; it is not a guaranteed withdrawal quote.
-        </p>
-        <div className={s.actions}>
-          <button onClick={() => navigate("earn")}>Deposit & withdraw</button>
-          <button onClick={() => navigate("activity")}>View activity</button>
-          <button onClick={() => navigate("vaults")}>Explore vault</button>
+      <section className={s.hero}>
+        <div className={s.figure}>
+          <span>Vault value</span>
+          <strong>
+            {usdc(vault?.tick?.navBid)} <small>USDC</small>
+          </strong>
+          <p className={s.muted}>
+            {vault?.tick
+              ? `Valued ${ago(vault.tick.ageSeconds)}.`
+              : "Not available right now."}
+          </p>
         </div>
-        <p>
-          Shares ready to claim: {totals ? amount(totals.unclaimedShares) : "—"}{" "}
-          · Withdrawals ready to claim:{" "}
-          {totals ? amount(totals.redeemAssets) : "—"} USDC.
-        </p>
-        <p className={s.muted}>
-          Request totals include the indexed and explicitly tracked requests.
-          Personal earnings are unavailable until a complete cost-basis history
-          is available; missing data is not shown as zero.
-        </p>
-        <Coverage history={feed?.activity} />
+        <YieldFigure map={map} />
+        <div className={s.figure}>
+          <span>Share price</span>
+          <strong>
+            {sharePrice(vault?.tick?.rateBid)} <small>USDC</small>
+          </strong>
+          <p className={s.muted}>
+            Minimum deposit {usdc(vault?.limits?.minDeposit)} USDC.
+          </p>
+        </div>
       </section>
-      <SharePrice history={feed?.activity} />
+      <div className={s.columns}>
+        <MoneyMap vault={vault} allocation={allocation} />
+        <Batch vault={vault} />
+      </div>
+      <PriceChart ticks={ticks} now={now} />
+      <ContractDetails vault={vault} allocation={allocation} />
     </>
   );
 }
-function CrosschainActivity({ feed }) {
-  const history = feed?.activity,
-    events = history?.events || [];
-  const labels = {
-    deposit_requested: "Deposit requested",
-    redeem_requested: "Withdrawal requested",
-    request_cancelled: "Request cancelled",
-    deposit_claimed: "Deposit shares claimed",
-    redeem_claimed: "Withdrawal claimed",
-    instant_exit: "Instant withdrawal",
-  };
+
+function Portfolio({ feed, onStart, onClaim, onCancel, blocked, owner }) {
+  const { user, vault, allocation } = feed || {};
+  const map = capitalMap(vault, allocation);
+  const active = (user?.requests || []).filter(
+    (request) => !["claimed", "cancelled"].includes(request.state),
+  );
+  const holds = isUnits(user?.shares) && BigInt(user.shares) > 0n;
+  const totals =
+    user?.coverage?.complete && !user.truncated
+      ? crosschainPersonalTotals(user)
+      : null;
+  const onTheWay = totals ? Number(totals.pendingDeposit) : 0;
+  return (
+    <>
+      <section className={s.hero}>
+        <div className={s.figure}>
+          <span>Your balance</span>
+          <strong className={s.balance}>
+            {usdc(user?.valueBid)} <small>USDC</small>
+          </strong>
+          <p className={s.muted}>
+            {holds
+              ? `${usdc(user.shares, 4)} shares at ${sharePrice(vault?.tick?.rateBid)} USDC each.`
+              : "You hold no shares yet."}
+            {onTheWay > 0 &&
+              ` ${usdc(String(totals.pendingDeposit))} USDC on its way in.`}
+          </p>
+          <div className={s.actions}>
+            <button className={s.primary} onClick={() => onStart("deposit")}>
+              Deposit
+            </button>
+            <button onClick={() => onStart("redeem")} disabled={!holds}>
+              Withdraw
+            </button>
+          </div>
+        </div>
+        <YieldFigure map={map} />
+        <div className={s.figure}>
+          <span>In your wallet on Base</span>
+          <strong>
+            {usdc(user?.cash)} <small>USDC</small>
+          </strong>
+          <p className={s.muted}>Ready to deposit.</p>
+        </div>
+      </section>
+      {active.length > 0 ? (
+        <section className={s.card}>
+          <header className={s.cardHead}>
+            <h3>In progress</h3>
+          </header>
+          <RequestList
+            requests={active}
+            price={vault?.tick?.rateBid}
+            onClaim={onClaim}
+            onCancel={onCancel}
+            blocked={blocked}
+            owner={owner}
+          />
+        </section>
+      ) : (
+        !holds && (
+          <section className={s.card}>
+            <h3>How it works</h3>
+            <ol className={s.steps}>
+              <li>
+                <b>Request a deposit on Base.</b> You keep your USDC until you
+                sign, and you can cancel while the batch is open.
+              </li>
+              <li>
+                <b>The batch settles.</b> Your USDC is converted to shares at
+                the next valuation.
+              </li>
+              <li>
+                <b>Claim and hold.</b> The vault earns on Base and Arbitrum. To
+                leave, request a withdrawal the same way.
+              </li>
+            </ol>
+          </section>
+        )
+      )}
+      <MoneyMap vault={vault} allocation={allocation} />
+      <PriceChart ticks={feed?.activity?.ticks} now={vault?.observedAt} />
+    </>
+  );
+}
+
+const ACTIVITY = {
+  deposit_requested: "Deposit requested",
+  redeem_requested: "Withdrawal requested",
+  request_cancelled: "Request cancelled",
+  deposit_claimed: "Shares claimed",
+  redeem_claimed: "Withdrawal claimed",
+  instant_exit: "Instant withdrawal",
+};
+function Coverage({ history }) {
+  if (!history) return null;
+  const { coverage } = history;
+  if (coverage.complete && !coverage.error && !history.truncated)
+    return <p className={s.muted}>History is up to date.</p>;
+  return (
+    <p className={s.muted}>
+      {coverage.complete
+        ? "History is up to date"
+        : "History is still being read from Base, so this list may be incomplete"}
+      {history.truncated ? ". Showing the latest 500 events." : "."}
+    </p>
+  );
+}
+function Activity({ feed }) {
+  const history = feed?.activity;
+  const events = history?.events || [];
   return (
     <section className={s.card}>
-      <h3>Your transactions on Base</h3>
-      <Coverage history={history} />
       {!history ? (
-        <p>Loading EpochVault events for your signed-in wallet…</p>
+        <p className={s.muted}>Loading your history…</p>
       ) : !events.length ? (
         <p>
           {history.coverage.complete
-            ? "No EpochVault events found for this wallet in the indexed range."
-            : "No events found yet. The index is still catching up; this is not a complete history."}
+            ? "Nothing yet. Your deposits, withdrawals and claims will appear here."
+            : "Nothing found yet. History is still being read from Base."}
         </p>
       ) : (
         <div className={s.tableWrap}>
@@ -323,25 +692,23 @@ function CrosschainActivity({ feed }) {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Operation</th>
-                <th>Amount</th>
-                <th>Request</th>
-                <th>Receipt</th>
+                <th>What happened</th>
+                <th className={s.right}>Amount</th>
+                <th>Transaction</th>
               </tr>
             </thead>
             <tbody>
               {events.map((event) => (
                 <tr key={event.txHash + ":" + event.logIndex}>
-                  <td>{new Date(event.at).toLocaleString()}</td>
-                  <td>{labels[event.type] || event.eventName}</td>
-                  <td>
+                  <td>{clock(event.at)}</td>
+                  <td>{ACTIVITY[event.type] || event.eventName}</td>
+                  <td className={s.right}>
                     {event.assets != null
-                      ? amount(event.assets) + " USDC"
+                      ? usdc(event.assets) + " USDC"
                       : event.shares != null
-                        ? amount(event.shares) + " shares"
+                        ? usdc(event.shares, 4) + " shares"
                         : "—"}
                   </td>
-                  <td>{event.requestId ?? "—"}</td>
                   <td>
                     <a
                       target="_blank"
@@ -357,11 +724,38 @@ function CrosschainActivity({ feed }) {
           </table>
         </div>
       )}
-      <p className={s.muted}>
-        Only events emitted by this cross-chain EpochVault are included.
-        Requested amounts, claimed shares and paid USDC are distinct operations.
-        No daily earnings or legacy-vault rebalances are synthesized.
-      </p>
+      <Coverage history={history} />
     </section>
+  );
+}
+
+export default function CrosschainPanels({
+  view,
+  feed,
+  onStart,
+  onClaim,
+  onCancel,
+  blocked,
+  owner,
+}) {
+  if (view === "activity") return <Activity feed={feed} />;
+  if (view === "vaults")
+    return (
+      <VaultOverview
+        vault={feed?.vault}
+        allocation={feed?.allocation}
+        ticks={feed?.activity?.ticks}
+        now={feed?.vault?.observedAt}
+      />
+    );
+  return (
+    <Portfolio
+      feed={feed}
+      onStart={onStart}
+      onClaim={onClaim}
+      onCancel={onCancel}
+      blocked={blocked}
+      owner={owner}
+    />
   );
 }

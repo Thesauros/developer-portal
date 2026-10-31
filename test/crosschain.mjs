@@ -1,5 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import {
+  encodeAbiParameters,
+  encodeEventTopics,
+  encodeFunctionData,
+  parseAbi,
+} from "viem";
+import {
+  capitalMap,
+  rateOnAllCapital,
+  realizedRate,
+  requestStage,
+  valuationState,
+} from "../lib/crosschain-feed.mjs";
 import { deriveEpochRequest } from "../lib/crosschain-reads.mjs";
 import {
   CROSSCHAIN_API_ORIGIN,
@@ -17,7 +30,13 @@ import {
   verifyCrosschain,
   verifyCrosschainReceipt,
   executeCrosschain,
+  epochAbi,
+  receiptShowsCall,
 } from "../lib/crosschain-transactions.mjs";
+
+const requestEventsAbi = parseAbi([
+  "event DepositRequested(uint256 indexed requestId,uint64 indexed epoch,address indexed owner,address receiver,uint256 assets)",
+]);
 
 const owner = "0x1111111111111111111111111111111111111111";
 const other = "0x2222222222222222222222222222222222222222";
@@ -322,6 +341,107 @@ test("a hash alone, reverted transaction or unrelated receipt is never success",
         crosschain.vault,
       ),
     );
+});
+test("a wallet relay is confirmed only by the vault's own matching event", () => {
+  const wallet = "0x" + "1".repeat(40);
+  const data = encodeFunctionData({
+    abi: epochAbi,
+    functionName: "requestDeposit",
+    args: [5_000_000n, wallet],
+  });
+  const log = (assets, logOwner = wallet, address = crosschain.vault) => ({
+    address,
+    topics: encodeEventTopics({
+      abi: requestEventsAbi,
+      eventName: "DepositRequested",
+      args: { requestId: 7n, epoch: 9n, owner: logOwner },
+    }),
+    data: encodeAbiParameters(
+      [{ type: "address" }, { type: "uint256" }],
+      [wallet, assets],
+    ),
+  });
+  const receipt = (logs, status = "success") => ({ status, logs });
+  assert.equal(
+    receiptShowsCall(receipt([log(5_000_000n)]), wallet, crosschain.vault, data),
+    true,
+  );
+  for (const bad of [
+    receipt([]),
+    receipt([log(4_999_999n)]),
+    receipt([log(5_000_000n, "0x" + "2".repeat(40))]),
+    receipt([log(5_000_000n, wallet, "0x" + "3".repeat(40))]),
+    receipt([log(5_000_000n)], "reverted"),
+  ])
+    assert.equal(receiptShowsCall(bad, wallet, crosschain.vault, data), false);
+});
+test("the money map, the one yield figure and the realized rate never invent data", () => {
+  const vault = {
+    accounting: {
+      cash: "5000000",
+      pendingDeposits: "0",
+      liabilities: "0",
+      reserved: "0",
+    },
+  };
+  const allocation = {
+    chains: [
+      {
+        name: "Base",
+        strategyValue: "4000000",
+        idle: "0",
+        rateRay: String(7n * 10n ** 25n),
+      },
+      {
+        name: "Arbitrum",
+        strategyValue: "2000000",
+        idle: "0",
+        rateRay: String(26n * 10n ** 24n),
+      },
+    ],
+  };
+  const map = capitalMap(vault, allocation);
+  assert.equal(map.held, 11);
+  assert.ok(
+    Math.abs(map.parts.reduce((sum, part) => sum + part.share, 0) - 100) < 1e-9,
+  );
+  // (4*7 + 2*2.6 + 5*0) / 11: cash pulls the figure below every strategy.
+  assert.ok(Math.abs(rateOnAllCapital(map) - 33.2 / 11) < 1e-9);
+  const unknown = capitalMap(vault, {
+    chains: [{ ...allocation.chains[0], rateRay: null }, allocation.chains[1]],
+  });
+  assert.equal(rateOnAllCapital(unknown), null);
+  assert.equal(capitalMap(null, allocation), null);
+  const day = 86400000;
+  const now = 100 * day;
+  const tick = (at, price) => ({ at, rateBid: String(BigInt(Math.round(price * 1e6)) * 10n ** 12n) });
+  const realized = realizedRate(
+    [tick(now - 40 * day, 1), tick(now - 30 * day, 1.001), tick(now, 1.002)],
+    30,
+    now,
+  );
+  assert.equal(realized.days, 30);
+  assert.ok(Math.abs(realized.rate - ((1.002 / 1.001 - 1) / 30) * 36500) < 1e-6);
+  assert.equal(realizedRate([tick(now, 1)], 30, now), null);
+  assert.equal(realizedRate([tick(now - 3600000, 1), tick(now, 1.001)], 30, now), null);
+});
+test("request stages follow the settlement order", () => {
+  assert.equal(requestStage({ kind: "deposit", state: "pending" }).step, 0);
+  assert.equal(requestStage({ kind: "redeem", state: "clearing" }).step, 1);
+  const waiting = requestStage({ kind: "redeem", state: "awaiting_liquidity" });
+  assert.equal(waiting.ready, undefined);
+  assert.equal(requestStage({ kind: "redeem", state: "claimable" }).ready, true);
+  assert.equal(requestStage({ kind: "deposit", state: "claimed" }).step, 3);
+  assert.equal(requestStage({ kind: "deposit", state: "cancelled" }).cancelled, true);
+  assert.equal(valuationState({ tick: { frozen: true } }).level, "frozen");
+  assert.equal(
+    valuationState({ tick: { ageSeconds: 9000 }, risk: { maxTickAge: 7200 } }).level,
+    "stale",
+  );
+  assert.equal(
+    valuationState({ tick: { ageSeconds: 60 }, risk: { maxTickAge: 7200 } }).level,
+    "ok",
+  );
 });
 test("wrong wallet and wrong wallet network cannot reach simulation or signing", async () => {
   const forbidden = () => {
