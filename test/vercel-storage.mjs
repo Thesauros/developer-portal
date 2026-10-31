@@ -29,7 +29,7 @@ try {
   run(`
     import assert from 'node:assert/strict';
     const {cachedSource} = await import(${JSON.stringify(moduleUrl("../lib/live-data.mjs"))});
-    await import(${JSON.stringify(moduleUrl("../lib/rebalances.mjs"))});
+    await import(${JSON.stringify(moduleUrl("../lib/vault-events.mjs"))});
     globalThis.fetch = async () => Response.json({observed: 42});
     const result = await cachedSource('vercel-storage-test', 'https://example.test');
     assert.equal(result.data.observed, 42);

@@ -8,7 +8,6 @@ export default function WalletFunding({
   owner,
   onClose,
   onRefresh,
-  onSandbox,
   returnFocusRef,
   loading = false,
 }) {
@@ -57,12 +56,6 @@ export default function WalletFunding({
   function dismiss() {
     dialog.current?.close();
     onClose();
-  }
-
-  function visitSandbox() {
-    restoreFocus.current = false;
-    dismiss();
-    requestAnimationFrame(() => onSandbox());
   }
 
   async function copyAddress(event) {
@@ -202,11 +195,11 @@ export default function WalletFunding({
         </header>
         <div className={s.content}>
           <h2 ref={title} tabIndex={-1} id="wallet-funding-title">
-            Add USDC to your wallet
+            Add {vault.symbol} to your wallet
           </h2>
           <p id="wallet-funding-intro" className={s.intro}>
-            Send native USDC on {vault.name} to your signed-in wallet. Then
-            return to Earn to make a deposit.
+            Send native {vault.symbol} on {vault.name} to your signed-in wallet.
+            Then return to Earn to make a deposit.
           </p>
 
           <section
@@ -238,13 +231,13 @@ export default function WalletFunding({
             <div>
               <dt>Asset and network</dt>
               <dd>
-                Native USDC on {vault.name}
+                Native {vault.symbol} on {vault.name}
                 <a
                   href={vault.explorer + "/address/" + vault.asset}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  View USDC token contract
+                  View {vault.symbol} token contract
                 </a>
               </dd>
             </div>
@@ -277,9 +270,6 @@ export default function WalletFunding({
             {checking || loading
               ? "Checking wallet balance…"
               : "Check wallet balance"}
-          </button>
-          <button className={s.secondary} onClick={visitSandbox}>
-            Try Sandbox
           </button>
         </footer>
       </div>

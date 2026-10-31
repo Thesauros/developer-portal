@@ -92,7 +92,7 @@ export default function Activity({
           <dd>{money(sum("withdraw"))}</dd>
         </div>
         <div>
-          <dt>Earned, 30 days</dt>
+          <dt>Earned, 30 days (est.)</dt>
           <dd className={c.positive}>{money(sum("earned"))}</dd>
         </div>
         <div>
@@ -137,10 +137,11 @@ export default function Activity({
           />
         )}
         <p className={c.footnote}>
-          Deposits and withdrawals come from indexed vault events for your
-          wallet. Earnings are daily totals for the last 30 days. Rebalances are
-          read from the vault contracts and listed while you held a position in
-          that vault; the amount is what the vault moved, not only your share.
+          Deposits, withdrawals and rebalances are read from the vault contracts
+          on all four networks. Daily earnings are estimated from the amount you
+          held each day and that day’s vault rate; total earned in the account
+          panel is exact (current value minus net deposits). Rebalances show
+          what the whole vault moved, not only your share.
         </p>
       </section>
     </RailLayout>

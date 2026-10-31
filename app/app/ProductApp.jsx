@@ -12,14 +12,13 @@ import useInsights from "./cabinet/useInsights";
 import Portfolio from "./cabinet/Portfolio";
 import Vaults from "./cabinet/Vaults";
 import Activity from "./cabinet/Activity";
+import OurMarkets from "./cabinet/OurMarkets";
 import InstitutionSettings from "./cabinet/InstitutionSettings";
 import BrandLoading from "../ui/BrandLoading";
 import s from "./workspace.module.css";
 const loading = () => <BrandLoading />;
-const TestAccount = dynamic(() => import("./TestAccount"), { loading });
 const AccountSettings = dynamic(() => import("./AccountSettings"), { loading });
 const QuickGuide = dynamic(() => import("./QuickGuide"));
-const PlatformGuide = dynamic(() => import("./PlatformGuide"));
 const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
 const labels = {
   overview: "Portfolio",
@@ -27,7 +26,6 @@ const labels = {
   activity: "Activity",
   earn: "Deposit & withdraw",
   markets: "Market rates",
-  test: "Sandbox",
   developers: "Developers",
   settings: "Account",
 };
@@ -37,7 +35,6 @@ const descriptions = {
     "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
   earn: "Move USDC between your wallet and Earn.",
   markets: "Stablecoin lending rates across DeFi, for comparison.",
-  test: "Practise with simulated USDC. Nothing moves onchain.",
 };
 
 const icons = {
@@ -80,9 +77,6 @@ const icons = {
       <path d="M17.5 14v7M14 17.5h7" />
     </>
   ),
-  test: (
-    <path d="M9 3h6m-5 0v6l-5 8a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-8V3M8 14h8" />
-  ),
   settings: (
     <>
       <circle cx="12" cy="8" r="4" />
@@ -99,11 +93,12 @@ export default function ProductApp({ mode = "individual", user }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(vaultPreferenceKey);
-      if (["arbitrum", "base"].includes(saved)) setEarnVault(saved);
+      if (["arbitrum", "base", "monad", "plasma"].includes(saved))
+        setEarnVault(saved);
     } catch {}
   }, [vaultPreferenceKey]);
   function chooseEarnVault(id) {
-    if (!["arbitrum", "base"].includes(id)) return;
+    if (!["arbitrum", "base", "monad", "plasma"].includes(id)) return;
     setEarnVault(id);
     try {
       localStorage.setItem(vaultPreferenceKey, id);
@@ -122,7 +117,7 @@ export default function ProductApp({ mode = "individual", user }) {
   const guideOpener = useRef(null);
   function openGuide(event) {
     guideOpener.current = event?.currentTarget || document.activeElement;
-    setGuide("platform");
+    setGuide("earn");
   }
   const [signingOut, setSigningOut] = useState(false),
     [error, setError] = useState("");
@@ -130,9 +125,27 @@ export default function ProductApp({ mode = "individual", user }) {
     menuButton = useRef(null),
     heading = useRef(null);
   const markets = useLive("markets", tab === "markets");
-  const insightTabs = ["overview", "vaults", "activity"];
+  const insightTabs = ["overview", "vaults", "activity", "markets"];
   const market = useInsights("market", period, insightTabs.includes(tab));
   const mine = useInsights("account", "", insightTabs.includes(tab));
+  // When a deposit, withdrawal or approval confirms, reload vault stats and
+  // the event history instead of waiting for the next two-minute refresh.
+  const confirmedCount = (account.transactions || []).filter(
+    (t) => t.status === "success",
+  ).length;
+  const seenConfirmed = useRef(null);
+  useEffect(() => {
+    if (seenConfirmed.current === null) {
+      seenConfirmed.current = confirmedCount;
+      return;
+    }
+    if (confirmedCount > seenConfirmed.current) {
+      market.refresh();
+      mine.refresh(true);
+    }
+    seenConfirmed.current = confirmedCount;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmedCount]);
   const networkOptions = [
     ...new Set((markets.data?.data || []).map((m) => m.chain)),
   ].sort();
@@ -274,7 +287,6 @@ export default function ProductApp({ mode = "individual", user }) {
           {icons[id]}
         </svg>
         <span>{compact && id === "earn" ? "Move" : labels[id]}</span>
-        {id === "test" && <span className={s.navBadge}>Test</span>}
       </button>
     );
   }
@@ -338,7 +350,7 @@ export default function ProductApp({ mode = "individual", user }) {
             </div>
             <div className={s.navGroup}>
               <span className={s.navGroupLabel}>Tools</span>
-              {["markets", "test", "developers", "settings"].map((id) =>
+              {["markets", "developers", "settings"].map((id) =>
                 navigationButton(id),
               )}
             </div>
@@ -453,13 +465,13 @@ export default function ProductApp({ mode = "individual", user }) {
             />
           )}
           {current === "markets" && (
-            <Markets feed={markets} networks={selection} />
+            <>
+              <OurMarkets market={market} />
+              <Markets feed={markets} networks={selection} />
+            </>
           )}
           {current === "developers" && (
             <DeveloperCenter user={user} navigate={navigate} />
-          )}
-          {current === "test" && (
-            <TestAccount mode="individual" navigate={navigate} />
           )}
           {current === "settings" &&
             (institution ? (
@@ -491,13 +503,6 @@ export default function ProductApp({ mode = "individual", user }) {
           navigationButton(id, true),
         )}
       </nav>
-      {guide === "platform" && (
-        <PlatformGuide
-          onClose={closeGuide}
-          navigate={navigate}
-          returnFocusRef={guideOpener}
-        />
-      )}
       {guide === "earn" && (
         <QuickGuide
           open={true}

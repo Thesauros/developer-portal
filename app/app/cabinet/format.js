@@ -3,6 +3,10 @@ export const units = (value, decimals = 6) =>
 
 export function money(value, digits = 2) {
   if (value == null || !Number.isFinite(value)) return "—";
+  // Avoid showing a real but tiny amount as zero.
+  const floor = 10 ** -digits;
+  if (value !== 0 && Math.abs(value) < floor / 2)
+    return (value < 0 ? "−" : "") + "<" + floor.toFixed(digits);
   return value.toLocaleString("en-US", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,

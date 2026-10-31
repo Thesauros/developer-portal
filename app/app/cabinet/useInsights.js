@@ -10,28 +10,33 @@ export default function useInsights(kind, param = "", enabled = true) {
     error: "",
   });
   const sequence = useRef(0);
-  const load = useCallback(async () => {
-    const id = ++sequence.current;
-    setState((s) => ({ ...s, loading: true, error: "" }));
-    try {
-      const query =
-        kind === "account" ? "kind=account" : "period=" + (param || "30d");
-      const response = await fetch("/app/insights?" + query, {
-        cache: "no-store",
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not load data.");
-      if (id === sequence.current)
-        setState({ data: body, loading: false, error: "" });
-    } catch (error) {
-      if (id === sequence.current)
-        setState((s) => ({
-          ...s,
-          loading: false,
-          error: error.message || "Could not load data.",
-        }));
-    }
-  }, [kind, param]);
+  const load = useCallback(
+    async (fresh = false) => {
+      const id = ++sequence.current;
+      setState((s) => ({ ...s, loading: true, error: "" }));
+      try {
+        const query =
+          kind === "account"
+            ? "kind=account" + (fresh === true ? "&fresh=1" : "")
+            : "period=" + (param || "30d");
+        const response = await fetch("/app/insights?" + query, {
+          cache: "no-store",
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "Could not load data.");
+        if (id === sequence.current)
+          setState({ data: body, loading: false, error: "" });
+      } catch (error) {
+        if (id === sequence.current)
+          setState((s) => ({
+            ...s,
+            loading: false,
+            error: error.message || "Could not load data.",
+          }));
+      }
+    },
+    [kind, param],
+  );
   useEffect(() => {
     if (!enabled) return;
     load();

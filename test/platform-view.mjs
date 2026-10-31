@@ -481,8 +481,10 @@ const portfolioRead = {
   ],
 };
 const portfolio = platformPortfolio(portfolioSources, [portfolioRead]);
-assert.equal(portfolio.entries.length, 3);
-assert.equal(portfolio.networks, 3);
+// Every contract vault is listed (four since Monad and Plasma were added),
+// plus the monitor-only legacy Plasma vault.
+assert.equal(portfolio.entries.length, 5);
+assert.equal(portfolio.networks, 4);
 assert.equal(
   portfolio.totals.find((t) => t.token === "USDC").assets,
   120,
@@ -520,7 +522,7 @@ assert.equal(
 assert.equal(emptyPortfolio.totals[0].reporting, 0);
 assert.equal(
   emptyPortfolio.totals[0].count,
-  2,
+  3,
   "Configured Earn vaults remain selectable while loading",
 );
 const partialPortfolio = platformPortfolio([], [portfolioRead]);
@@ -528,7 +530,7 @@ assert.equal(partialPortfolio.totals[0].assets, 100);
 assert.equal(partialPortfolio.totals[0].reporting, 1);
 assert.equal(
   partialPortfolio.totals[0].count,
-  2,
+  3,
   "Partial totals preserve coverage",
 );
 assert.equal(

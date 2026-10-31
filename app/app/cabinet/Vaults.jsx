@@ -4,6 +4,7 @@ import RateChart, { RateLegend } from "./RateChart";
 import {
   Allocation,
   Health,
+  providersByNetwork,
   VaultMark,
   aggregateSeries,
   combine,
@@ -20,28 +21,6 @@ import {
   units,
 } from "./format";
 import c from "./cabinet.module.css";
-
-// Allocation across several vaults, weighted by each vault's deposits.
-function blendProviders(rows, weightOf) {
-  const byName = new Map();
-  const total = rows.reduce((s, r) => s + (weightOf(r) || 0), 0);
-  for (const r of rows)
-    for (const p of r.providers || []) {
-      const amount = ((weightOf(r) || 0) * (p.share || 0)) / 100;
-      const prev = byName.get(p.name) || { ...p, amount: 0, rateSum: 0 };
-      prev.amount += amount;
-      prev.rateSum += amount * (p.apy || 0);
-      byName.set(p.name, prev);
-    }
-  return [...byName.values()]
-    .map((p) => ({
-      ...p,
-      share: total ? (p.amount / total) * 100 : null,
-      apy: p.amount ? p.rateSum / p.amount : p.apy,
-    }))
-    .filter((p) => p.share >= 0.05)
-    .sort((a, b) => b.share - a.share);
-}
 
 function Rebalances({ items, showVault }) {
   const [all, setAll] = useState(false);
@@ -123,8 +102,8 @@ export default function Vaults({
   const vaultAvg = average(series.vault);
   const marketAvg = average(series.market);
   const providers = single
-    ? single.providers
-    : blendProviders(rows, (r) => r.tvl);
+    ? single.providers.map((p) => ({ ...p, vault: single }))
+    : providersByNetwork(rows, (r) => r.tvl);
   const moves = (single ? [single] : rows)
     .flatMap((r) => (r.rebalances || []).map((e) => ({ ...e, vault: r })))
     .sort((a, b) => b.at - a.at);

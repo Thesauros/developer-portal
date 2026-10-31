@@ -25,20 +25,45 @@ export function combine(market, account, mine) {
       (x) => x.id === v.id && x.status === "ready",
     );
     const row = mine?.vaults?.find((x) => x.vaultId === v.id);
-    const balance = chain ? units(chain.positionAssets, v.decimals) : null;
-    const hasHistory = !!row?.transactions?.length;
-    const derived =
-      balance != null && hasHistory
-        ? balance - row.deposited + row.withdrawn
-        : null;
+    // Transactions confirmed in this browser that the event scan has not
+    // picked up yet, so earned never jumps while the history catches up.
+    const indexed = new Set(
+      (row?.transactions || []).map((t) => t.txHash.toLowerCase()),
+    );
+    const recent = (account.transactions || []).filter(
+      (t) =>
+        t.vaultId === v.id &&
+        t.status === "success" &&
+        (t.kind === "deposit" || t.kind === "withdraw") &&
+        !indexed.has((t.replacementHash || t.hash || "").toLowerCase()),
+    );
+    const extra = (kind) =>
+      recent
+        .filter((t) => t.kind === kind)
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const deposited = (row?.deposited || 0) + extra("deposit");
+    const withdrawn = (row?.withdrawn || 0) + extra("withdraw");
+    // The wallet read is the freshest balance; the server read covers the rest.
+    const balance = chain
+      ? units(chain.positionAssets, v.decimals)
+      : (row?.balance ?? null);
     return {
       ...v,
       chain,
       balance,
       cash: chain ? units(chain.cash, v.decimals) : null,
-      earned: row?.earned ?? derived,
-      deposited: row?.deposited || 0,
-      withdrawn: row?.withdrawn || 0,
+      // Current value minus net deposits, from the vault's onchain history.
+      earned:
+        row?.complete && balance != null
+          ? balance - deposited + withdrawn
+          : null,
+      // The contract read is current; the data service lags by minutes.
+      tvl:
+        chain?.totalAssets != null
+          ? units(chain.totalAssets, v.decimals)
+          : v.tvl,
+      deposited,
+      withdrawn,
       dailyEarned: row?.dailyEarned || [],
       firstDepositAt: row?.firstDepositAt || null,
       rate: v.apyNow ?? v.apr30d,
@@ -90,7 +115,52 @@ export function Tier({ tier }) {
   );
 }
 
-export function Allocation({ providers, total, token = "USDC" }) {
+// Round shares to 0.1 with the largest-remainder method so the column adds
+// up to exactly 100.0%; non-zero shares that round to 0 show as "<0.1%".
+function roundShares(providers) {
+  const tenths = providers.map((p) => (p.share || 0) * 10);
+  const floors = tenths.map(Math.floor);
+  let left =
+    Math.round(tenths.reduce((a, b) => a + b, 0)) -
+    floors.reduce((a, b) => a + b, 0);
+  const order = tenths
+    .map((t, i) => [t - floors[i], i])
+    .sort((a, b) => b[0] - a[0]);
+  for (const [, i] of order) {
+    if (left <= 0) break;
+    floors[i] += 1;
+    left -= 1;
+  }
+  return providers.map((p, i) => ({ ...p, shown: floors[i] / 10 }));
+}
+const shareLabel = (p) =>
+  p.share == null
+    ? "—"
+    : p.share > 0 && p.shown === 0
+      ? "<0.1%"
+      : p.shown.toFixed(1) + "%";
+
+// Provider rows per network: the same protocol pays different rates on
+// different networks, so rows are never merged across networks.
+export function providersByNetwork(rows, weightOf) {
+  const total = rows.reduce((s, r) => s + (weightOf(r) || 0), 0);
+  return rows
+    .flatMap((r) =>
+      (r.providers || []).map((p) => ({
+        ...p,
+        vault: r,
+        share: total ? ((weightOf(r) || 0) * (p.share || 0)) / total : null,
+        amount: ((weightOf(r) || 0) * (p.share || 0)) / 100,
+      })),
+    )
+    .filter((p) => p.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+}
+
+export function Allocation({ providers: raw, total, token = "USDC" }) {
+  const providers = roundShares(raw);
+  const multi =
+    new Set(providers.map((p) => p.vault?.id).filter(Boolean)).size > 1;
   if (!providers.length)
     return (
       <p className={c.muted}>
@@ -105,7 +175,7 @@ export function Allocation({ providers, total, token = "USDC" }) {
           <span
             key={p.name + i}
             style={{
-              width: p.share + "%",
+              width: Math.max(p.share || 0, 0.4) + "%",
               background: palette[i % palette.length],
             }}
           />
@@ -116,10 +186,13 @@ export function Allocation({ providers, total, token = "USDC" }) {
           <thead>
             <tr>
               <th>Lending market</th>
+              {multi && <th>Network</th>}
               <th>Risk tier</th>
               <th className={c.num}>Rate</th>
               <th className={c.num}>Share</th>
-              {total != null && <th className={c.num}>Your {token}</th>}
+              {total != null && (
+                <th className={c.num}>{token ? "Your " + token : "Yours"}</th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -141,16 +214,22 @@ export function Allocation({ providers, total, token = "USDC" }) {
                   )}
                   {p.name}
                 </td>
+                {multi && (
+                  <td>
+                    <span className={c.netCell}>
+                      <VaultMark vault={p.vault} size={16} />
+                      {p.vault.network}
+                    </span>
+                  </td>
+                )}
                 <td>
                   <Tier tier={p.riskTier} />
                 </td>
                 <td className={c.num}>{pct(p.apy)}</td>
-                <td className={c.num}>
-                  {p.share != null ? p.share.toFixed(1) + "%" : "—"}
-                </td>
+                <td className={c.num}>{shareLabel(p)}</td>
                 {total != null && (
                   <td className={c.num}>
-                    {money((total * (p.share || 0)) / 100)}
+                    {money(p.amount ?? (total * (p.share || 0)) / 100)}
                   </td>
                 )}
               </tr>
@@ -244,26 +323,10 @@ export default function Portfolio({
     [...held].sort((a, b) => b.balance - a.balance)[0] ||
     rows.find((r) => r.id === "arbitrum") ||
     rows[0];
-  const providers = useMemo(() => {
-    if (!held.length) return [];
-    const byName = new Map();
-    for (const r of held)
-      for (const p of r.providers) {
-        const amount = (r.balance * (p.share || 0)) / 100;
-        const prev = byName.get(p.name) || { ...p, amount: 0, rateSum: 0 };
-        prev.amount += amount;
-        prev.rateSum += amount * (p.apy || 0);
-        byName.set(p.name, prev);
-      }
-    return [...byName.values()]
-      .map((p) => ({
-        ...p,
-        share: (p.amount / total) * 100,
-        apy: p.amount ? p.rateSum / p.amount : p.apy,
-      }))
-      .filter((p) => p.share >= 0.05)
-      .sort((a, b) => b.share - a.share);
-  }, [held, total]);
+  const providers = useMemo(
+    () => (held.length ? providersByNetwork(held, (r) => r.balance) : []),
+    [held],
+  );
 
   const loading = account.loading && !account.vaults.length;
   const moneyRows = mergeActivity(
@@ -352,12 +415,6 @@ export default function Portfolio({
                     Deposit USDC
                   </button>
                 )}
-                <button
-                  className={c.secondary}
-                  onClick={() => navigate("test")}
-                >
-                  Try with test funds
-                </button>
               </div>
             </div>
             <Calculator vault={featured} />
@@ -385,7 +442,7 @@ export default function Portfolio({
               Vault details
             </button>
           </header>
-          <Allocation providers={providers} total={total} token="USDC" />
+          <Allocation providers={providers} total={total} token="" />
         </section>
       ) : (
         !loading && (

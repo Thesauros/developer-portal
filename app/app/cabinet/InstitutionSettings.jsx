@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { EmailForm } from "../InstitutionEmail";
 import c from "./cabinet.module.css";
 
 async function send(url, body) {
@@ -81,11 +82,15 @@ export default function InstitutionSettings({ user, signOut, signingOut }) {
           </div>
           <div>
             <dt>Work email</dt>
-            <dd className={c.breakAll}>{user.email}</dd>
+            <dd className={c.breakAll}>{user.email || "Not added"}</dd>
           </div>
           <div>
-            <dt>Sign-in method</dt>
-            <dd>Email and password</dd>
+            <dt>Sign-in methods</dt>
+            <dd>
+              {[user.hasPassword && "Email", user.signInWallet && "Wallet"]
+                .filter(Boolean)
+                .join(" and ") || "—"}
+            </dd>
           </div>
         </dl>
       </section>
@@ -101,10 +106,17 @@ export default function InstitutionSettings({ user, signOut, signingOut }) {
             </p>
           </div>
         </header>
-        {user.walletAddress ? (
+        {!user.treasuryWallet && user.signInWallet && (
+          <p className={c.muted}>
+            Now tracking your sign-in wallet{" "}
+            <span className={c.breakAll}>{user.signInWallet}</span>. Link a
+            different address if your treasury is held elsewhere.
+          </p>
+        )}
+        {user.treasuryWallet ? (
           <div className={c.walletRow}>
             <div>
-              <strong className={c.breakAll}>{user.walletAddress}</strong>
+              <strong className={c.breakAll}>{user.treasuryWallet}</strong>
               <small className={c.muted}>
                 Linked. Portfolio and Activity show this address.
               </small>
@@ -153,75 +165,96 @@ export default function InstitutionSettings({ user, signOut, signingOut }) {
       </section>
 
       <div className={c.split}>
-        <section className={c.section}>
-          <header className={c.sectionHead}>
-            <div>
-              <h2>Change password</h2>
-              <p className={c.muted}>
-                Other devices are signed out after the change.
-              </p>
-            </div>
-          </header>
-          <form
-            className={c.stackForm}
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = e.currentTarget;
-              const f = Object.fromEntries(new FormData(form));
-              runPassword(async () => {
-                if (f.next !== f.confirm)
-                  throw new Error("The new passwords do not match.");
-                await send("/api/auth/change-password", {
-                  currentPassword: f.current,
-                  newPassword: f.next,
-                  revokeOtherSessions: true,
-                });
-                form.reset();
-                loadSessions();
-              }, "Password changed. Other sessions were signed out.");
-            }}
-          >
-            <label className={c.formField}>
-              <span>Current password</span>
-              <input
-                name="current"
-                type="password"
-                autoComplete="current-password"
-                required
-                maxLength={128}
-              />
-            </label>
-            <label className={c.formField}>
-              <span>New password</span>
-              <input
-                name="next"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={12}
-                maxLength={128}
-              />
-              <small>At least 12 characters.</small>
-            </label>
-            <label className={c.formField}>
-              <span>Repeat new password</span>
-              <input
-                name="confirm"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={12}
-                maxLength={128}
-              />
-            </label>
-            <Status state={password} />
-            <div>
-              <button className={c.primary} disabled={password.busy}>
-                {password.busy ? "Updating…" : "Update password"}
-              </button>
-            </div>
-          </form>
-        </section>
+        {user.hasPassword ? (
+          <section className={c.section}>
+            <header className={c.sectionHead}>
+              <div>
+                <h2>Change password</h2>
+                <p className={c.muted}>
+                  Other devices are signed out after the change.
+                </p>
+              </div>
+            </header>
+            <form
+              className={c.stackForm}
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const f = Object.fromEntries(new FormData(form));
+                runPassword(async () => {
+                  if (f.next !== f.confirm)
+                    throw new Error("The new passwords do not match.");
+                  await send("/api/auth/change-password", {
+                    currentPassword: f.current,
+                    newPassword: f.next,
+                    revokeOtherSessions: true,
+                  });
+                  form.reset();
+                  loadSessions();
+                }, "Password changed. Other sessions were signed out.");
+              }}
+            >
+              <label className={c.formField}>
+                <span>Current password</span>
+                <input
+                  name="current"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  maxLength={128}
+                />
+              </label>
+              <label className={c.formField}>
+                <span>New password</span>
+                <input
+                  name="next"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={12}
+                  maxLength={128}
+                />
+                <small>At least 12 characters.</small>
+              </label>
+              <label className={c.formField}>
+                <span>Repeat new password</span>
+                <input
+                  name="confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={12}
+                  maxLength={128}
+                />
+              </label>
+              <Status state={password} />
+              <div>
+                <button className={c.primary} disabled={password.busy}>
+                  {password.busy ? "Updating…" : "Update password"}
+                </button>
+              </div>
+            </form>
+          </section>
+        ) : (
+          <section className={c.section}>
+            <header className={c.sectionHead}>
+              <div>
+                <h2>
+                  {user.email ? "Add email sign-in" : "Add your work email"}
+                </h2>
+                <p className={c.muted}>
+                  You signed in with a wallet. Add a work email, and a password
+                  if you also want to sign in with it.
+                </p>
+              </div>
+            </header>
+            <EmailForm
+              company={user.company || ""}
+              onDone={() => location.reload()}
+              submitLabel="Save"
+            />
+          </section>
+        )}
 
         <section className={c.section}>
           <header className={c.sectionHead}>

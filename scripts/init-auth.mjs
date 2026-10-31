@@ -6,6 +6,7 @@ const workspaceSchema = `
  CREATE TABLE IF NOT EXISTS account_recovery(user_id TEXT PRIMARY KEY REFERENCES user(id) ON DELETE CASCADE, key_hash TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS recovery_limits(identity TEXT PRIMARY KEY, attempts INTEGER NOT NULL, started_at INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS treasury_wallets(user_id TEXT PRIMARY KEY REFERENCES user(id) ON DELETE CASCADE, address TEXT NOT NULL, updated_at INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS profile_flags(user_id TEXT PRIMARY KEY REFERENCES user(id) ON DELETE CASCADE, email_prompt_dismissed INTEGER NOT NULL DEFAULT 0);
  CREATE TABLE IF NOT EXISTS product_workspaces(user_id TEXT PRIMARY KEY REFERENCES user(id) ON DELETE CASCADE, state TEXT NOT NULL, updated_at INTEGER NOT NULL);
 `;
 if (process.env.TURSO_DATABASE_URL)
