@@ -18,8 +18,8 @@ import { vaultClients } from "../../lib/vault-rpc.mjs";
 import { receiptRequestIds } from "../../lib/crosschain-reads.mjs";
 import { loadCrosschainFeed } from "../../lib/crosschain-feed.mjs";
 import CrosschainPanels, {
-  Batch,
   ContractDetails,
+  ExitAndTerms,
   CrosschainStatus,
   EarlyNotice,
   RequestList,
@@ -42,6 +42,7 @@ export default function CrosschainWorkspace({
   user,
   view = "overview",
   navigate = () => {},
+  otherVaults = 0,
 }) {
   const owner = user.walletAddress;
   const walletAccount = useAccount();
@@ -367,6 +368,8 @@ export default function CrosschainWorkspace({
           onCancel={(id) => submit("cancel", id)}
           blocked={blocked}
           owner={owner}
+          navigate={navigate}
+          otherVaults={otherVaults}
         />
       </div>
     );
@@ -559,7 +562,7 @@ export default function CrosschainWorkspace({
           </details>
         </section>
       </div>
-      <Batch vault={vault} />
+      <ExitAndTerms vault={vault} allocation={feed?.allocation} />
       <ContractDetails vault={vault} allocation={feed?.allocation} />
     </div>
   );

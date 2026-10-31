@@ -9,7 +9,6 @@ export const metadata = {
 };
 
 export default function Page() {
-  // Only the cross-chain deployment has this page.
-  if (process.env.NEXT_PUBLIC_THESAUROS_PRODUCT !== "crosschain") notFound();
+  if (process.env.NEXT_PUBLIC_THESAUROS_PRODUCT === "standard") notFound();
   return <CrosschainLive />;
 }

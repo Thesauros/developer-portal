@@ -5,7 +5,12 @@ import c from "./cabinet.module.css";
 
 // Vault rate against the lending market. The shaded band between the vault
 // line and the market average is what the rebalancer adds.
-export default function RateChart({ series, height = 260, label, className = "" }) {
+export default function RateChart({
+  series,
+  height = 260,
+  label,
+  className = "",
+}) {
   const box = useRef(null);
   const clip = useId().replace(/:/g, "");
   const [width, setWidth] = useState(720);
@@ -173,10 +178,10 @@ export default function RateChart({ series, height = 260, label, className = "" 
   );
 }
 
-export function RateLegend() {
+export function RateLegend({ vault = "Thesauros vault" }) {
   return (
     <div className={c.legend}>
-      <span className={c.keyVault}>Thesauros vault</span>
+      <span className={c.keyVault}>{vault}</span>
       <span className={c.keyMarket}>Market average</span>
       <span className={c.keyBand}>Extra yield</span>
     </div>

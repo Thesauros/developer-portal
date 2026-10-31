@@ -7,18 +7,28 @@ import {
   parseAbi,
 } from "viem";
 import {
+  allMarkets,
   capitalMap,
+  crosschainEarned,
   rateOnAllCapital,
   realizedRate,
   requestStage,
   valuationState,
 } from "../lib/crosschain-feed.mjs";
-import { deriveEpochRequest } from "../lib/crosschain-reads.mjs";
+import {
+  deriveEpochRequest,
+  receiptRequestIds,
+  requestEvents,
+} from "../lib/crosschain-reads.mjs";
 import {
   CROSSCHAIN_API_ORIGIN,
   crosschain,
   assertCrosschainIdentity,
 } from "../lib/crosschain-config.mjs";
+import {
+  readCrosschainMoves,
+  readCrosschainRates,
+} from "../lib/crosschain-api.mjs";
 import {
   crosschainPath,
   readCrosschain,
@@ -363,7 +373,12 @@ test("a wallet relay is confirmed only by the vault's own matching event", () =>
   });
   const receipt = (logs, status = "success") => ({ status, logs });
   assert.equal(
-    receiptShowsCall(receipt([log(5_000_000n)]), wallet, crosschain.vault, data),
+    receiptShowsCall(
+      receipt([log(5_000_000n)]),
+      wallet,
+      crosschain.vault,
+      data,
+    ),
     true,
   );
   for (const bad of [
@@ -384,27 +399,56 @@ test("the money map, the one yield figure and the realized rate never invent dat
       reserved: "0",
     },
   };
+  const ray = (percent) =>
+    String(BigInt(Math.round(percent * 100)) * 10n ** 23n);
+  const baseMarket = "0xddaa9700c0da1020ae5dabc7aa0a0bb750dd317c";
   const allocation = {
     chains: [
       {
         name: "Base",
+        role: "hub",
         strategyValue: "4000000",
+        totalAssets: "5000000",
         idle: "0",
-        rateRay: String(7n * 10n ** 25n),
+        rateRay: ray(7),
+        markets: [
+          {
+            address: baseMarket,
+            assets: "5000000",
+            rateRay: ray(7),
+            capBps: "0",
+          },
+          {
+            address: "0x51b8bdcda5e41893737c9c3a08f528c97fcc1b8b",
+            assets: "0",
+            rateRay: ray(6),
+            capBps: "4000",
+          },
+        ],
       },
       {
         name: "Arbitrum",
+        role: "spoke",
         strategyValue: "2000000",
+        totalAssets: "2000000",
         idle: "0",
-        rateRay: String(26n * 10n ** 24n),
+        rateRay: ray(2.6),
+        markets: [],
       },
     ],
   };
   const map = capitalMap(vault, allocation);
   assert.equal(map.held, 11);
-  assert.ok(
-    Math.abs(map.parts.reduce((sum, part) => sum + part.share, 0) - 100) < 1e-9,
-  );
+  const total =
+    map.cashShare + map.networks.reduce((sum, net) => sum + net.share, 0);
+  assert.ok(Math.abs(total - 100) < 1e-9);
+  // Only the vault's own part of the strategy counts: 4 of the market's 5 USDC.
+  const [aave, gauntlet] = map.networks[0].markets;
+  assert.equal(aave.amount, 4);
+  assert.equal(aave.name, "Aave V3");
+  assert.equal(gauntlet.name, "Gauntlet Core");
+  assert.equal(gauntlet.limit, 40);
+  assert.equal(allMarkets(map)[0].name, "Aave V3");
   // (4*7 + 2*2.6 + 5*0) / 11: cash pulls the figure below every strategy.
   assert.ok(Math.abs(rateOnAllCapital(map) - 33.2 / 11) < 1e-9);
   const unknown = capitalMap(vault, {
@@ -414,32 +458,188 @@ test("the money map, the one yield figure and the realized rate never invent dat
   assert.equal(capitalMap(null, allocation), null);
   const day = 86400000;
   const now = 100 * day;
-  const tick = (at, price) => ({ at, rateBid: String(BigInt(Math.round(price * 1e6)) * 10n ** 12n) });
+  const tick = (at, price) => ({
+    at,
+    rateBid: String(BigInt(Math.round(price * 1e6)) * 10n ** 12n),
+  });
   const realized = realizedRate(
     [tick(now - 40 * day, 1), tick(now - 30 * day, 1.001), tick(now, 1.002)],
     30,
     now,
   );
   assert.equal(realized.days, 30);
-  assert.ok(Math.abs(realized.rate - ((1.002 / 1.001 - 1) / 30) * 36500) < 1e-6);
+  assert.ok(
+    Math.abs(realized.rate - ((1.002 / 1.001 - 1) / 30) * 36500) < 1e-6,
+  );
   assert.equal(realizedRate([tick(now, 1)], 30, now), null);
-  assert.equal(realizedRate([tick(now - 3600000, 1), tick(now, 1.001)], 30, now), null);
+  assert.equal(
+    realizedRate([tick(now - 3600000, 1), tick(now, 1.001)], 30, now),
+    null,
+  );
+});
+test("earned is what the position is worth plus what came out, minus what went in", () => {
+  const history = {
+    coverage: { complete: true },
+    truncated: false,
+    events: [{ type: "redeem_claimed", requestId: "3", assets: "4006913" }],
+  };
+  const price = String(1001728n * 10n ** 12n);
+  const user = {
+    rateBid: price,
+    valueBid: "5993000",
+    truncated: false,
+    requests: [
+      { kind: "deposit", state: "claimed", amount: "10000000" },
+      { kind: "deposit", state: "cancelled", amount: "3000000" },
+      { id: "3", kind: "redeem", state: "claimed", amount: "4000000" },
+    ],
+  };
+  // 5.993 + 4.006913 - 10 = -0.000087: an entry fee in the offer rate shows as a loss.
+  assert.ok(Math.abs(crosschainEarned(user, history) + 0.000087) < 1e-9);
+  // A pending deposit is neither gain nor loss.
+  const pending = {
+    ...user,
+    requests: [
+      ...user.requests,
+      { kind: "deposit", state: "pending", amount: "2000000" },
+    ],
+  };
+  assert.ok(Math.abs(crosschainEarned(pending, history) + 0.000087) < 1e-9);
+  assert.equal(
+    crosschainEarned(user, { ...history, coverage: { complete: false } }),
+    null,
+  );
+  assert.equal(crosschainEarned(null, history), null);
+  // A claim the index has not seen yet must not read as a loss.
+  assert.equal(crosschainEarned(user, { ...history, events: [] }), null);
+});
+test("a request's ID is read from its receipt", () => {
+  const owner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+  const encode = (eventName, ownerAddress, receiver) => ({
+    address: crosschain.vault,
+    topics: encodeEventTopics({
+      abi: requestEvents,
+      eventName,
+      args: { requestId: 42n, epoch: 7n, owner: ownerAddress },
+    }),
+    data: encodeAbiParameters(
+      [{ type: "address" }, { type: "uint256" }],
+      [receiver, 10000000n],
+    ),
+  });
+  assert.deepEqual(
+    receiptRequestIds(
+      { logs: [encode("DepositRequested", owner, owner)] },
+      owner,
+    ),
+    ["42"],
+  );
+  assert.deepEqual(
+    receiptRequestIds(
+      { logs: [encode("RedeemRequested", owner, owner)] },
+      owner,
+    ),
+    ["42"],
+  );
+  // Someone else's request and other contracts' logs are ignored.
+  const other = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+  assert.deepEqual(
+    receiptRequestIds(
+      { logs: [encode("DepositRequested", other, other)] },
+      owner,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    receiptRequestIds(
+      {
+        logs: [{ ...encode("DepositRequested", owner, owner), address: other }],
+      },
+      owner,
+    ),
+    [],
+  );
+});
+test("rates and moves are read from fixed sources and never invent points", async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    const body = String(url).includes("/v1/transfers")
+      ? [
+          {
+            id: "0x1",
+            src_chain: 8453,
+            dst_chain: 42161,
+            amount: "4000000",
+            sent_tx: "0x" + "a".repeat(64),
+            sent_at: 100,
+            received_at: 200,
+          },
+          { id: "0x2", src_chain: 1, dst_chain: 8453, amount: "1" },
+          {
+            id: "0x3",
+            src_chain: 8453,
+            dst_chain: 42161,
+            amount: "not a number",
+          },
+        ]
+      : [
+          { from: "2026-10-30T00:00:00Z", value: 6.5 },
+          { from: "2026-10-29T00:00:00Z", value: "5" },
+          { from: "not a date", value: 1 },
+          { from: "2026-10-28T00:00:00Z", value: null },
+        ];
+    return new Response(JSON.stringify(body), { status: 200 });
+  };
+  try {
+    const { moves } = await readCrosschainMoves();
+    assert.equal(moves.length, 1);
+    assert.equal(moves[0].from, "Base");
+    assert.equal(moves[0].to, "Arbitrum");
+    assert.equal(moves[0].sentAt, 100000);
+    assert.equal(moves[0].tx, "0x" + "a".repeat(64));
+    const rates = await readCrosschainRates("30d");
+    assert.equal(rates.networks.length, 2);
+    const [base] = rates.networks;
+    assert.equal(base.name, "Base");
+    assert.deepEqual(
+      base.vault.map((point) => point.v),
+      [5, 6.5],
+    );
+    assert.ok(calls.every((url) => /^https:\/\//.test(url)));
+    assert.ok(
+      calls.some((url) =>
+        url.includes("/lending/USDC/apr-ticks/30d?network=Base"),
+      ),
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
 test("request stages follow the settlement order", () => {
   assert.equal(requestStage({ kind: "deposit", state: "pending" }).step, 0);
   assert.equal(requestStage({ kind: "redeem", state: "clearing" }).step, 1);
   const waiting = requestStage({ kind: "redeem", state: "awaiting_liquidity" });
   assert.equal(waiting.ready, undefined);
-  assert.equal(requestStage({ kind: "redeem", state: "claimable" }).ready, true);
+  assert.equal(
+    requestStage({ kind: "redeem", state: "claimable" }).ready,
+    true,
+  );
   assert.equal(requestStage({ kind: "deposit", state: "claimed" }).step, 3);
-  assert.equal(requestStage({ kind: "deposit", state: "cancelled" }).cancelled, true);
+  assert.equal(
+    requestStage({ kind: "deposit", state: "cancelled" }).cancelled,
+    true,
+  );
   assert.equal(valuationState({ tick: { frozen: true } }).level, "frozen");
   assert.equal(
-    valuationState({ tick: { ageSeconds: 9000 }, risk: { maxTickAge: 7200 } }).level,
+    valuationState({ tick: { ageSeconds: 9000 }, risk: { maxTickAge: 7200 } })
+      .level,
     "stale",
   );
   assert.equal(
-    valuationState({ tick: { ageSeconds: 60 }, risk: { maxTickAge: 7200 } }).level,
+    valuationState({ tick: { ageSeconds: 60 }, risk: { maxTickAge: 7200 } })
+      .level,
     "ok",
   );
 });

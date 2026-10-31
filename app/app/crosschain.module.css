@@ -184,6 +184,161 @@
   justify-content: space-between;
   gap: 8px 16px;
 }
+.heroFour {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.statement {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+.growth {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workspace .link {
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: #1b5482;
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.workspace .link:hover:not(:disabled) {
+  background: none;
+}
+.switching {
+  opacity: 0.45;
+  transition: opacity 120ms ease;
+}
+.workspace .otherVaults {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 14px;
+  font-size: 14px;
+  text-align: left;
+}
+.otherVaults span {
+  color: #1b5482;
+}
+.plan2 {
+  display: grid;
+  gap: 8px;
+  max-width: 420px;
+  margin-top: 4px;
+}
+/* The money flow: the page's signature. */
+.flow {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.flowName {
+  fill: var(--ledger-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+.flowValue {
+  fill: var(--ledger-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.band {
+  transition: fill-opacity 120ms ease;
+}
+.band:hover {
+  fill-opacity: 0.42;
+}
+.flowList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  list-style: none;
+}
+.flowList b {
+  font-weight: 500;
+}
+.flowList ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0 0 0 14px;
+  color: var(--ledger-muted);
+  list-style: none;
+}
+.flowList i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 2px;
+}
+.tableHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 2px;
+}
+.logo {
+  margin-right: 6px;
+  vertical-align: -4px;
+  border-radius: 50%;
+}
+.table tfoot th,
+.table tfoot td {
+  padding-top: 10px;
+  border-top: 1px solid var(--ledger-line);
+  font-weight: 500;
+}
+.terms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+  margin: 0;
+}
+.terms dt {
+  color: var(--ledger-muted);
+  font-size: 13px;
+}
+.terms dd {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.terms small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ledger-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -537,7 +692,61 @@
   font-size: 14px;
   text-decoration: none;
 }
+.workspace .rateChart {
+  gap: 12px;
+}
+@media (max-width: 720px) {
+  /* A row reads as two lines on a phone: name and amount, then the details. */
+  .stacked thead,
+  .stacked .onWide {
+    display: none;
+  }
+  .stacked,
+  .stacked tbody,
+  .stacked tfoot {
+    display: block;
+  }
+  .stacked tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--ledger-line);
+  }
+  .table.stacked td,
+  .table.stacked th {
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+  .table.stacked th {
+    color: inherit;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .table.stacked .cellA {
+    grid-area: 1 / 1;
+  }
+  .table.stacked .cellB {
+    grid-area: 1 / 2;
+    text-align: right;
+  }
+  .table.stacked .cellC {
+    grid-area: 2 / 1;
+    color: var(--ledger-muted);
+    font-size: 13px;
+  }
+  .table.stacked .cellD {
+    grid-area: 2 / 2;
+    color: var(--ledger-muted);
+    font-size: 13px;
+    text-align: right;
+  }
+}
 @media (max-width: 860px) {
+  .statement {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .hero {
     grid-template-columns: 1fr 1fr;
   }

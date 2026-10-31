@@ -11,6 +11,7 @@ export function workspaceDestination(
     "vaults",
     "activity",
     "earn",
+    "single",
     "markets",
     "developers",
     "settings",

@@ -1,9 +1,11 @@
 # Cross-chain stand — delivery contract
 
-**Build flag.** The cross-chain product is the same codebase as the standard
-workspace. `NEXT_PUBLIC_THESAUROS_PRODUCT=crosschain` at build time gives the
-separate deployment, including the public read-only page at `/live`; without it
-the standard vault tabs are unchanged. Compose and `npm run crosschain:local` set it.
+**Build flag.** Individual is built around the cross-chain vault. Single-network
+vaults stay available as a tab there, and Institution keeps them as its main view.
+`NEXT_PUBLIC_THESAUROS_PRODUCT=standard` at build time opts a deployment out:
+Individual returns to the single-network vaults and `/live` is not served. The
+Dockerfile defaults to `standard`; Compose and `npm run crosschain:local` set
+`crosschain`. A build without the variable gets the cross-chain Individual.
 
 Change: `crosschain-stand-20261028`. Branch: `сcrosschain` (initial Cyrillic `с`).
 

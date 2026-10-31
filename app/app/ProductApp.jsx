@@ -9,6 +9,7 @@ import NetworkFilter from "./NetworkFilter";
 import EarnWorkspace from "./EarnWorkspace";
 import useEarnAccount from "./useEarnAccount";
 import { crosschainAccountViews } from "../../lib/crosschain-feed.mjs";
+import { crosschainGuide } from "./crosschain-guide";
 import useInsights from "./cabinet/useInsights";
 import Portfolio from "./cabinet/Portfolio";
 import Vaults from "./cabinet/Vaults";
@@ -24,11 +25,12 @@ const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
 const CrosschainWorkspace = dynamic(() => import("./CrosschainWorkspace"), {
   loading,
 });
-// One codebase, two products. A build with this flag is the separate cross-chain
-// deployment; its account tabs read the cross-chain vault and nothing else.
-const crosschainProduct =
-  process.env.NEXT_PUBLIC_THESAUROS_PRODUCT === "crosschain";
+// Individual is built around the cross-chain vault; Institution keeps the
+// single-network vaults. A build can opt out with this flag.
+const crosschainAvailable =
+  process.env.NEXT_PUBLIC_THESAUROS_PRODUCT !== "standard";
 const labels = {
+  single: "Single-network vaults",
   overview: "Portfolio",
   vaults: "Vaults",
   activity: "Activity",
@@ -38,22 +40,28 @@ const labels = {
   settings: "Account",
 };
 const crosschainDescriptions = {
-  vaults: "One USDC vault working across Base and Arbitrum.",
+  vaults:
+    "One USDC vault working across Base and Arbitrum. See where the money is and what it earns.",
+  single: "Vaults that stay on one network, with their own rates and history.",
   activity: "Your deposits, withdrawals and claims on Base.",
   earn: "Request a deposit or withdrawal on Base. It settles with the next batch, then you claim it.",
   markets: "Stablecoin lending rates across DeFi, for comparison.",
 };
-const descriptions = crosschainProduct
-  ? crosschainDescriptions
-  : {
-      vaults: "Rates, allocation and history for every Thesauros vault.",
-      activity:
-        "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
-      earn: "Move stablecoins between your wallet and Earn.",
-      markets: "Stablecoin lending rates across DeFi, for comparison.",
-    };
+const standardDescriptions = {
+  vaults: "Rates, allocation and history for every Thesauros vault.",
+  activity:
+    "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
+  earn: "Move stablecoins between your wallet and Earn.",
+  markets: "Stablecoin lending rates across DeFi, for comparison.",
+};
 
 const icons = {
+  single: (
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="3" />
+      <path d="M4 10h16" />
+    </>
+  ),
   overview: (
     <>
       <rect x="3" y="3" width="7" height="8" rx="1.5" />
@@ -101,9 +109,17 @@ const icons = {
   ),
 };
 export default function ProductApp({ mode = "individual", user }) {
+  const crosschainProduct = crosschainAvailable && mode !== "institution";
+  // Single-network vaults are a tab only where they are not the main product.
+  const viewExists = (id) =>
+    Boolean(labels[id]) && (id !== "single" || crosschainProduct);
+  const labelOf = (id) =>
+    crosschainProduct && id === "vaults" ? "Vault" : labels[id];
+  const descriptions = crosschainProduct
+    ? crosschainDescriptions
+    : standardDescriptions;
   const { disconnectAsync } = useDisconnect();
-  // The standard vault reads stay off in the cross-chain product.
-  const account = useEarnAccount(crosschainProduct ? "" : user.walletAddress);
+  const account = useEarnAccount(user.walletAddress);
   const [earnVault, setEarnVault] = useState("arbitrum");
   const vaultPreferenceKey =
     "thesauros.earn.network." + user.walletAddress?.toLowerCase();
@@ -143,7 +159,13 @@ export default function ProductApp({ mode = "individual", user }) {
     heading = useRef(null);
   const markets = useLive("markets", tab === "markets");
   const insightTabs = ["overview", "vaults", "activity", "markets"];
-  const standardData = !crosschainProduct && insightTabs.includes(tab);
+  const standardData = crosschainProduct
+    ? tab === "single"
+    : insightTabs.includes(tab);
+  const [singleEarn, setSingleEarn] = useState(false);
+  useEffect(() => {
+    if (tab !== "single") setSingleEarn(false);
+  }, [tab]);
   const market = useInsights("market", period, standardData);
   const mine = useInsights("account", "", standardData);
   // When a deposit, withdrawal or approval confirms, reload vault stats and
@@ -177,7 +199,7 @@ export default function ProductApp({ mode = "individual", user }) {
       : user.name;
   function navigate(id) {
     if (id === "build") id = "developers";
-    if (!labels[id]) return;
+    if (!viewExists(id)) return;
     if (id !== tab) history.pushState(null, "", "#" + id);
     setTab(id);
     setMenu(false);
@@ -191,7 +213,7 @@ export default function ProductApp({ mode = "individual", user }) {
       const id =
         workspaceDestination(mode, { hash: location.hash }).split("#")[1] ||
         "overview";
-      setTab(labels[id] ? id : "overview");
+      setTab(viewExists(id) ? id : "overview");
       setMenu(false);
     };
     sync();
@@ -267,8 +289,18 @@ export default function ProductApp({ mode = "individual", user }) {
   function openEarn(id, action = "deposit") {
     chooseEarnVault(id);
     setEarnAction((a) => ({ action, n: a.n + 1 }));
-    navigate("earn");
+    if (crosschainProduct) setSingleEarn(true);
+    else navigate("earn");
   }
+  // Balances in the single-network vaults, summed across USDC and USDT0.
+  const otherVaults = (account.vaults || []).reduce(
+    (sum, row) =>
+      sum +
+      (row.status === "ready" && row.positionAssets != null
+        ? Number(row.positionAssets) / 1e6
+        : 0),
+    0,
+  );
   const toolbar = (
     <div className={s.toolbar}>
       <NetworkFilter
@@ -304,7 +336,7 @@ export default function ProductApp({ mode = "individual", user }) {
         >
           {icons[id]}
         </svg>
-        <span>{compact && id === "earn" ? "Move" : labels[id]}</span>
+        <span>{compact && id === "earn" ? "Move" : labelOf(id)}</span>
       </button>
     );
   }
@@ -368,6 +400,7 @@ export default function ProductApp({ mode = "individual", user }) {
             </div>
             <div className={s.navGroup}>
               <span className={s.navGroupLabel}>Tools</span>
+              {crosschainProduct && navigationButton("single")}
               {navigationButton("markets")}
               <a href="/app/bluechips" target="_blank" rel="noopener">
                 <svg
@@ -409,7 +442,7 @@ export default function ProductApp({ mode = "individual", user }) {
               <h1 ref={heading} tabIndex={-1}>
                 {current === "overview" && mode === "institution"
                   ? "Treasury"
-                  : labels[current]}
+                  : labelOf(current)}
               </h1>
               {descriptions[current] && <p>{descriptions[current]}</p>}
             </div>
@@ -436,7 +469,44 @@ export default function ProductApp({ mode = "individual", user }) {
               user={user}
               view={current}
               navigate={navigate}
+              otherVaults={otherVaults}
             />
+          )}
+          {crosschainProduct && current === "single" && !singleEarn && (
+            <Vaults
+              account={account}
+              market={market}
+              mine={mine}
+              period={period}
+              setPeriod={setPeriod}
+              onEarn={openEarn}
+              navigate={navigate}
+              needsWallet={!user.walletAddress}
+            />
+          )}
+          {crosschainProduct && current === "single" && singleEarn && (
+            <>
+              <button
+                className={s.textButton}
+                onClick={() => setSingleEarn(false)}
+              >
+                Back to single-network vaults
+              </button>
+              <EarnWorkspace
+                key={earnAction.n}
+                initialAction={earnAction.action}
+                user={user}
+                navigate={navigate}
+                onGuide={(event) => {
+                  guideOpener.current =
+                    event?.currentTarget || document.activeElement;
+                  setGuide("earn");
+                }}
+                account={account}
+                selectedVault={earnVault}
+                onSelectVault={chooseEarnVault}
+              />
+            </>
           )}
           {!crosschainProduct && current === "overview" && (
             <Portfolio
@@ -544,6 +614,7 @@ export default function ProductApp({ mode = "individual", user }) {
       </nav>
       {guide === "earn" && (
         <QuickGuide
+          steps={crosschainProduct ? crosschainGuide : undefined}
           open={true}
           onClose={closeGuide}
           navigate={(id) => navigate(id === "overview" ? "earn" : id)}

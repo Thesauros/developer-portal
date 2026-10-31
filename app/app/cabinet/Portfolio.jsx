@@ -196,7 +196,7 @@ export function Allocation({ providers: raw, total, token = "USDC" }) {
             key={p.name + i}
             style={{
               width: Math.max(p.share || 0, 0.4) + "%",
-              background: palette[i % palette.length],
+              background: p.color || palette[i % palette.length],
             }}
           />
         ))}
@@ -221,7 +221,9 @@ export function Allocation({ providers: raw, total, token = "USDC" }) {
                 <td>
                   <span
                     className={c.swatch}
-                    style={{ background: palette[i % palette.length] }}
+                    style={{
+                      background: p.color || palette[i % palette.length],
+                    }}
                   />
                   {p.logo && (
                     <img

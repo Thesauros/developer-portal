@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import s from "./guide.module.css";
 
-const steps = [
+const defaultSteps = [
   {
     short: "Choose",
     title: "Give your USDC an Earn balance.",
@@ -124,6 +124,7 @@ function Icon({ name }) {
 }
 
 export default function QuickGuide({
+  steps = defaultSteps,
   open,
   onClose,
   navigate,

@@ -71,9 +71,9 @@ export default function CrosschainLive() {
         <div>
           <h1 className={s.title}>Cross-chain USDC vault</h1>
           <p className={s.lede}>
-            One deposit on Base, working across Base and Arbitrum. Every figure
-            here is read from the contracts and updates by itself. No wallet or
-            account is needed to view it.
+            One deposit on Base, working across Base and Arbitrum. Balances and
+            the share price are read from the contracts. No wallet or account is
+            needed to view it.
           </p>
           <EarlyNotice vault={feed?.vault} />
         </div>
@@ -84,6 +84,7 @@ export default function CrosschainLive() {
             allocation={feed.allocation}
             ticks={feed.prices?.ticks}
             now={feed.vault?.observedAt}
+            explain
           />
         )}
       </div>

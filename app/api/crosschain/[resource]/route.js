@@ -3,6 +3,8 @@ import {
   readCrosschain,
   crosschainPath,
   validateCrosschainResponse,
+  readCrosschainMoves,
+  readCrosschainRates,
 } from "../../../../lib/crosschain-api.mjs";
 import { workspaceSession } from "../../../../lib/auth.mjs";
 import { readIndexedActivity } from "../../../../lib/crosschain-history.mjs";
@@ -36,7 +38,15 @@ export async function GET(request, { params }) {
   }
   try {
     if (
-      !["vault", "allocation", "user", "activity", "prices"].includes(resource)
+      ![
+        "vault",
+        "allocation",
+        "user",
+        "activity",
+        "prices",
+        "rates",
+        "moves",
+      ].includes(resource)
     )
       crosschainPath(resource);
   } catch {
@@ -53,27 +63,33 @@ export async function GET(request, { params }) {
       ? [...new Set([...history.requestIds, ...ids])].slice(0, 100)
       : ids;
     const value =
-      resource === "vault"
-        ? await readCrosschainVault()
-        : resource === "prices"
-          ? // Accepted valuations are public; no wallet's events are read here.
-            (({ ticks, coverage }) => ({ ticks, coverage }))(
-              readIndexedActivity(zeroAddress),
-            )
-          : resource === "allocation"
-            ? await readCrosschainAllocation()
-            : resource === "activity"
-              ? history
-              : resource === "user"
-                ? {
-                    ...(await readCrosschainUser(owner, requestIds)),
-                    coverage: history.coverage,
-                    historyScope:
-                      "Indexed EpochVault events plus explicitly tracked request IDs",
-                    truncated:
-                      history.truncated || history.requestIds.length > 100,
-                  }
-                : await readCrosschain(resource);
+      resource === "rates"
+        ? await readCrosschainRates(
+            new URL(request.url).searchParams.get("period") || "30d",
+          )
+        : resource === "moves"
+          ? await readCrosschainMoves()
+          : resource === "vault"
+            ? await readCrosschainVault()
+            : resource === "prices"
+              ? // Accepted valuations are public; no wallet's events are read here.
+                (({ ticks, coverage }) => ({ ticks, coverage }))(
+                  readIndexedActivity(zeroAddress),
+                )
+              : resource === "allocation"
+                ? await readCrosschainAllocation()
+                : resource === "activity"
+                  ? history
+                  : resource === "user"
+                    ? {
+                        ...(await readCrosschainUser(owner, requestIds)),
+                        coverage: history.coverage,
+                        historyScope:
+                          "Indexed EpochVault events plus explicitly tracked request IDs",
+                        truncated:
+                          history.truncated || history.requestIds.length > 100,
+                      }
+                    : await readCrosschain(resource);
     return Response.json(validateCrosschainResponse(resource, value, owner), {
       headers,
     });
