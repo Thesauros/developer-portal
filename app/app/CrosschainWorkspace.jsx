@@ -53,7 +53,8 @@ export default function CrosschainWorkspace({
   const [amount, setAmount] = useState(""),
     [action, setAction] = useState("deposit");
   const [busy, setBusy] = useState(false),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [succeeded, setSucceeded] = useState(false);
   const [pending, setPending] = useState(null),
     [recoveryHash, setRecoveryHash] = useState("");
   const [storageReady, setStorageReady] = useState(false);
@@ -146,6 +147,7 @@ export default function CrosschainWorkspace({
     locks.add(key);
     setBusy(true);
     setMessage("");
+    setSucceeded(false);
     let signing = false;
     try {
       if (!owner || !sameAddress(walletAccount.address, owner))
@@ -199,10 +201,16 @@ export default function CrosschainWorkspace({
       trackIds(receiptRequestIds(receipt, owner));
       savePending(null);
       setMessage(
-        kind === "approve"
-          ? "Approval confirmed. Request the deposit when ready."
-          : "Transaction confirmed on Base. Balances and request state are read directly from the contracts.",
+        {
+          approve: "Approval confirmed. Now request the deposit.",
+          deposit: "Deposit requested. It joins the current batch.",
+          redeem: "Withdrawal requested. Your shares join the current batch.",
+          claim: "Claimed. Your balance is updating.",
+          cancel: "Request cancelled.",
+        }[kind],
       );
+      setSucceeded(true);
+      if (kind === "deposit" || kind === "redeem") setAmount("");
       refresh();
     } catch (failure) {
       const rejected =
@@ -343,7 +351,7 @@ export default function CrosschainWorkspace({
         <CrosschainStatus feed={feed} loading={loading} />
         {unresolved}
         {message && (
-          <p role="status" className={s.notice}>
+          <p role="status" className={succeeded ? s.success : s.notice}>
             {message}
           </p>
         )}
@@ -506,7 +514,7 @@ export default function CrosschainWorkspace({
           )}
           {!owner && <p>Sign in with a wallet to manage requests.</p>}
           {message && (
-            <p role="status" className={s.notice}>
+            <p role="status" className={succeeded ? s.success : s.notice}>
               {message}
             </p>
           )}
