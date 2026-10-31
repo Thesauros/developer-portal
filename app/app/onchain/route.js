@@ -9,6 +9,7 @@ import {
 import {
   confirmedAssetAmount,
   inspectEarnTransaction,
+  relayedOutcome,
   isTransactionNotFound,
   validNonce,
 } from "../../../lib/transaction-history.mjs";
@@ -311,6 +312,19 @@ export async function GET(request) {
         )
           throw new Error();
       } catch {
+        const relayed = relayedOutcome(
+          transaction,
+          receipt,
+          vault.id,
+          session.user.walletAddress,
+        );
+        if (relayed) {
+          if (receipt)
+            snapshots.delete(
+              vault.id + ":" + session.user.walletAddress.toLowerCase(),
+            );
+          return Response.json(relayed, { headers });
+        }
         return Response.json(
           {
             error: "Transaction does not match this account’s Earn operation.",

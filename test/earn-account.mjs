@@ -8,12 +8,14 @@ import { getVault, tokenAbi, vaultAbi } from "../lib/vault-contracts.mjs";
 import {
   historyKey,
   confirmedAssetAmount,
+  earnActionsFromReceipt,
   inspectEarnTransaction,
   isPendingTransaction,
   isTransactionNotFound,
   mergeTransactions,
   parseTransactionHistory,
   receiptMatches,
+  relayedOutcome,
   replacementOutcome,
   validateTransaction,
   validNonce,
@@ -505,4 +507,91 @@ check(
     );
   },
 );
+// TS-407: MetaMask's gas-in-token relay. Addresses and amounts from a real Base
+// deposit, 0x7f884f1c9eb0.
+{
+  const base = getVault("base");
+  const wallet = "0xd15ce3b61598d5705b17426111f203e172278b7b";
+  const relayer = "0xc066ac5d00000000000000000000000000000000";
+  const manager = "0xdb9b1e94b5b69df7e401ddbede43491141047db3";
+  const txHash = "0x" + "7f".repeat(32);
+  const deposit = {
+    address: base.address,
+    topics: encodeEventTopics({
+      abi: vaultAbi,
+      eventName: "Deposit",
+      args: { sender: wallet, owner: wallet },
+    }),
+    data: encodeAbiParameters(
+      [{ type: "uint256" }, { type: "uint256" }],
+      [1_000_000n, 993_602n],
+    ),
+  };
+  const transaction = { hash: txHash, from: relayer, to: manager };
+  const receipt = {
+    status: "success",
+    transactionHash: txHash,
+    blockNumber: 51770263n,
+    logs: [deposit],
+  };
+  assert.deepEqual(earnActionsFromReceipt(receipt, "base", wallet), [
+    { kind: "deposit", assets: 1_000_000n, shares: 993_602n },
+  ]);
+  const outcome = relayedOutcome(transaction, receipt, "base", wallet);
+  assert.equal(outcome.status, "success");
+  assert.equal(outcome.kind, "deposit");
+  assert.equal(outcome.actualAmount, "1");
+  const record = {
+    hash: txHash,
+    vaultId: "base",
+    kind: "deposit",
+    input: "0x1234",
+    nonce: 7,
+  };
+  assert.equal(receiptMatches(record, outcome, wallet), true);
+  assert.equal(
+    receiptMatches({ ...record, kind: "withdraw" }, outcome, wallet),
+    false,
+  );
+  assert.equal(
+    receiptMatches(record, outcome, "0x" + "1".repeat(40)),
+    false,
+    "another wallet cannot claim the outcome",
+  );
+  // Not yet mined: stays pending without claiming anything.
+  assert.deepEqual(relayedOutcome(transaction, null, "base", wallet), {
+    status: "pending",
+    found: false,
+    hash: txHash,
+  });
+  // No event for this wallet: not attributable.
+  assert.equal(
+    relayedOutcome(transaction, { ...receipt, logs: [] }, "base", wallet),
+    null,
+  );
+  assert.equal(
+    relayedOutcome(
+      transaction,
+      receipt,
+      "base",
+      "0x" + "2".repeat(40),
+    ),
+    null,
+    "events for another account prove nothing here",
+  );
+  // A transaction the wallet sent itself keeps the strict calldata check.
+  assert.equal(
+    relayedOutcome({ ...transaction, from: wallet }, receipt, "base", wallet),
+    null,
+  );
+  const failed = relayedOutcome(
+    transaction,
+    { ...receipt, status: "reverted", logs: [] },
+    "base",
+    wallet,
+  );
+  assert.equal(failed.status, "reverted");
+  assert.equal(receiptMatches(record, failed, wallet), true);
+}
+
 console.log(`\n${checks} Earn account safety checks passed.`);

@@ -459,7 +459,7 @@ export default function useEarnAccount(owner) {
             if (!current || !isPendingTransaction(current)) continue;
             recordTransaction({
               ...current,
-              input: receipt.input,
+              input: receipt.input ?? current.input,
               status: receipt.status,
               nonce: validNonce(receipt.nonce) ? receipt.nonce : current.nonce,
               amount:
