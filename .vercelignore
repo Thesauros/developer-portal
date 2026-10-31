@@ -13,6 +13,8 @@ private-state/
 
 # Environment and secrets
 .env.local
+.env*.local
+deploy/crosschain.env
 .env.production
 
 # Editor and OS

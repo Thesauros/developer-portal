@@ -161,6 +161,22 @@ try {
     (await request("/app/live?kind=protocol")).status === 401,
     "native live data requires authentication",
   );
+  check(
+    (await request("/api/crosschain/user")).status === 401,
+    "cross-chain account reads require a wallet session",
+  );
+  check(
+    (await request("/api/crosschain/activity")).status === 401,
+    "indexed cross-chain history requires a wallet session",
+  );
+  check(
+    (await request("/api/crosschain/keys")).status === 404,
+    "cross-chain proxy rejects unlisted upstream routes",
+  );
+  check(
+    (await request("/api/crosschain/health", {})).status === 405,
+    "cross-chain proxy does not forward writes",
+  );
   const account = privateKeyToAccount(generatePrivateKey());
   const nonceResponse = await request("/api/auth/siwe/nonce", {});
   check(nonceResponse.status === 200, "native nonce endpoint works");
@@ -187,6 +203,10 @@ try {
   );
   const payload = await signed.json();
   check(!payload.token, "session token stays out of the JSON response");
+  check(
+    (await request("/api/crosschain/user?requests=1,../2")).status === 400,
+    "cross-chain request list rejects malformed IDs before RPC reads",
+  );
   check(
     (await request("/app/api?mode=individual")).status === 200,
     "authenticated native ledger works",

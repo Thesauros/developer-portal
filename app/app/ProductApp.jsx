@@ -8,6 +8,7 @@ import { useLive, Markets } from "./LivePanels";
 import NetworkFilter from "./NetworkFilter";
 import EarnWorkspace from "./EarnWorkspace";
 import useEarnAccount from "./useEarnAccount";
+import { crosschainAccountViews } from "../../lib/crosschain-feed.mjs";
 import useInsights from "./cabinet/useInsights";
 import Portfolio from "./cabinet/Portfolio";
 import Vaults from "./cabinet/Vaults";
@@ -20,6 +21,13 @@ const loading = () => <BrandLoading />;
 const AccountSettings = dynamic(() => import("./AccountSettings"), { loading });
 const QuickGuide = dynamic(() => import("./QuickGuide"));
 const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
+const CrosschainWorkspace = dynamic(() => import("./CrosschainWorkspace"), {
+  loading,
+});
+// One codebase, two products. A build with this flag is the separate cross-chain
+// deployment; its account tabs read the cross-chain vault and nothing else.
+const crosschainProduct =
+  process.env.NEXT_PUBLIC_THESAUROS_PRODUCT === "crosschain";
 const labels = {
   overview: "Portfolio",
   vaults: "Vaults",
@@ -29,13 +37,23 @@ const labels = {
   developers: "Developers",
   settings: "Account",
 };
-const descriptions = {
-  vaults: "Rates, allocation and history for every Thesauros vault.",
+const crosschainDescriptions = {
+  vaults:
+    "The cross-chain USDC vault, its accepted NAV and allocation across Base and Arbitrum.",
   activity:
-    "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
-  earn: "Move stablecoins between your wallet and Earn.",
+    "Your cross-chain requests, claims and cancellations, indexed from EpochVault events.",
+  earn: "Request deposits and withdrawals on Base, then claim after epoch settlement.",
   markets: "Stablecoin lending rates across DeFi, for comparison.",
 };
+const descriptions = crosschainProduct
+  ? crosschainDescriptions
+  : {
+      vaults: "Rates, allocation and history for every Thesauros vault.",
+      activity:
+        "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
+      earn: "Move stablecoins between your wallet and Earn.",
+      markets: "Stablecoin lending rates across DeFi, for comparison.",
+    };
 
 const icons = {
   overview: (
@@ -86,7 +104,8 @@ const icons = {
 };
 export default function ProductApp({ mode = "individual", user }) {
   const { disconnectAsync } = useDisconnect();
-  const account = useEarnAccount(user.walletAddress);
+  // The standard vault reads stay off in the cross-chain product.
+  const account = useEarnAccount(crosschainProduct ? "" : user.walletAddress);
   const [earnVault, setEarnVault] = useState("arbitrum");
   const vaultPreferenceKey =
     "thesauros.earn.network." + user.walletAddress?.toLowerCase();
@@ -126,8 +145,9 @@ export default function ProductApp({ mode = "individual", user }) {
     heading = useRef(null);
   const markets = useLive("markets", tab === "markets");
   const insightTabs = ["overview", "vaults", "activity", "markets"];
-  const market = useInsights("market", period, insightTabs.includes(tab));
-  const mine = useInsights("account", "", insightTabs.includes(tab));
+  const standardData = !crosschainProduct && insightTabs.includes(tab);
+  const market = useInsights("market", period, standardData);
+  const mine = useInsights("account", "", standardData);
   // When a deposit, withdrawal or approval confirms, reload vault stats and
   // the event history instead of waiting for the next two-minute refresh.
   const confirmedCount = (account.transactions || []).filter(
@@ -413,7 +433,14 @@ export default function ProductApp({ mode = "individual", user }) {
               </button>
             </div>
           )}
-          {current === "overview" && (
+          {crosschainProduct && crosschainAccountViews.includes(current) && (
+            <CrosschainWorkspace
+              user={user}
+              view={current}
+              navigate={navigate}
+            />
+          )}
+          {!crosschainProduct && current === "overview" && (
             <Portfolio
               mode={mode}
               needsWallet={!user.walletAddress}
@@ -426,7 +453,7 @@ export default function ProductApp({ mode = "individual", user }) {
               onEarn={openEarn}
             />
           )}
-          {current === "vaults" && (
+          {!crosschainProduct && current === "vaults" && (
             <Vaults
               account={account}
               market={market}
@@ -438,7 +465,7 @@ export default function ProductApp({ mode = "individual", user }) {
               needsWallet={!user.walletAddress}
             />
           )}
-          {current === "activity" && (
+          {!crosschainProduct && current === "activity" && (
             <Activity
               account={account}
               mine={mine}
@@ -448,7 +475,7 @@ export default function ProductApp({ mode = "individual", user }) {
               needsWallet={!user.walletAddress}
             />
           )}
-          {current === "earn" && !user.walletAddress && (
+          {!crosschainProduct && current === "earn" && !user.walletAddress && (
             <div className={s.linkWallet}>
               <p>
                 Link your treasury wallet to deposit and withdraw. Transactions
@@ -462,7 +489,7 @@ export default function ProductApp({ mode = "individual", user }) {
               </button>
             </div>
           )}
-          {current === "earn" && user.walletAddress && (
+          {!crosschainProduct && current === "earn" && user.walletAddress && (
             <EarnWorkspace
               key={earnAction.n}
               initialAction={earnAction.action}
@@ -480,7 +507,7 @@ export default function ProductApp({ mode = "individual", user }) {
           )}
           {current === "markets" && (
             <>
-              <OurMarkets market={market} />
+              {!crosschainProduct && <OurMarkets market={market} />}
               <Markets feed={markets} networks={selection} />
             </>
           )}

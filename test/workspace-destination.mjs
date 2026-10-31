@@ -41,7 +41,7 @@ for (const legacy of ["performance", "operations", "protocol", "events"])
     destination("individual", { hash: "#" + legacy }),
     "/app/individual#vaults",
   );
-for (const tab of ["vaults", "activity", "earn", "developers"]) {
+for (const tab of ["crosschain", "vaults", "activity", "earn", "developers"]) {
   assert.equal(
     destination("institution", { hash: "#" + tab }),
     "/app/institution#" + tab,

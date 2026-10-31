@@ -24,6 +24,8 @@ FROM deps AS build
 # NEXT_PUBLIC_* values are inlined at build time, so the data source has to be
 # known here rather than at `docker run`.
 ARG NEXT_PUBLIC_DATA_SOURCE=sandbox
+ARG NEXT_PUBLIC_THESAUROS_PRODUCT=standard
+ENV NEXT_PUBLIC_THESAUROS_PRODUCT=$NEXT_PUBLIC_THESAUROS_PRODUCT
 ENV NEXT_PUBLIC_DATA_SOURCE=$NEXT_PUBLIC_DATA_SOURCE \
     NEXT_TELEMETRY_DISABLED=1
 COPY . .

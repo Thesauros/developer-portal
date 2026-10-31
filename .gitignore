@@ -19,3 +19,4 @@ SECURITY_AUDIT.md
 private-state/
 *.sqlite*
 .vercel
+deploy/crosschain.env

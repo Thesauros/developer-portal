@@ -2,7 +2,7 @@
   min-height: 100vh;
   background: #f1f3f5;
   color: #0f2437;
-  font-family: var(--font-onest), Arial, sans-serif;
+  font-family: var(--font-sans), Arial, sans-serif;
   font-size: 15px;
   line-height: 1.6;
 }
