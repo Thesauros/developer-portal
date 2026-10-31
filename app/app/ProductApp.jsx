@@ -33,7 +33,7 @@ const descriptions = {
   vaults: "Rates, allocation and history for every Thesauros vault.",
   activity:
     "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
-  earn: "Move USDC between your wallet and Earn.",
+  earn: "Move stablecoins between your wallet and Earn.",
   markets: "Stablecoin lending rates across DeFi, for comparison.",
 };
 

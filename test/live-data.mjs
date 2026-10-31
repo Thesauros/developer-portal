@@ -556,6 +556,7 @@ assert.equal(
         symbol: "WETH",
       }),
       pool("no-rate", "aave-v3", "Base", { apy: null }),
+      pool("collateral-only", "aave-v3", "Ethereum", { apy: 0 }),
     ],
   });
   assert.deepEqual(

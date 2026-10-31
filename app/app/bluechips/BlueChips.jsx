@@ -9,28 +9,30 @@ const usd = (value) =>
     : "$" + (value / 1e6).toFixed(1) + "M";
 
 function Summary({ list }) {
-  const supplied = list.reduce((sum, p) => sum + (p.tvlUsd || 0), 0);
-  const weighted =
-    list.reduce((sum, p) => sum + (p.tvlUsd || 0) * p.apy, 0) / supplied;
+  // DefiLlama's market TVL is what is not lent out, so it describes liquidity
+  // and cannot weight a rate as if it were deposits.
+  const liquidity = list.reduce((sum, p) => sum + (p.tvlUsd || 0), 0);
+  const rates = list.map((p) => p.apy).sort((a, b) => a - b);
+  const middle = Math.floor(rates.length / 2);
+  const median =
+    rates.length % 2 ? rates[middle] : (rates[middle - 1] + rates[middle]) / 2;
   const best = list.reduce((a, b) => (b.apy > a.apy ? b : a), list[0]);
   return (
     <dl className={s.tiles}>
       <div>
         <dt>Markets</dt>
         <dd>{list.length}</dd>
-        <small>
-          across {new Set(list.map((p) => p.chain)).size} networks
-        </small>
+        <small>across {new Set(list.map((p) => p.chain)).size} networks</small>
       </div>
       <div>
-        <dt>Total supplied</dt>
-        <dd>{usd(supplied)}</dd>
-        <small>stablecoins in these markets</small>
+        <dt>Available liquidity</dt>
+        <dd>{usd(liquidity)}</dd>
+        <small>supplied and not lent out</small>
       </div>
       <div>
-        <dt>Rate, weighted by supply</dt>
-        <dd>{weighted.toFixed(2)}%</dd>
-        <small>what the average dollar earns</small>
+        <dt>Median rate</dt>
+        <dd>{median.toFixed(2)}%</dd>
+        <small>half of these markets pay more</small>
       </div>
       <div>
         <dt>Highest rate</dt>
