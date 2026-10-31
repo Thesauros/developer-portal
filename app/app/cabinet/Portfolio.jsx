@@ -17,10 +17,30 @@ import {
   units,
 } from "./format";
 import c from "./cabinet.module.css";
+import { vaults as supportedVaults } from "../../../lib/vault-contracts.mjs";
+import { totalUnit } from "../../../lib/earn-presentation.mjs";
 
 // One row per vault combining onchain balances, earnings history and rates.
 export function combine(market, account, mine) {
-  return (market?.vaults || []).map((v) => {
+  // Balances are read from the chain. A data service outage costs the rates
+  // and history, never the balance.
+  const source = market?.vaults?.length
+    ? market.vaults
+    : (account.vaults || []).length
+      ? supportedVaults.map((v) => ({
+          id: v.id,
+          network: v.name,
+          token: v.symbol,
+          decimals: v.decimals,
+          explorer: v.explorer,
+          icon: v.icon,
+          address: v.address,
+          depositable: true,
+          providers: [],
+          series: { vault: [], market: [], best: [] },
+        }))
+      : [];
+  return source.map((v) => {
     const chain = account.vaults.find(
       (x) => x.id === v.id && x.status === "ready",
     );
@@ -273,7 +293,7 @@ function Calculator({ vault }) {
           <dt>Per year</dt>
           <dd>{money(year)}</dd>
         </div>
-        {marketRate != null && (
+        {marketRate != null && rate > marketRate && (
           <div>
             <dt>More than the market average</dt>
             <dd className={c.positive}>
@@ -307,6 +327,8 @@ export default function Portfolio({
   );
   const held = rows.filter((r) => r.balance > 0);
   const total = held.reduce((s, r) => s + r.balance, 0);
+  const unit = totalUnit(held);
+  const cashUnit = totalUnit(rows.filter((r) => r.cash > 0));
   const earnedTotal = rows.reduce((s, r) => s + (r.earned || 0), 0);
   const rate = total
     ? held.reduce((s, r) => s + r.balance * (r.rate || 0), 0) / total
@@ -364,11 +386,11 @@ export default function Portfolio({
             <div className={c.statementMain}>
               <p className={c.label}>Balance in Earn</p>
               <p className={c.balance}>
-                <Amount value={total} /> <span>USDC</span>
+                <Amount value={total} /> <span>{unit}</span>
               </p>
               <p className={c.earnedLine}>
                 <span className={c.positive}>
-                  {signed(earnedTotal, earnedTotal < 1 ? 4 : 2)} USDC earned
+                  {signed(earnedTotal, earnedTotal < 1 ? 4 : 2)} {unit} earned
                 </span>
                 {Number.isFinite(since) && (
                   <span className={c.muted}> since {day(since, true)}</span>
@@ -378,7 +400,9 @@ export default function Portfolio({
             <div className={c.growth}>
               <div className={c.growthHead}>
                 <span className={c.muted}>Earnings, last 30 days</span>
-                <strong className={c.positive}>+{earned(last30)} USDC</strong>
+                <strong className={c.positive}>
+                  +{earned(last30)} {unit}
+                </strong>
               </div>
               <EarningsArea ticks={daily} />
             </div>
@@ -394,8 +418,8 @@ export default function Portfolio({
                 {needsWallet
                   ? "Link your treasury wallet to see its balance, earnings and activity here."
                   : cash > 0
-                    ? `You have ${money(cash)} USDC in your wallet ready to deposit.`
-                    : "Nothing deposited yet. Add USDC on Arbitrum or Base to start earning."}
+                    ? `You have ${money(cash)} ${cashUnit} in your wallet ready to deposit.`
+                    : "Nothing deposited yet. Add USDC on Arbitrum, Base or Monad, or USDT0 on Plasma, to start earning."}
               </p>
               <div className={c.actions}>
                 {needsWallet ? (
@@ -434,7 +458,7 @@ export default function Portfolio({
             <div>
               <h2>Where your money works</h2>
               <p className={c.muted}>
-                Your {money(total)} USDC by lending market, at each vault’s
+                Your {money(total)} {unit} by lending market, at each vault’s
                 current allocation.
               </p>
             </div>
@@ -452,7 +476,7 @@ export default function Portfolio({
                 <h2>Choose where to start</h2>
                 <p className={c.muted}>
                   {best
-                    ? `The ${best.network} vault averaged ${pct(best.apr30d)} over 30 days, ${points(best.marketSpread30d)} above the average lending market.`
+                    ? `The ${best.network} vault averaged ${pct(best.apr30d)} over 30 days${best.marketSpread30d > 0 ? `, ${points(best.marketSpread30d)} above the average lending market` : ""}.`
                     : "Compare rates, allocation and history for each vault."}
                 </p>
               </div>

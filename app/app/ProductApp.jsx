@@ -350,9 +350,23 @@ export default function ProductApp({ mode = "individual", user }) {
             </div>
             <div className={s.navGroup}>
               <span className={s.navGroupLabel}>Tools</span>
-              {["markets", "developers", "settings"].map((id) =>
-                navigationButton(id),
-              )}
+              {navigationButton("markets")}
+              <a href="/app/bluechips" target="_blank" rel="noopener">
+                <svg
+                  className={s.navGlyph}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 4h12l3 5-9 11L3 9l3-5ZM3 9h18" />
+                </svg>
+                <span>Blue chips</span>
+              </a>
+              {["developers", "settings"].map((id) => navigationButton(id))}
             </div>
           </nav>
           <div className={s.sidebarBottom}>

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { normalizeNetwork, selectMarkets, number } from "../lib/live-data.mjs";
+import {
+  normalizeNetwork,
+  selectBlueChips,
+  selectMarkets,
+  number,
+} from "../lib/live-data.mjs";
 const source = new URL("./fixtures/live-data/", import.meta.url);
 const read = (name) =>
   JSON.parse(readFileSync(new URL(name + ".json", source), "utf8"));
@@ -526,6 +531,41 @@ assert.equal(
   null,
   "unknown original observation time never becomes the time of a partial refresh",
 );
+// The blue-chip window lists every market, not the largest few per network.
+{
+  const pool = (pool, project, chain, extra = {}) => ({
+    pool,
+    project,
+    chain,
+    symbol: "USDC",
+    stablecoin: true,
+    tvlUsd: 5e6,
+    apy: 4,
+    ...extra,
+  });
+  const chips = selectBlueChips({
+    data: [
+      ...[1, 2, 3, 4, 5].map((n) =>
+        pool("aave-" + n, "aave-v3", "Ethereum", { tvlUsd: n * 1e7 }),
+      ),
+      pool("comp-poly", "compound-v3", "Polygon"),
+      pool("morpho", "morpho-blue", "Ethereum"),
+      pool("tiny", "aave-v3", "Base", { tvlUsd: 5e5 }),
+      pool("volatile", "aave-v3", "Base", {
+        stablecoin: false,
+        symbol: "WETH",
+      }),
+      pool("no-rate", "aave-v3", "Base", { apy: null }),
+    ],
+  });
+  assert.deepEqual(
+    chips.map((p) => p.id),
+    ["aave-5", "aave-4", "aave-3", "aave-2", "aave-1", "comp-poly"],
+  );
+  assert.equal(chips[0].name, "Aave");
+  assert.deepEqual(selectBlueChips({ data: [] }), []);
+}
+
 console.log(
   "PASS: omitted snapshot retention, original rate/provider context and timestamps, explicit failures, new contract identity, cold omissions and recovery.",
 );

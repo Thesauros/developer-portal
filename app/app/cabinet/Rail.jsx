@@ -1,6 +1,7 @@
 "use client";
 import { Amount, VaultMark } from "./parts";
 import { earned, money, pct, points } from "./format";
+import { totalUnit } from "../../../lib/earn-presentation.mjs";
 import c from "./cabinet.module.css";
 
 // Page column plus the account rail: actions and balances stay in reach on
@@ -116,7 +117,11 @@ export default function Rail({ rows, onEarn, navigate, needsWallet = false }) {
               ? money((inEarn * (rate || 0)) / 100 / 12)
               : points(best?.marketSpread30d)}
           </strong>
-          {inEarn ? <small>USDC at this rate</small> : <small>30 days</small>}
+          {inEarn ? (
+            <small>{totalUnit(held)} at this rate</small>
+          ) : (
+            <small>30 days</small>
+          )}
         </div>
         {inEarn > 0 && (
           <>

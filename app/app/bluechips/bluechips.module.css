@@ -1,0 +1,109 @@
+.page {
+  min-height: 100vh;
+  background: #f1f3f5;
+  color: #0f2437;
+}
+.inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 32px 64px;
+}
+.head {
+  margin-bottom: 40px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  font-weight: 500;
+  text-decoration: none;
+}
+.inner h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.lede {
+  max-width: 68ch;
+  margin: 10px 0 28px;
+  color: #526679;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.tiles > div {
+  min-width: 0;
+  padding: 18px 20px;
+  background: #fff;
+  border-radius: 18px;
+}
+.tiles dt {
+  color: #526679;
+  font-size: 13px;
+}
+.tiles dd {
+  margin: 8px 0 4px;
+  font-size: 26px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.tiles small {
+  display: block;
+  color: #526679;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.state {
+  padding: 32px;
+  background: #fff;
+  border-radius: 18px;
+  color: #526679;
+}
+.failed {
+  color: #8f2a2a;
+}
+.failed p {
+  margin: 0 0 14px;
+}
+.failed button {
+  min-height: 40px;
+  padding: 0 18px;
+  background: #fff;
+  border: 1px solid #c9d2db;
+  border-radius: 999px;
+  color: #0f2437;
+  cursor: pointer;
+  font: inherit;
+}
+.source {
+  margin: 16px 4px 0;
+  color: #526679;
+  font-size: 13px;
+}
+@media (max-width: 860px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .inner {
+    padding: 16px 16px 48px;
+  }
+  .head {
+    margin-bottom: 24px;
+  }
+  .inner h1 {
+    font-size: 28px;
+  }
+  .tiles dd {
+    font-size: 22px;
+  }
+}

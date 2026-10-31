@@ -1,6 +1,7 @@
 import { workspaceSession } from "../../../lib/auth.mjs";
 import {
   protocolData,
+  blueChipData,
   marketData,
   marketHistory,
 } from "../../../lib/live-data.mjs";
@@ -16,6 +17,9 @@ export async function GET(request) {
       break;
     case "markets":
       data = await marketData();
+      break;
+    case "bluechips":
+      data = await blueChipData();
       break;
     case "history":
       data = await marketHistory(query.get("pool"));

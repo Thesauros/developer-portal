@@ -1150,3 +1150,9 @@
   gap: 6px;
   white-space: nowrap;
 }
+
+/* Old figures while a new period loads: visibly not the period just selected. */
+.switching {
+  opacity: 0.45;
+  transition: opacity 120ms ease;
+}

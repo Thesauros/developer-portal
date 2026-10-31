@@ -10,6 +10,7 @@ import {
   combine,
 } from "./Portfolio";
 import Rail, { RailLayout } from "./Rail";
+import { totalUnit } from "../../../lib/earn-presentation.mjs";
 import {
   ago,
   average,
@@ -101,6 +102,17 @@ export default function Vaults({
       };
   const vaultAvg = average(series.vault);
   const marketAvg = average(series.market);
+  // The figures describe the period they were read for, even while the next
+  // period loads.
+  const shownPeriod = market.data?.period || period;
+  const switching = shownPeriod !== period;
+  const noComparison = single?.singleMarket === true;
+  const weightSum = rows.reduce((s, r) => s + (weightOf(r) || 0), 0);
+  const blendedRate = weightSum
+    ? rows.reduce((s, r) => s + (weightOf(r) || 0) * (r.rate || 0), 0) /
+      weightSum
+    : null;
+  const allTvl = rows.reduce((s, r) => s + (r.tvl || 0), 0);
   const providers = single
     ? single.providers.map((p) => ({ ...p, vault: single }))
     : providersByNetwork(rows, (r) => r.tvl);
@@ -130,7 +142,6 @@ export default function Vaults({
               <th className={c.num}>30-day avg</th>
               <th className={c.num}>vs market</th>
               <th className={c.num}>Total deposits</th>
-              <th>Access</th>
             </tr>
           </thead>
           <tbody>
@@ -154,18 +165,9 @@ export default function Vaults({
                 </td>
                 <td className={c.num}>{pct(r.rate)}</td>
                 <td className={c.num}>{pct(r.apr30d)}</td>
-                <td className={c.num}>
-                  {r.marketSpread30d ? points(r.marketSpread30d) : "—"}
-                </td>
+                <td className={c.num}>{points(r.marketSpread30d)}</td>
                 <td className={c.num}>
                   {money(r.tvl)} {r.token}
-                </td>
-                <td>
-                  {r.depositable ? (
-                    <span className={c.ok}>Here</span>
-                  ) : (
-                    <span className={c.muted}>Thesauros app</span>
-                  )}
                 </td>
               </tr>
             ))}
@@ -206,35 +208,25 @@ export default function Vaults({
               </p>
             </div>
           </div>
-          {single &&
-            (single.depositable ? (
-              <div className={c.actions}>
-                <button
-                  className={c.primary}
-                  onClick={() => onEarn(single.id, "deposit")}
-                  disabled={single.depositPaused}
-                >
-                  Deposit
-                </button>
-                {single.balance > 0 && (
-                  <button
-                    className={c.secondary}
-                    onClick={() => onEarn(single.id, "withdraw")}
-                  >
-                    Withdraw
-                  </button>
-                )}
-              </div>
-            ) : (
-              <a
-                className={c.secondary}
-                href="https://app.thesauros.io"
-                target="_blank"
-                rel="noreferrer"
+          {single?.depositable && (
+            <div className={c.actions}>
+              <button
+                className={c.primary}
+                onClick={() => onEarn(single.id, "deposit")}
+                disabled={single.depositPaused}
               >
-                Open in Thesauros app
-              </a>
-            ))}
+                Deposit
+              </button>
+              {single.balance > 0 && (
+                <button
+                  className={c.secondary}
+                  onClick={() => onEarn(single.id, "withdraw")}
+                >
+                  Withdraw
+                </button>
+              )}
+            </div>
+          )}
         </header>
 
         <div className={c.controls}>
@@ -266,22 +258,36 @@ export default function Vaults({
           </div>
         </div>
 
-        <dl className={c.factsGrid}>
+        <dl
+          className={`${c.factsGrid} ${switching ? c.switching : ""}`}
+          aria-busy={switching}
+        >
           <div>
             <dt>
               Average,{" "}
-              {period === "180d" ? "6 months" : period.replace("d", " days")}
+              {shownPeriod === "180d"
+                ? "6 months"
+                : shownPeriod.replace("d", " days")}
             </dt>
             <dd>{pct(vaultAvg)}</dd>
           </div>
           <div>
             <dt>Market average</dt>
-            <dd>{pct(marketAvg)}</dd>
+            <dd>{noComparison ? "—" : pct(marketAvg)}</dd>
+            {noComparison && <small>One lending market on this network</small>}
           </div>
           <div>
             <dt>Extra yield</dt>
-            <dd className={vaultAvg - marketAvg >= 0 ? c.positive : c.negative}>
-              {vaultAvg != null && marketAvg != null
+            <dd
+              className={
+                noComparison
+                  ? undefined
+                  : vaultAvg - marketAvg >= 0
+                    ? c.positive
+                    : c.negative
+              }
+            >
+              {!noComparison && vaultAvg != null && marketAvg != null
                 ? points(vaultAvg - marketAvg)
                 : "—"}
             </dd>
@@ -289,14 +295,19 @@ export default function Vaults({
           <div>
             <dt>Total deposits</dt>
             <dd>
-              {money(
-                single
-                  ? single.tvl
-                  : rows.reduce((s, r) => s + (r.tvl || 0), 0),
-                0,
-              )}
+              {money(single ? single.tvl : allTvl)}{" "}
+              {single ? single.token : totalUnit(rows)}
             </dd>
           </div>
+          {!single && (
+            <div>
+              <dt>Rate now</dt>
+              <dd>{pct(blendedRate)}</dd>
+              <small>
+                Weighted by {held.length ? "your balance" : "vault deposits"}
+              </small>
+            </div>
+          )}
           {single && (
             <>
               <div>
@@ -331,6 +342,7 @@ export default function Vaults({
         </dl>
 
         <RateChart
+          className={switching ? c.switching : ""}
           series={series}
           label={`${single ? single.network + " vault" : "All vaults"} rate against the lending market`}
         />
