@@ -315,6 +315,15 @@ export default function Vaults({
                 <dd>{pct(single.rate)}</dd>
               </div>
               <div>
+                <dt>Share price</dt>
+                <dd>
+                  {chain?.sharePrice != null
+                    ? units(chain.sharePrice, single.decimals).toFixed(6)
+                    : "—"}
+                </dd>
+                <small>{single.token} per share, onchain</small>
+              </div>
+              <div>
                 <dt>Fees</dt>
                 <dd>
                   {chain
