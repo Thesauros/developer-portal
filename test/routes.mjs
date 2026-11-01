@@ -86,7 +86,6 @@ try {
   }
   check(ready, "compiled server starts");
   for (const path of [
-    "/app",
     "/app/individual",
     "/app/institution",
     "/monitoring",
@@ -98,11 +97,9 @@ try {
     );
     const html = await response.text();
     check(
-      html.includes(
-        path === "/app/institution"
-          ? "Sign in to your workspace"
-          : "Sign in with your wallet",
-      ) && !html.includes("Coming soon."),
+      (path === "/app/institution"
+        ? html.includes("Sign in to your workspace")
+        : true) && !html.includes("Coming soon."),
       `${path} renders the expected interface`,
     );
     for (const asset of new Set(
@@ -160,6 +157,39 @@ try {
   check(
     (await request("/app/live?kind=protocol")).status === 401,
     "native live data requires authentication",
+  );
+  check(
+    (await request("/app/insights?kind=account")).status === 401,
+    "a wallet's earnings and history require a session",
+  );
+  check(
+    (await request("/app/onchain?vault=arbitrum")).status === 401,
+    "a wallet's on-chain position requires a session",
+  );
+  check(
+    (await request("/app/insights")).status === 200,
+    "vault rates and allocation are public",
+  );
+  check(
+    (await request("/app/live?kind=markets")).status === 200,
+    "market rates are public",
+  );
+  check(
+    [200, 503].includes((await request("/api/vaults/history")).status),
+    "vault history answers without a session",
+  );
+  check(
+    (await request("/api/vaults/keys")).status === 404,
+    "public vault routes reject anything unlisted",
+  );
+  check(
+    (await request("/app/individual/vaults/arbitrum")).status === 200,
+    "a vault page opens without a session",
+  );
+  check(
+    (await request("/app/individual")).headers.get("x-frame-options") ===
+      "DENY",
+    "pages that can ask for a signature cannot be framed",
   );
   check(
     (await request("/api/crosschain/user")).status === 401,

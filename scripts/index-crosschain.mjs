@@ -3,6 +3,7 @@ import {
   openCrosschainHistory,
   syncCrosschainHistory,
 } from "../lib/crosschain-history.mjs";
+import { syncVaultSamples } from "../lib/vault-samples.mjs";
 import { vaultClients } from "../lib/vault-rpc.mjs";
 
 const store = openCrosschainHistory();
@@ -13,9 +14,26 @@ for (const signal of ["SIGTERM", "SIGINT"])
     stopped = true;
     shutdown.abort();
   });
+// Share prices of the other vaults run beside the valuation index, never in its
+// way: a failed endpoint here must not stop that loop.
+let samplesRunning = false,
+  samplesAt = 0;
+function sampleVaults() {
+  if (samplesRunning || Date.now() - samplesAt < 300000) return;
+  samplesRunning = true;
+  samplesAt = Date.now();
+  syncVaultSamples(store, {
+    log: (line) => console.error("vault samples:", line),
+  })
+    .catch((error) => console.error("vault samples:", error.message))
+    .finally(() => {
+      samplesRunning = false;
+    });
+}
 try {
   do {
     try {
+      sampleVaults();
       const coverage = await syncCrosschainHistory(store, vaultClients.base);
       console.log(
         `crosschain history: ${coverage.indexedTo}/${coverage.headBlock}, ${coverage.complete ? "current" : "backfilling"}`,

@@ -6,12 +6,11 @@ import {
   decodeHistoryLog,
   openCrosschainHistory,
   syncCrosschainHistory,
+  readAcceptedTicks,
+  readBatchRequests,
   readIndexedActivity,
 } from "../lib/crosschain-history.mjs";
-import {
-  loadCrosschainFeed,
-  crosschainAccountViews,
-} from "../lib/crosschain-feed.mjs";
+import { loadCrosschainFeed } from "../lib/crosschain-feed.mjs";
 
 const owner = "0x1111111111111111111111111111111111111111",
   other = "0x2222222222222222222222222222222222222222";
@@ -110,9 +109,75 @@ test("history scan errors do not advance the cursor or fabricate an empty comple
     store.close();
   }
 });
-test("all account tabs use one cross-chain feed; backend mismatch is not an allocation failure", async () => {
-  for (const view of ["overview", "vaults", "activity", "earn"])
-    assert.ok(crosschainAccountViews.includes(view));
+test("the valuation history is never capped, so no outage can fall off it", () => {
+  const store = openCrosschainHistory(":memory:");
+  try {
+    const insert = store.db.prepare(
+      "INSERT INTO chain_events VALUES(?,?,?,?,?,?,?,?,?)",
+    );
+    for (let i = 0; i < 700; i++)
+      insert.run(
+        "0x" + String(i).padStart(64, "0"),
+        0,
+        i,
+        "TickCommitted",
+        null,
+        null,
+        null,
+        i * 1000,
+        JSON.stringify({
+          at: i * 1000,
+          tickId: String(i),
+          status: 1,
+          rateBid: "1",
+          navBid: "1",
+        }),
+      );
+    const ticks = readAcceptedTicks(store);
+    assert.equal(ticks.length, 700);
+    assert.equal(ticks[0].at, 0);
+    assert.deepEqual(Object.keys(ticks[0]).sort(), [
+      "at",
+      "navBid",
+      "rateBid",
+      "tickId",
+    ]);
+  } finally {
+    store.close();
+  }
+});
+test("batches are grouped without naming any wallet", () => {
+  const store = openCrosschainHistory(":memory:");
+  try {
+    const insert = store.db.prepare(
+      "INSERT INTO chain_events VALUES(?,?,?,?,?,?,?,?,?)",
+    );
+    const add = (i, name, fields) =>
+      insert.run(
+        "0x" + String(i).padStart(64, "0"),
+        0,
+        i,
+        name,
+        owner,
+        owner,
+        String(i),
+        i * 1000,
+        JSON.stringify({ eventName: name, at: i * 1000, owner, ...fields }),
+      );
+    add(1, "DepositRequested", { epoch: "14", assets: "10000000" });
+    add(2, "DepositRequested", { epoch: "14", assets: "5000000" });
+    add(3, "RedeemRequested", { epoch: "19", shares: "3000000" });
+    const batches = readBatchRequests(store);
+    assert.equal(batches.length, 2);
+    assert.equal(batches[0].deposits, "15000000");
+    assert.equal(batches[0].requests, 2);
+    assert.equal(batches[1].redeems, "3000000");
+    assert.ok(!JSON.stringify(batches).includes(owner));
+  } finally {
+    store.close();
+  }
+});
+test("a backend mismatch is not an allocation failure", async () => {
   const calls = [];
   const feed = await loadCrosschainFeed(owner, ["1"], async (resource) => {
     calls.push(resource);

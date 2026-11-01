@@ -46,16 +46,16 @@ function Connect({ busy }) {
         chain,
         openConnectModal,
         openChainModal,
-        openAuthenticationModal,
         authenticationStatus,
         mounted,
       }) => {
+        // One modal connects and signs in, showing whichever step comes next.
         const action = !account
           ? openConnectModal
           : chain?.unsupported
             ? openChainModal
             : authenticationStatus !== "authenticated"
-              ? openAuthenticationModal
+              ? openConnectModal
               : undefined;
         return (
           <button
@@ -76,9 +76,15 @@ function Connect({ busy }) {
     </ConnectButton.Custom>
   );
 }
-function Access({ next, mode }) {
+// The sign-in flow around any children. `stay` keeps the person on the page they
+// are reading, so connecting from a vault page returns to that vault.
+export function WalletAuth({ next, mode, stay = false, children, onError }) {
   const [status, setStatus] = useState("unauthenticated"),
-    [error, setError] = useState("");
+    [error, setErrorState] = useState("");
+  const setError = (value) => {
+    setErrorState(value);
+    onError?.(value);
+  };
   const { disconnectAsync } = useDisconnect();
   const adapter = useMemo(
     () =>
@@ -121,6 +127,10 @@ function Access({ next, mode }) {
             }
             setStatus("authenticated");
             window.dispatchEvent(new Event("thesauros:navigating"));
+            if (stay) {
+              location.reload();
+              return true;
+            }
             const destination = workspaceDestination(mode, {
               next,
               hash: location.hash,
@@ -146,19 +156,67 @@ function Access({ next, mode }) {
           setStatus("unauthenticated");
         },
       }),
-    [next, mode, disconnectAsync],
+    [next, mode, stay, disconnectAsync],
   );
   return (
     <RainbowKitAuthenticationProvider adapter={adapter} status={status}>
       <WalletTheme>
-        <Connect busy={status === "authenticated"} />
-        {error && (
-          <p role="alert" className={s.error}>
-            {error}
-          </p>
-        )}
+        {typeof children === "function"
+          ? children({ status, error })
+          : children}
       </WalletTheme>
     </RainbowKitAuthenticationProvider>
+  );
+}
+function Access({ next, mode }) {
+  return (
+    <WalletAuth next={next} mode={mode}>
+      {({ status, error }) => (
+        <>
+          <Connect busy={status === "authenticated"} />
+          {error && (
+            <p role="alert" className={s.error}>
+              {error}
+            </p>
+          )}
+        </>
+      )}
+    </WalletAuth>
+  );
+}
+// The button that takes a guest from reading to signed in, one step at a time.
+export function ConnectAction({ className, label = "Connect wallet" }) {
+  return (
+    <ConnectButton.Custom>
+      {({
+        account,
+        chain,
+        openConnectModal,
+        openChainModal,
+        authenticationStatus,
+        mounted,
+      }) => (
+        <button
+          className={className}
+          disabled={!mounted || authenticationStatus === "loading"}
+          onClick={
+            !account || authenticationStatus !== "authenticated"
+              ? chain?.unsupported
+                ? openChainModal
+                : openConnectModal
+              : undefined
+          }
+        >
+          {authenticationStatus === "authenticated"
+            ? "Opening your account…"
+            : !account
+              ? label
+              : chain?.unsupported
+                ? "Switch network"
+                : "Sign in with wallet"}
+        </button>
+      )}
+    </ConnectButton.Custom>
   );
 }
 export default function WalletAccess({ next = "", mode = "individual" }) {

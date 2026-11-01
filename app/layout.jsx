@@ -10,6 +10,7 @@ export const metadata = {
   title: "Thesauros · Account",
   description:
     "View vault balances, compare lending markets and follow onchain activity with Thesauros.",
+  icons: { icon: "/brand/mark.svg" },
 };
 export default function RootLayout({ children }) {
   return (

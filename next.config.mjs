@@ -7,6 +7,14 @@ const nextConfig = {
   // Routes are native at /app, /api and /monitoring on every deployment.
   // NEXT_PUBLIC_BASE_PATH from older deployments is intentionally ignored.
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // Pages that can ask a wallet to sign must not be framed by another site.
+  async headers() {
+    const noFraming = [
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+    ];
+    return [{ source: "/app/:path*", headers: noFraming }];
+  },
   async redirects() {
     return [
       {

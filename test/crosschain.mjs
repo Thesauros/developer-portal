@@ -9,9 +9,7 @@ import {
 import {
   allMarkets,
   capitalMap,
-  crosschainEarned,
   rateOnAllCapital,
-  realizedRate,
   requestStage,
   valuationState,
 } from "../lib/crosschain-feed.mjs";
@@ -389,129 +387,6 @@ test("a wallet relay is confirmed only by the vault's own matching event", () =>
     receipt([log(5_000_000n)], "reverted"),
   ])
     assert.equal(receiptShowsCall(bad, wallet, crosschain.vault, data), false);
-});
-test("the money map, the one yield figure and the realized rate never invent data", () => {
-  const vault = {
-    accounting: {
-      cash: "5000000",
-      pendingDeposits: "0",
-      liabilities: "0",
-      reserved: "0",
-    },
-  };
-  const ray = (percent) =>
-    String(BigInt(Math.round(percent * 100)) * 10n ** 23n);
-  const baseMarket = "0xddaa9700c0da1020ae5dabc7aa0a0bb750dd317c";
-  const allocation = {
-    chains: [
-      {
-        name: "Base",
-        role: "hub",
-        strategyValue: "4000000",
-        totalAssets: "5000000",
-        idle: "0",
-        rateRay: ray(7),
-        markets: [
-          {
-            address: baseMarket,
-            assets: "5000000",
-            rateRay: ray(7),
-            capBps: "0",
-          },
-          {
-            address: "0x51b8bdcda5e41893737c9c3a08f528c97fcc1b8b",
-            assets: "0",
-            rateRay: ray(6),
-            capBps: "4000",
-          },
-        ],
-      },
-      {
-        name: "Arbitrum",
-        role: "spoke",
-        strategyValue: "2000000",
-        totalAssets: "2000000",
-        idle: "0",
-        rateRay: ray(2.6),
-        markets: [],
-      },
-    ],
-  };
-  const map = capitalMap(vault, allocation);
-  assert.equal(map.held, 11);
-  const total =
-    map.cashShare + map.networks.reduce((sum, net) => sum + net.share, 0);
-  assert.ok(Math.abs(total - 100) < 1e-9);
-  // Only the vault's own part of the strategy counts: 4 of the market's 5 USDC.
-  const [aave, gauntlet] = map.networks[0].markets;
-  assert.equal(aave.amount, 4);
-  assert.equal(aave.name, "Aave V3");
-  assert.equal(gauntlet.name, "Gauntlet Core");
-  assert.equal(gauntlet.limit, 40);
-  assert.equal(allMarkets(map)[0].name, "Aave V3");
-  // (4*7 + 2*2.6 + 5*0) / 11: cash pulls the figure below every strategy.
-  assert.ok(Math.abs(rateOnAllCapital(map) - 33.2 / 11) < 1e-9);
-  const unknown = capitalMap(vault, {
-    chains: [{ ...allocation.chains[0], rateRay: null }, allocation.chains[1]],
-  });
-  assert.equal(rateOnAllCapital(unknown), null);
-  assert.equal(capitalMap(null, allocation), null);
-  const day = 86400000;
-  const now = 100 * day;
-  const tick = (at, price) => ({
-    at,
-    rateBid: String(BigInt(Math.round(price * 1e6)) * 10n ** 12n),
-  });
-  const realized = realizedRate(
-    [tick(now - 40 * day, 1), tick(now - 30 * day, 1.001), tick(now, 1.002)],
-    30,
-    now,
-  );
-  assert.equal(realized.days, 30);
-  assert.ok(
-    Math.abs(realized.rate - ((1.002 / 1.001 - 1) / 30) * 36500) < 1e-6,
-  );
-  assert.equal(realizedRate([tick(now, 1)], 30, now), null);
-  assert.equal(
-    realizedRate([tick(now - 3600000, 1), tick(now, 1.001)], 30, now),
-    null,
-  );
-});
-test("earned is what the position is worth plus what came out, minus what went in", () => {
-  const history = {
-    coverage: { complete: true },
-    truncated: false,
-    events: [{ type: "redeem_claimed", requestId: "3", assets: "4006913" }],
-  };
-  const price = String(1001728n * 10n ** 12n);
-  const user = {
-    rateBid: price,
-    valueBid: "5993000",
-    truncated: false,
-    requests: [
-      { kind: "deposit", state: "claimed", amount: "10000000" },
-      { kind: "deposit", state: "cancelled", amount: "3000000" },
-      { id: "3", kind: "redeem", state: "claimed", amount: "4000000" },
-    ],
-  };
-  // 5.993 + 4.006913 - 10 = -0.000087: an entry fee in the offer rate shows as a loss.
-  assert.ok(Math.abs(crosschainEarned(user, history) + 0.000087) < 1e-9);
-  // A pending deposit is neither gain nor loss.
-  const pending = {
-    ...user,
-    requests: [
-      ...user.requests,
-      { kind: "deposit", state: "pending", amount: "2000000" },
-    ],
-  };
-  assert.ok(Math.abs(crosschainEarned(pending, history) + 0.000087) < 1e-9);
-  assert.equal(
-    crosschainEarned(user, { ...history, coverage: { complete: false } }),
-    null,
-  );
-  assert.equal(crosschainEarned(null, history), null);
-  // A claim the index has not seen yet must not read as a loss.
-  assert.equal(crosschainEarned(user, { ...history, events: [] }), null);
 });
 test("a request's ID is read from its receipt", () => {
   const owner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";

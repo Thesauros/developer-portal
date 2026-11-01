@@ -1,14 +1,12 @@
-import { notFound } from "next/navigation";
-import CrosschainLive from "../app/CrosschainLive";
+import { notFound, redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Thesauros · Cross-chain USDC vault",
-  description:
-    "The Thesauros cross-chain USDC vault, read from Base and Arbitrum.",
+  title: "Thesauros · USDC on Base + Arbitrum",
   robots: { index: false, follow: false },
 };
 
+// The old public address of this vault. Its page now lives in the app, open to anyone.
 export default function Page() {
   if (process.env.NEXT_PUBLIC_THESAUROS_PRODUCT === "standard") notFound();
-  return <CrosschainLive />;
+  redirect("/app/individual/vaults/base-arbitrum");
 }

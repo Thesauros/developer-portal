@@ -1,4 +1,5 @@
 import { workspaceSession } from "../../../lib/auth.mjs";
+import { overLimit } from "../../../lib/public-guard.mjs";
 import {
   protocolData,
   blueChipData,
@@ -7,9 +8,13 @@ import {
 } from "../../../lib/live-data.mjs";
 export const dynamic = "force-dynamic";
 export async function GET(request) {
-  if (!(await workspaceSession(request.headers)))
-    return Response.json({ error: "Sign in to continue." }, { status: 401 });
   const query = new URL(request.url).searchParams;
+  // Market rates are public data. The protocol view carries operational alerts.
+  if (query.get("kind") === "protocol") {
+    if (!(await workspaceSession(request.headers)))
+      return Response.json({ error: "Sign in to continue." }, { status: 401 });
+  } else if (overLimit(request))
+    return Response.json({ error: "Too many requests." }, { status: 429 });
   let data;
   switch (query.get("kind")) {
     case "protocol":

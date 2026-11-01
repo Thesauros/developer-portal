@@ -1,11 +1,10 @@
 # Cross-chain stand — delivery contract
 
-**Build flag.** Individual is built around the cross-chain vault. Single-network
-vaults stay available as a tab there, and Institution keeps them as its main view.
-`NEXT_PUBLIC_THESAUROS_PRODUCT=standard` at build time opts a deployment out:
-Individual returns to the single-network vaults and `/live` is not served. The
-Dockerfile defaults to `standard`; Compose and `npm run crosschain:local` set
-`crosschain`. A build without the variable gets the cross-chain Individual.
+**One app.** The batch vault is one of the vaults in the app, next to the others, for Individual and Institution alike. See `docs/PRODUCT.md`.
+
+**Build flags.** `NEXT_PUBLIC_THESAUROS_PRODUCT=standard` leaves the batch vault out and stops serving `/live`. The Dockerfile defaults to it. `NEXT_PUBLIC_THESAUROS_BATCH_DEPOSITS=open` lets the app request deposits into it; without this, deposits are shown as closed while withdrawing, collecting and cancelling keep working. The contract review in `thesauros-materials/review-20261031/contracts.md` advises against outside deposits until its conditions are met.
+
+**History.** `scripts/index-crosschain.mjs` indexes valuations and also samples each vault's share price, size, allocation and the Aave index once a day into the same SQLite file. It needs a persistent disk. Without it the pages stay up and show those figures as unavailable.
 
 Change: `crosschain-stand-20261028`. Branch: `сcrosschain` (initial Cyrillic `с`).
 

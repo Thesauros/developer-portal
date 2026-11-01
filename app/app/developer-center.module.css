@@ -841,3 +841,46 @@
     font-size: 14px;
   }
 }
+
+.partnerTerms {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 24px 48px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid rgba(11, 27, 43, 0.12);
+}
+.partnerTerms h2 {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.partnerTerms p {
+  max-width: 60ch;
+  margin: 6px 0 14px;
+  color: #41535f;
+}
+.partnerTerms dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 32px;
+  margin: 0;
+}
+.partnerTerms dt {
+  color: #5f7183;
+  font-size: 13px;
+}
+.partnerTerms dd {
+  margin: 0;
+  font-size: 22px;
+}
+.partnerTerms small {
+  display: block;
+  color: #5f7183;
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .partnerTerms,
+  .partnerTerms dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

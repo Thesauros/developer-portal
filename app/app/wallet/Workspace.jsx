@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import WalletProvider, { WalletTheme } from "./WalletProvider";
+import { WalletAuth } from "./WalletAccess";
 import ProductApp from "../ProductApp";
 import BrandLoading from "../../ui/BrandLoading";
 function SessionGuard({ user, mode }) {
@@ -52,6 +53,16 @@ function SessionGuard({ user, mode }) {
   return <ProductApp mode={mode} user={user} />;
 }
 export default function Workspace({ user, mode = "individual" }) {
+  // A guest has no session to protect: a wallet connecting here means they are
+  // on their way to sign in, not that the wallet changed under an open session.
+  if (!user)
+    return (
+      <WalletProvider>
+        <WalletAuth mode={mode} stay>
+          <ProductApp mode={mode} user={null} />
+        </WalletAuth>
+      </WalletProvider>
+    );
   return (
     <WalletProvider>
       <WalletTheme>

@@ -21,6 +21,7 @@ import { historyKey } from "../../lib/transaction-history.mjs";
 import { balanceLabel, amountFeedback } from "../../lib/earn-presentation.mjs";
 import p from "./product.module.css";
 import e from "./earn.module.css";
+import b from "./book/book.module.css";
 
 const WalletFunding = dynamic(() => import("./WalletFunding"));
 const activeSubmissions = new Set();
@@ -75,300 +76,7 @@ function ExplorerLink({ vault, hash, children }) {
   );
 }
 
-export default function EarnWorkspace({
-  user,
-  navigate,
-  onGuide,
-  account,
-  selectedVault = "arbitrum",
-  onSelectVault,
-  initialAction = "deposit",
-}) {
-  const selected = selectedVault;
-  const setSelected = onSelectVault;
-  const [mode, setMode] = useState(
-    initialAction === "withdraw" ? "withdraw" : "deposit",
-  );
-  const [locked, setLocked] = useState(false);
-  const form = useRef(null);
-  const [funding, setFunding] = useState(false);
-  const fundingOpener = useRef(null);
-  function openFunding(event) {
-    fundingOpener.current = event.currentTarget;
-    setFunding(true);
-  }
-  const vault = getVault(selected);
-  const position = account.vaults.find((v) => v.id === selected);
-  const ready = position?.status === "ready";
-  const emptyPosition = ready && BigInt(position.shares) === 0n;
-  const needsFunds =
-    ready && BigInt(position.cash) < BigInt(position.minAssets);
-  const otherPosition = account.vaults.find(
-    (row) =>
-      row.id !== selected && row.status === "ready" && BigInt(row.shares) > 0n,
-  );
-  const otherCash = account.vaults.find(
-    (row) =>
-      row.id !== selected &&
-      row.status === "ready" &&
-      !row.depositPaused &&
-      BigInt(row.cash) >= BigInt(row.minAssets),
-  );
-  const other = emptyPosition ? otherPosition || otherCash : null;
-  const pending = account.transactions.find(
-    (t) => t.vaultId === selected && ["pending", "unknown"].includes(t.status),
-  );
-  function act(action) {
-    setMode(action);
-    requestAnimationFrame(() => {
-      form.current?.scrollIntoView({ behavior: "auto", block: "center" });
-      form.current?.querySelector("input")?.focus({ preventScroll: true });
-    });
-  }
-  return (
-    <div className={p.product}>
-      <div className={e.vaultSelector} aria-label="Choose your Earn network">
-        {vaults.map((v) => {
-          const data = account.vaults.find((n) => n.id === v.id);
-          return (
-            <button
-              key={v.id}
-              className={e.vaultChoice}
-              aria-pressed={v.id === selected}
-              disabled={locked}
-              onClick={() => setSelected(v.id)}
-            >
-              <img src={v.icon} alt="" width="28" height="28" />
-              <span>
-                <strong>
-                  {v.symbol} on {v.name}
-                </strong>
-                <small>
-                  {data?.status === "ready"
-                    ? BigInt(data.shares) > 0n
-                      ? balanceLabel(data.positionAssets) + " in Earn"
-                      : balanceLabel(data.cash) + " in wallet"
-                    : account.loading
-                      ? "Reading onchain data…"
-                      : "Balance unavailable"}
-                </small>
-              </span>
-              <span className={e.choiceMark} aria-hidden="true" />
-            </button>
-          );
-        })}
-        <button
-          className={p.textButton}
-          disabled={account.loading}
-          onClick={() => account.refresh()}
-        >
-          {account.loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
-      {account.error && (
-        <p className={`${p.stateMessage} ${p.error}`} role="alert">
-          {account.error}
-        </p>
-      )}
-      <div className={p.earnLayout}>
-        <div className={e.positionColumn}>
-          <section
-            className={`${p.balancePanel} ${p.earnPanel} ${emptyPosition ? e.emptyPosition : ""}`}
-            aria-label="Your Earn position"
-          >
-            <div className={p.panelHeader}>
-              <span className={p.balanceLabel}>
-                {emptyPosition
-                  ? "No active Earn position"
-                  : "Your Earn balance"}
-              </span>
-              <span className={p.networkTag}>
-                {vault.name} · {vault.symbol}
-              </span>
-            </div>
-            {emptyPosition ? (
-              <div className={e.firstCopy}>
-                <h2>Your next Earn deposit.</h2>
-                <p>
-                  Start with {tokenAmount(position.minAssets)} {vault.symbol} on{" "}
-                  {vault.name}. Your wallet holds the shares in the vault.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className={p.balanceValue}>
-                  {balanceLabel(ready ? position.positionAssets : null)}
-                  <span className={p.balanceUnit}>{vault.symbol}</span>
-                </div>
-                <p className={p.balanceMeta}>
-                  {ready
-                    ? `Your share of this vault, valued in ${vault.symbol}.`
-                    : account.loading
-                      ? "Reading your position directly from the vault…"
-                      : "Your position is temporarily unavailable."}
-                </p>
-              </>
-            )}
-            <div className={e.balanceStats}>
-              <div>
-                <span>Available in your wallet</span>
-                <strong>
-                  {balanceLabel(ready ? position.cash : null)}{" "}
-                  <small>{vault.symbol}</small>
-                </strong>
-              </div>
-              <div>
-                <span>Current gross APR</span>
-                <strong>
-                  {percentage(ready ? position.rateRay : null)}{" "}
-                  <small>variable</small>
-                </strong>
-              </div>
-            </div>
-            <div className={p.balanceActions}>
-              <button
-                className={p.primaryButton}
-                onClick={needsFunds ? openFunding : () => act("deposit")}
-                disabled={locked || !ready || position.depositPaused}
-              >
-                {ready && position.depositPaused
-                  ? "Deposits paused"
-                  : needsFunds
-                    ? "Fund your wallet"
-                    : emptyPosition
-                      ? "Make a deposit"
-                      : "Deposit"}
-              </button>
-              {emptyPosition ? (
-                <button className={p.secondaryButton} onClick={onGuide}>
-                  How Earn works
-                </button>
-              ) : (
-                <button
-                  className={p.secondaryButton}
-                  onClick={() => act("withdraw")}
-                  disabled={locked || !ready}
-                >
-                  Withdraw
-                </button>
-              )}
-            </div>
-            {other && (
-              <button
-                className={e.otherNetwork}
-                disabled={locked}
-                onClick={() => setSelected(other.id)}
-              >
-                {otherPosition
-                  ? `${balanceLabel(other.positionAssets)} ${getVault(other.id).symbol} in Earn on ${getVault(other.id).name}`
-                  : `${balanceLabel(other.cash)} ${getVault(other.id).symbol} available on ${getVault(other.id).name}`}
-                <span>View {getVault(other.id).name}</span>
-              </button>
-            )}
-            <p className={p.dataNote}>
-              Wallet {short(user.walletAddress)} · Assets stay on {vault.name}.
-            </p>
-          </section>
-          {!ready && !account.loading && (
-            <div className={`${p.stateMessage} ${p.error}`} role="status">
-              {position?.error ||
-                "This network did not respond. Refresh to try again."}
-            </div>
-          )}
-          <section className={e.allocation} aria-label="Vault allocation">
-            <div className={p.sectionHeader}>
-              <div>
-                <h2>About this vault</h2>
-                <p className={p.sectionCopy}>
-                  Withdraw any time; the vault returns your share in{" "}
-                  {vault.symbol}.
-                </p>
-              </div>
-              <button
-                className={p.textButton}
-                onClick={() => navigate("vaults")}
-              >
-                Rates and allocation
-              </button>
-            </div>
-            <div className={e.vaultFacts}>
-              <div>
-                <span>Assets in this vault</span>
-                <strong>
-                  {displayAmount(ready ? position.totalAssets : null)}{" "}
-                  {vault.symbol}
-                </strong>
-              </div>
-              <div>
-                <span>Management / performance fee</span>
-                <strong>
-                  {ready
-                    ? `${percentage(position.managementFee, 18)} / ${percentage(position.performanceFee, 18)}`
-                    : "—"}
-                </strong>
-              </div>
-            </div>
-            <details className={e.dataDetails}>
-              <summary>Rate details</summary>
-              <p className={p.dataNote}>
-                Gross APR is the allocation-weighted lending rate before vault
-                fees and can change.{" "}
-                {ready && (
-                  <>
-                    Read at{" "}
-                    {new Date(position.observedAt).toLocaleTimeString("en-GB", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      timeZone: "UTC",
-                    })}{" "}
-                    UTC.{" "}
-                  </>
-                )}
-                <a href={documentationHref("/security/controls/")}>
-                  Vault controls
-                </a>
-              </p>
-            </details>
-          </section>
-        </div>
-        <div ref={form} className={e.transactionColumn}>
-          <TransactionPanel
-            key={selected}
-            vault={vault}
-            position={position}
-            account={account}
-            owner={user.walletAddress}
-            mode={mode}
-            setMode={setMode}
-            setLocked={setLocked}
-            pending={pending}
-            onFunding={openFunding}
-          />
-        </div>
-      </div>
-      {funding && (
-        <WalletFunding
-          key={selected}
-          vault={vault}
-          owner={user.walletAddress}
-          onClose={() => setFunding(false)}
-          onRefresh={async () => {
-            const rows = await account.refresh();
-            return (
-              rows?.some(
-                (row) => row?.id === selected && row.status === "ready",
-              ) ?? false
-            );
-          }}
-          loading={account.loading}
-          returnFocusRef={fundingOpener}
-        />
-      )}
-    </div>
-  );
-}
-
-function TransactionPanel({
+export function TransactionPanel({
   vault,
   position,
   account,
@@ -378,11 +86,15 @@ function TransactionPanel({
   setLocked,
   pending,
   onFunding,
+  // Inside a vault page the page provides the tabs and the vault's details.
+  embedded = false,
+  initialAmount = "",
 }) {
   const { address, connector, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { openConnectModal } = useConnectModal();
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(initialAmount);
+  const seededAmount = useRef(!!initialAmount);
   const [all, setAll] = useState(false);
   const [review, setReview] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -441,7 +153,9 @@ function TransactionPanel({
     revision.current++;
     setReview(null);
     setMessage(null);
-    setAmount("");
+    // The first run on mount must not clear an amount carried through sign-in.
+    if (!seededAmount.current) setAmount("");
+    seededAmount.current = false;
     setAll(false);
   }, [mode]);
   useEffect(() => {
@@ -693,34 +407,38 @@ function TransactionPanel({
   }
   return (
     <section
-      className={p.transactionPanel}
+      className={embedded ? p.transactionEmbedded : p.transactionPanel}
       aria-label={"Manage your " + vault.symbol}
     >
-      <div className={p.modeTabs} aria-label="Transaction type">
-        {["deposit", "withdraw"].map((value) => (
-          <button
-            key={value}
-            className={p.tab}
-            aria-pressed={mode === value}
-            disabled={busy || !!pending}
-            onClick={() => setMode(value)}
-          >
-            {value === "deposit" ? "Deposit" : "Withdraw"}
-          </button>
-        ))}
-      </div>
-      <div>
-        <h2>
-          {mode === "deposit"
-            ? `Deposit ${vault.symbol}`
-            : "Back to your wallet."}
-        </h2>
-        <p className={p.sectionCopy}>
-          {mode === "deposit"
-            ? "Deposit into Thesauros on " + vault.name + "."
-            : "Redeem your position on " + vault.name + "."}
-        </p>
-      </div>
+      {!embedded && (
+        <>
+          <div className={p.modeTabs} aria-label="Transaction type">
+            {["deposit", "withdraw"].map((value) => (
+              <button
+                key={value}
+                className={p.tab}
+                aria-pressed={mode === value}
+                disabled={busy || !!pending}
+                onClick={() => setMode(value)}
+              >
+                {value === "deposit" ? "Deposit" : "Withdraw"}
+              </button>
+            ))}
+          </div>
+          <div>
+            <h2>
+              {mode === "deposit"
+                ? `Deposit ${vault.symbol}`
+                : "Back to your wallet."}
+            </h2>
+            <p className={p.sectionCopy}>
+              {mode === "deposit"
+                ? "Deposit into Thesauros on " + vault.name + "."
+                : "Redeem your position on " + vault.name + "."}
+            </p>
+          </div>
+        </>
+      )}
       {needsFunds && !busy && !pending && !uncertain && !review ? (
         <div className={e.nextStep}>
           <span className={e.nextStepLabel}>Before you deposit</span>
@@ -735,7 +453,7 @@ function TransactionPanel({
         </div>
       ) : noPosition && !busy && !pending ? (
         <div className={e.nextStep}>
-          <h3>No Earn position on {vault.name}.</h3>
+          <h3>You have no balance here yet.</h3>
           <p>
             Once you deposit, you can withdraw part or all of that position
             here.
@@ -744,6 +462,51 @@ function TransactionPanel({
             Make a deposit
           </button>
         </div>
+      ) : embedded ? (
+        <>
+          <label className={b.field}>
+            <span>Amount</span>
+            <span className={b.amount}>
+              <input
+                id="earn-amount"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="0.00"
+                value={amount}
+                onChange={(ev) => edit(ev.target.value)}
+                disabled={busy || !!pending}
+                aria-describedby="earn-available"
+                aria-invalid={!!feedback}
+              />
+              {vault.symbol}
+              <button
+                type="button"
+                className={b.max}
+                disabled={
+                  !ready || busy || !!pending || BigInt(balance || 0) === 0n
+                }
+                onClick={() => {
+                  setAmount(tokenAmount(balance));
+                  setAll(mode === "withdraw");
+                  setReview(null);
+                  setMessage(null);
+                }}
+              >
+                Max
+              </button>
+            </span>
+          </label>
+          <p
+            id="earn-available"
+            className={feedback ? b.hintBad : b.hint}
+            role="status"
+          >
+            {feedback ||
+              (mode === "deposit"
+                ? `${displayAmount(balance)} ${vault.symbol} in your wallet on ${vault.name}.`
+                : `${displayAmount(balance)} ${vault.symbol} in this vault.`)}
+          </p>
+        </>
       ) : (
         <div>
           <label className={p.formLabel} htmlFor="earn-amount">
@@ -798,11 +561,14 @@ function TransactionPanel({
           )}
         </div>
       )}
+      {(!embedded || review) && (
       <dl className={p.transactionDetails}>
-        <div>
-          <dt>Network</dt>
-          <dd>{vault.name}</dd>
-        </div>
+        {!embedded && (
+          <div>
+            <dt>Network</dt>
+            <dd>{vault.name}</dd>
+          </div>
+        )}
         <div>
           <dt>{mode === "deposit" ? "Minimum deposit" : "Receiving wallet"}</dt>
           <dd>
@@ -830,16 +596,21 @@ function TransactionPanel({
             </dd>
           </div>
         )}
-        <div>
-          <dt>Vault</dt>
-          <dd>
-            <ExplorerLink vault={vault}>{short(vault.address)}</ExplorerLink>
-          </dd>
-        </div>
+        {!embedded && (
+          <div>
+            <dt>Vault</dt>
+            <dd>
+              <ExplorerLink vault={vault}>{short(vault.address)}</ExplorerLink>
+            </dd>
+          </div>
+        )}
       </dl>
+      )}
       {review && (
-        <div className={e.review}>
-          <span className={p.eyebrow}>Review your {mode}</span>
+        <div className={embedded ? b.review : e.review}>
+          <span className={embedded ? undefined : p.eyebrow}>
+            Review your {mode === "withdraw" ? "withdrawal" : mode}
+          </span>
           <strong>
             {tokenAmount(review.rawAmount)} {vault.symbol}
           </strong>
@@ -971,33 +742,33 @@ function TransactionPanel({
       )}
       <div className={p.transactionFooter}>
         {needsFunds && !busy && !pending && !uncertain && !review ? (
-          <button className={p.primaryButton} onClick={onFunding}>
+          <button className={embedded ? b.primary : p.primaryButton} onClick={onFunding}>
             Add {vault.symbol} to your wallet
           </button>
         ) : noPosition && !busy && !pending ? (
-          <button className={p.primaryButton} disabled>
+          <button className={embedded ? b.primary : p.primaryButton} disabled>
             No position to withdraw
           </button>
         ) : !sameWallet ? (
-          <button className={p.primaryButton} onClick={openConnectModal}>
+          <button className={embedded ? b.primary : p.primaryButton} onClick={openConnectModal}>
             Reconnect wallet
           </button>
         ) : !sameNetwork ? (
           <button
-            className={p.primaryButton}
+            className={embedded ? b.primary : p.primaryButton}
             onClick={switchNetwork}
             disabled={busy}
           >
             Switch to {vault.name}
           </button>
         ) : busy ? (
-          <button className={p.primaryButton} disabled>
+          <button className={embedded ? b.primary : p.primaryButton} disabled>
             {stage}
           </button>
         ) : review ? (
           <>
             <button
-              className={p.primaryButton}
+              className={embedded ? b.primary : p.primaryButton}
               disabled={!!pending || paused || uncertain}
               onClick={() =>
                 submit(
@@ -1009,15 +780,18 @@ function TransactionPanel({
             >
               {review.needsApproval && mode === "deposit"
                 ? `1. Approve ${vault.symbol}`
-                : "Confirm " + mode}
+                : "Confirm " + (mode === "withdraw" ? "withdrawal" : mode)}
             </button>
-            <button className={p.textButton} onClick={() => setReview(null)}>
+            <button
+              className={embedded ? b.linkButton : p.textButton}
+              onClick={() => setReview(null)}
+            >
               Edit amount
             </button>
           </>
         ) : (
           <button
-            className={p.primaryButton}
+            className={embedded ? b.primary : p.primaryButton}
             disabled={
               !ready ||
               !amount ||
@@ -1028,14 +802,17 @@ function TransactionPanel({
             }
             onClick={reviewAmount}
           >
-            Review {mode}
+            Review {mode === "withdraw" ? "withdrawal" : mode}
           </button>
         )}
-        <p className={p.dataNote}>
-          Real {vault.symbol} on {vault.name}. Every transfer needs your wallet
-          confirmation.
-        </p>
+        {!embedded && (
+          <p className={p.dataNote}>
+            Real {vault.symbol} on {vault.name}. Every transfer needs your wallet
+            confirmation.
+          </p>
+        )}
       </div>
+      {!embedded && (
       <details className={e.conditions}>
         <summary>What to know before depositing</summary>
         <p>
@@ -1048,6 +825,7 @@ function TransactionPanel({
           Read about vault controls
         </a>
       </details>
+      )}
     </section>
   );
 }

@@ -88,7 +88,7 @@
   min-height: 44px;
   padding: 11px 19px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 999px;
   color: #fff;
   background: var(--p-navy);
   font-size: 14px;
@@ -562,6 +562,34 @@
   border-radius: 18px;
   background: #fff;
   box-shadow: 0 12px 34px #173b5906;
+}
+.transactionEmbedded {
+  --p-ink: #0b1b2b;
+  --p-muted: #5f7183;
+  --p-line: rgba(11, 27, 43, 0.12);
+  --p-paper: #ffffff;
+  --p-bone: #f3f6fb;
+  --p-navy: #0b1b2b;
+  --p-blue: #196aff;
+  --p-blue-soft: #eaf1ff;
+  --p-green: #0a7a3c;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  font-size: 14px;
+}
+.transactionEmbedded :where(h3, p, dl, dd) {
+  margin: 0;
+}
+.transactionEmbedded .transactionFooter {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+}
+.transactionEmbedded .transactionDetails {
+  padding: 12px 0;
+  font-size: 13px;
 }
 .transactionPanel h2 {
   font-size: 23px;

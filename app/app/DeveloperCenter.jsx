@@ -10,6 +10,10 @@ import {
   buildPartnerRequest,
   filterPartnerEndpoints,
 } from "../../lib/partner-api-catalog.mjs";
+import {
+  PARTNER_TERMS,
+  PLANNED_PERFORMANCE_FEE,
+} from "../../lib/vault-facts.mjs";
 import s from "./developer-center.module.css";
 
 const DeveloperTools = dynamic(() => import("./DeveloperTools"), {
@@ -208,6 +212,44 @@ function Endpoint({ endpoint }) {
   );
 }
 
+// What a partner earns, per the tokenomics document. The contracts charge no fee
+// today, so nothing is paid out yet.
+function PartnerTerms() {
+  return (
+    <section className={s.partnerTerms} aria-label="Partner terms">
+      <div>
+        <h2>Add these vaults to your product</h2>
+        <p>
+          Your users deposit from your app and keep their own wallets. Thesauros
+          runs the vaults. Every vault is shown with the same figures you see
+          here.
+        </p>
+        <a
+          className={s.primary}
+          href={marketingHref("/contact?usecase=integration")}
+        >
+          Plan an integration
+        </a>
+      </div>
+      <dl>
+        <div>
+          <dt>Fee on yield</dt>
+          <dd>{PLANNED_PERFORMANCE_FEE}%</dd>
+          <small>Planned. The contracts charge 0% today.</small>
+        </div>
+        <div>
+          <dt>Your share of that fee</dt>
+          <dd>{PARTNER_TERMS.base}%</dd>
+          <small>
+            {PARTNER_TERMS.preToken}% before the token launches and for 60 days
+            after; up to {PARTNER_TERMS.bonded}% with bonded tokens.
+          </small>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 export default function DeveloperCenter({ user, navigate }) {
   const [area, setArea] = useState("start");
   const [sandboxView, setSandboxView] = useState("quickstart");
@@ -232,6 +274,7 @@ export default function DeveloperCenter({ user, navigate }) {
   }
   return (
     <div className={s.center}>
+      <PartnerTerms />
       <header className={s.intro}>
         <div>
           <span className={s.eyebrow}>Developer resources</span>

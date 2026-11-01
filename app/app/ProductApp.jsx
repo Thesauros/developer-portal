@@ -1,177 +1,145 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useDisconnect } from "wagmi";
 import { documentationHref, marketingHref } from "../../lib/site-links.mjs";
 import { workspaceDestination } from "./destination.mjs";
-import { useLive, Markets } from "./LivePanels";
-import NetworkFilter from "./NetworkFilter";
-import EarnWorkspace from "./EarnWorkspace";
 import useEarnAccount from "./useEarnAccount";
-import { crosschainAccountViews } from "../../lib/crosschain-feed.mjs";
-import { crosschainGuide } from "./crosschain-guide";
 import useInsights from "./cabinet/useInsights";
-import Portfolio from "./cabinet/Portfolio";
-import Vaults from "./cabinet/Vaults";
-import Activity from "./cabinet/Activity";
-import OurMarkets from "./cabinet/OurMarkets";
 import InstitutionSettings from "./cabinet/InstitutionSettings";
 import BrandLoading from "../ui/BrandLoading";
-import s from "./workspace.module.css";
+import { buildBook } from "../../lib/vault-book.mjs";
+import { BATCH_VAULT_ID } from "../../lib/vault-facts.mjs";
+import { crosschain } from "../../lib/crosschain-config.mjs";
+import useBatchVault from "./book/useBatchVault";
+import { usePublicResource } from "./book/parts";
+import { ConnectAction } from "./wallet/WalletAccess";
+import PortfolioPage from "./book/PortfolioPage";
+import VaultsPage from "./book/VaultsPage";
+import VaultPage from "./book/VaultPage";
+import ActivityPage from "./book/ActivityPage";
+import TransparencyPage from "./book/TransparencyPage";
+import { vaultGuide } from "./vault-guide";
+import shell from "./workspace.module.css";
+import b from "./book/book.module.css";
+
 const loading = () => <BrandLoading />;
 const AccountSettings = dynamic(() => import("./AccountSettings"), { loading });
 const QuickGuide = dynamic(() => import("./QuickGuide"));
 const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
-const CrosschainWorkspace = dynamic(() => import("./CrosschainWorkspace"), {
-  loading,
-});
-// Individual is built around the cross-chain vault; Institution keeps the
-// single-network vaults. A build can opt out with this flag.
-const crosschainAvailable =
+
+// A build can leave the batch vault out altogether.
+const batchVaultAvailable =
   process.env.NEXT_PUBLIC_THESAUROS_PRODUCT !== "standard";
-const labels = {
-  single: "Single-network vaults",
+// Deposits into the batch vault stay closed until its contracts are ready for
+// outside money. Withdrawing, collecting and cancelling always work.
+const batchDepositsOpen =
+  process.env.NEXT_PUBLIC_THESAUROS_BATCH_DEPOSITS === "open";
+
+const SECTIONS = {
   overview: "Portfolio",
   vaults: "Vaults",
   activity: "Activity",
-  earn: "Deposit & withdraw",
-  markets: "Market rates",
-  developers: "Developers",
-  settings: "Account",
+  transparency: "Transparency",
 };
-const crosschainDescriptions = {
-  vaults:
-    "One USDC vault working across Base and Arbitrum. See where the money is and what it earns.",
-  single: "Vaults that stay on one network, with their own rates and history.",
-  activity: "Your deposits, withdrawals and claims on Base.",
-  earn: "Request a deposit or withdrawal on Base. It settles with the next batch, then you claim it.",
-  markets: "Stablecoin lending rates across DeFi, for comparison.",
+const PATHS = {
+  overview: "",
+  vaults: "/vaults",
+  markets: "/vaults/markets",
+  activity: "/activity",
+  transparency: "/transparency",
+  developers: "/developers",
+  settings: "/account",
 };
-const standardDescriptions = {
-  vaults: "Rates, allocation and history for every Thesauros vault.",
-  activity:
-    "Your statement: deposits, withdrawals, daily earnings and the rebalances of your vaults.",
-  earn: "Move stablecoins between your wallet and Earn.",
-  markets: "Stablecoin lending rates across DeFi, for comparison.",
+// Where an old link or a section name leads now.
+const LEGACY = {
+  earn: "vaults",
+  single: "vaults",
+  crosschain: "vaults",
 };
+function parseRoute(pathname, mode, known) {
+  const prefix = "/app/" + mode;
+  const parts = pathname.startsWith(prefix)
+    ? pathname.slice(prefix.length).split("/").filter(Boolean)
+    : [];
+  if (!parts.length) return { view: "overview" };
+  if (parts[0] === "vaults") {
+    if (parts[1] === "markets") return { view: "markets" };
+    if (parts[1] && known.has(parts[1])) return { view: "vault", id: parts[1] };
+    return { view: "vaults" };
+  }
+  if (parts[0] === "account") return { view: "settings" };
+  if (["activity", "transparency", "developers"].includes(parts[0]))
+    return { view: parts[0] };
+  return { view: "overview" };
+}
+const STANDARD_IDS = ["arbitrum", "base", "monad", "plasma"];
 
-const icons = {
-  single: (
-    <>
-      <rect x="4" y="5" width="16" height="14" rx="3" />
-      <path d="M4 10h16" />
-    </>
-  ),
-  overview: (
-    <>
-      <rect x="3" y="3" width="7" height="8" rx="1.5" />
-      <rect x="14" y="3" width="7" height="5" rx="1.5" />
-      <rect x="3" y="15" width="7" height="6" rx="1.5" />
-      <rect x="14" y="12" width="7" height="9" rx="1.5" />
-    </>
-  ),
-  vaults: (
-    <>
-      <rect x="3" y="4" width="18" height="16" rx="3" />
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 8v8m-4-4h8" />
-    </>
-  ),
-  earn: (
-    <>
-      <rect x="3" y="5" width="18" height="15" rx="3" />
-      <path d="M3 8h18M15 12h6v5h-6a2.5 2.5 0 0 1 0-5Z" />
-      <circle cx="16" cy="14.5" r=".6" />
-    </>
-  ),
-  markets: <path d="M4 20V5m0 15h17M8 16v-5m5 5V5m5 11V9" />,
-  activity: (
-    <>
-      <path d="M8 6h12M8 12h12M8 18h12" />
-      <circle cx="3" cy="6" r=".8" />
-      <circle cx="3" cy="12" r=".8" />
-      <circle cx="3" cy="18" r=".8" />
-    </>
-  ),
-  developers: (
-    <>
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <path d="M17.5 14v7M14 17.5h7" />
-    </>
-  ),
-  settings: (
-    <>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21v-2a8 6 0 0 1 16 0v2" />
-    </>
-  ),
-};
-export default function ProductApp({ mode = "individual", user }) {
-  const crosschainProduct = crosschainAvailable && mode !== "institution";
-  // Single-network vaults are a tab only where they are not the main product.
-  const viewExists = (id) =>
-    Boolean(labels[id]) && (id !== "single" || crosschainProduct);
-  const labelOf = (id) =>
-    crosschainProduct && id === "vaults" ? "Vault" : labels[id];
-  const descriptions = crosschainProduct
-    ? crosschainDescriptions
-    : standardDescriptions;
-  const { disconnectAsync } = useDisconnect();
-  const account = useEarnAccount(user.walletAddress);
-  const [earnVault, setEarnVault] = useState("arbitrum");
-  const vaultPreferenceKey =
-    "thesauros.earn.network." + user.walletAddress?.toLowerCase();
+function AccountMenu({ label, items }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(vaultPreferenceKey);
-      if (["arbitrum", "base", "monad", "plasma"].includes(saved))
-        setEarnVault(saved);
-    } catch {}
-  }, [vaultPreferenceKey]);
-  function chooseEarnVault(id) {
-    if (!["arbitrum", "base", "monad", "plasma"].includes(id)) return;
-    setEarnVault(id);
-    try {
-      localStorage.setItem(vaultPreferenceKey, id);
-    } catch {}
-  }
-  const [tab, setTab] = useState("overview"),
-    [menu, setMenu] = useState(false);
-  const [selection, setSelection] = useState(null);
-  // The guide opens on request only; the workspace explains itself.
-  const [guide, setGuide] = useState(null);
-  function closeGuide() {
-    setGuide(null);
-  }
-  const [earnAction, setEarnAction] = useState({ action: "deposit", n: 0 });
-  const [period, setPeriod] = useState("30d");
+    if (!open) return undefined;
+    const close = (event) => {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (event.type === "pointerdown" && box.current?.contains(event.target))
+        return;
+      setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [open]);
+  return (
+    <div className={b.account} ref={box}>
+      <button
+        className={b.accountButton}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen(!open)}
+      >
+        {label}
+      </button>
+      {open && (
+        <div className={b.accountMenu} role="menu" onClick={() => setOpen(false)}>
+          {items}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ProductApp({ mode = "individual", user }) {
+  const institution = user?.kind === "institution";
+  const includeBatch = batchVaultAvailable;
+  const known = useMemo(
+    () =>
+      new Set([...STANDARD_IDS, ...(includeBatch ? [BATCH_VAULT_ID] : [])]),
+    [includeBatch],
+  );
+  const { disconnectAsync } = useDisconnect();
+  const owner = user?.walletAddress;
+  const account = useEarnAccount(owner);
+  const batch = useBatchVault(user, includeBatch);
+  const market = useInsights("market", "30d", true);
+  const mine = useInsights("account", "", !!owner);
+  const history = usePublicResource("/api/vaults/history", {
+    refreshMs: 300000,
+  });
+  const [route, setRoute] = useState({ view: user ? "overview" : "vaults" });
+  const [intent, setIntent] = useState(null);
+  const [guide, setGuide] = useState(false);
   const guideOpener = useRef(null);
-  function openGuide(event) {
-    guideOpener.current = event?.currentTarget || document.activeElement;
-    setGuide("earn");
-  }
   const [signingOut, setSigningOut] = useState(false),
     [error, setError] = useState("");
-  const sidebar = useRef(null),
-    menuButton = useRef(null),
-    heading = useRef(null);
-  const markets = useLive("markets", tab === "markets");
-  const insightTabs = ["overview", "vaults", "activity", "markets"];
-  const standardData = crosschainProduct
-    ? tab === "single"
-    : insightTabs.includes(tab);
-  const [singleEarn, setSingleEarn] = useState(false);
-  useEffect(() => {
-    if (tab !== "single") setSingleEarn(false);
-  }, [tab]);
-  const market = useInsights("market", period, standardData);
-  const mine = useInsights("account", "", standardData);
-  // When a deposit, withdrawal or approval confirms, reload vault stats and
-  // the event history instead of waiting for the next two-minute refresh.
+  const mainRef = useRef(null);
+
+  // A confirmed transaction refreshes vault figures and history straight away.
   const confirmedCount = (account.transactions || []).filter(
-    (t) => t.status === "success",
+    (tx) => tx.status === "success",
   ).length;
   const seenConfirmed = useRef(null);
   useEffect(() => {
@@ -181,86 +149,96 @@ export default function ProductApp({ mode = "individual", user }) {
     }
     if (confirmedCount > seenConfirmed.current) {
       market.refresh();
-      mine.refresh(true);
+      if (owner) mine.refresh(true);
     }
     seenConfirmed.current = confirmedCount;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [confirmedCount]);
-  const networkOptions = [
-    ...new Set((markets.data?.data || []).map((m) => m.chain)),
-  ].sort();
-  const current = tab.split("/")[0];
-  const dataPage = current === "markets";
-  const institution = user.kind === "institution";
-  const displayName = institution
-    ? user.company || user.email
-    : user.walletAddress
-      ? `${user.walletAddress.slice(0, 6)}…${user.walletAddress.slice(-4)}`
-      : user.name;
-  function navigate(id) {
-    if (id === "build") id = "developers";
-    if (!viewExists(id)) return;
-    if (id !== tab) history.pushState(null, "", "#" + id);
-    setTab(id);
-    setMenu(false);
+
+  const book = useMemo(
+    () =>
+      buildBook({
+        market: market.data,
+        chainRows: account.vaults,
+        mine: mine.data,
+        samples: history.data?.samples || {},
+        ticks: history.data?.ticks || [],
+        batch: batch.feed,
+        includeBatch,
+        depositsOpen: batchDepositsOpen,
+      }),
+    [
+      market.data,
+      account.vaults,
+      mine.data,
+      history.data,
+      batch.feed,
+      includeBatch,
+    ],
+  );
+
+  function navigate(view, id, options) {
+    const target = LEGACY[view] || view;
+    let next = { view: target };
+    let path = PATHS[target];
+    if (target === "vault") {
+      if (!known.has(id)) return;
+      next = { view: "vault", id };
+      path = "/vaults/" + id;
+      setIntent(options?.action ? { action: options.action, at: Date.now() } : null);
+    }
+    if (path === undefined) return;
+    history_push("/app/" + mode + path);
+    setRoute(next);
     window.scrollTo({ top: 0, behavior: "instant" });
     requestAnimationFrame(() =>
-      heading.current?.focus({ preventScroll: true }),
+      mainRef.current?.querySelector("h1")?.focus({ preventScroll: true }),
     );
+  }
+  function history_push(path) {
+    if (location.pathname !== path) window.history.pushState(null, "", path);
   }
   useEffect(() => {
     const sync = () => {
-      const id =
-        workspaceDestination(mode, { hash: location.hash }).split("#")[1] ||
-        "overview";
-      setTab(viewExists(id) ? id : "overview");
-      setMenu(false);
+      // Links from before the app had real addresses still work.
+      const hash = location.hash.replace(/^#/, "");
+      if (
+        hash &&
+        !document.getElementById(hash) &&
+        /^[a-z/]+$/.test(hash) &&
+        location.pathname === "/app/" + mode
+      ) {
+        const id =
+          workspaceDestination(mode, { hash: location.hash }).split("#")[1] ||
+          "overview";
+        const target = LEGACY[id] || id;
+        if (PATHS[target] !== undefined) {
+          window.history.replaceState(
+            null,
+            "",
+            "/app/" + mode + PATHS[target],
+          );
+        }
+      }
+      const parsed = parseRoute(location.pathname, mode, known);
+      setRoute(!user && parsed.view === "overview" && location.pathname === "/app/" + mode
+        ? { view: "vaults" }
+        : parsed);
     };
     sync();
-    window.addEventListener("hashchange", sync);
     window.addEventListener("popstate", sync);
+    window.addEventListener("hashchange", sync);
     return () => {
-      window.removeEventListener("hashchange", sync);
       window.removeEventListener("popstate", sync);
+      window.removeEventListener("hashchange", sync);
     };
-  }, [mode]);
-  useEffect(() => {
-    if (!menu) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const controls = () => [
-      ...sidebar.current.querySelectorAll("a[href], button:not([disabled])"),
-    ];
-    controls()[0]?.focus();
-    const keys = (event) => {
-      if (event.key === "Escape") {
-        setMenu(false);
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = controls(),
-        first = items[0],
-        last = items.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    const resized = () => {
-      if (window.innerWidth > 900) setMenu(false);
-    };
-    window.addEventListener("keydown", keys);
-    window.addEventListener("resize", resized);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", keys);
-      window.removeEventListener("resize", resized);
-      menuButton.current?.focus();
-    };
-  }, [menu]);
+  }, [mode, known, user]);
+
+  const displayName = institution
+    ? user.company || user.email
+    : owner
+      ? `${owner.slice(0, 6)}…${owner.slice(-4)}`
+      : null;
   async function signOut() {
     setSigningOut(true);
     setError("");
@@ -282,308 +260,182 @@ export default function ProductApp({ mode = "individual", user }) {
       setSigningOut(false);
     }
   }
-  function refresh() {
-    markets.refresh();
+  function openGuide(event) {
+    guideOpener.current = event?.currentTarget || document.activeElement;
+    setGuide(true);
   }
-  const refreshing = markets.loading;
-  function openEarn(id, action = "deposit") {
-    chooseEarnVault(id);
-    setEarnAction((a) => ({ action, n: a.n + 1 }));
-    if (crosschainProduct) setSingleEarn(true);
-    else navigate("earn");
-  }
-  // Balances in the single-network vaults, summed across USDC and USDT0.
-  const otherVaults = (account.vaults || []).reduce(
-    (sum, row) =>
-      sum +
-      (row.status === "ready" && row.positionAssets != null
-        ? Number(row.positionAssets) / 1e6
-        : 0),
-    0,
+  const section =
+    route.view === "vault" || route.view === "markets" ? "vaults" : route.view;
+  const wallet = book.account.wallet;
+  const vault = route.view === "vault" ? book.byId[route.id] : null;
+  const nav = (id, label = SECTIONS[id]) => (
+    <button
+      key={id}
+      onClick={() => navigate(id)}
+      aria-current={section === id ? "page" : undefined}
+    >
+      {id === "overview" && institution ? "Treasury" : label}
+    </button>
   );
-  const toolbar = (
-    <div className={s.toolbar}>
-      <NetworkFilter
-        options={networkOptions}
-        value={selection}
-        onChange={setSelection}
-      />
-      <button
-        className={s.secondaryButton}
-        onClick={refresh}
-        disabled={refreshing}
-      >
-        {refreshing ? "Refreshing…" : "Refresh"}
-      </button>
-    </div>
-  );
-  function navigationButton(id, compact = false) {
-    return (
-      <button
-        key={id}
-        onClick={() => navigate(id)}
-        aria-current={current === id ? "page" : undefined}
-      >
-        <svg
-          className={s.navGlyph}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          {icons[id]}
-        </svg>
-        <span>{compact && id === "earn" ? "Move" : labelOf(id)}</span>
-      </button>
-    );
-  }
   return (
-    <div className={s.shell}>
+    <div className={`${shell.shell} ${b.app} ${vault ? b.onVault : ""}`}>
       <a
-        className={s.skip}
+        className={b.skip}
         href="#account-main"
         onClick={(event) => {
           event.preventDefault();
-          heading.current?.focus();
+          mainRef.current?.querySelector("h1")?.focus();
         }}
       >
-        Skip to workspace
+        Skip to content
       </a>
-      <header className={s.header} inert={menu || undefined}>
-        <a className={s.brand} href={marketingHref("/")}>
-          <img src="/brand/mark.svg" width="27" height="27" alt="" />
+      <header className={b.top}>
+        <a className={b.brand} href={marketingHref("/")}>
+          <img src="/brand/mark.svg" width="26" height="26" alt="" />
           Thesauros
         </a>
-        <nav aria-label="Help and account">
-          {mode === "institution" && (
-            <span className={s.modeTag}>Institution</span>
-          )}
-          <a href={documentationHref("/")}>Docs</a>
-          <button
-            className={s.accountButton}
-            onClick={() => navigate("settings")}
-            aria-label="Account settings"
-          >
-            {displayName}
-          </button>
-          <button
-            ref={menuButton}
-            className={s.menuButton}
-            onClick={() => setMenu(!menu)}
-            aria-expanded={menu}
-            aria-controls="account-navigation"
-          >
-            Menu
-          </button>
+        <nav className={b.nav} aria-label="Main">
+          {Object.keys(SECTIONS).map((id) => nav(id))}
         </nav>
+        <div className={b.topRight}>
+          {institution && <span className={b.modeTag}>Institution</span>}
+          <a href={documentationHref("/")}>Docs</a>
+          {user ? (
+            <AccountMenu
+              label={displayName}
+              items={
+                <>
+                  <button role="menuitem" onClick={() => navigate("settings")}>
+                    Account
+                  </button>
+                  <button role="menuitem" onClick={() => navigate("developers")}>
+                    Developers and partners
+                  </button>
+                  <button role="menuitem" onClick={openGuide}>
+                    How vaults work
+                  </button>
+                  <a role="menuitem" href={marketingHref("/contact")}>
+                    Contact support
+                  </a>
+                  <button role="menuitem" onClick={signOut} disabled={signingOut}>
+                    {signingOut ? "Signing out…" : "Sign out"}
+                  </button>
+                </>
+              }
+            />
+          ) : (
+            <>
+              <a href="/app/institution">Institution sign in</a>
+              <ConnectAction className={b.primary} />
+            </>
+          )}
+        </div>
       </header>
-      <div className={s.layout}>
-        <aside
-          ref={sidebar}
-          id="account-navigation"
-          className={`${s.sidebar} ${menu ? s.sidebarOpen : ""}`}
-          role={menu ? "dialog" : undefined}
-          aria-modal={menu || undefined}
-          aria-label={menu ? "Workspace navigation" : undefined}
-        >
-          <button className={s.mobileClose} onClick={() => setMenu(false)}>
-            Close navigation
-          </button>
-          <nav aria-label="Account navigation">
-            <div className={s.navGroup}>
-              {["overview", "vaults", "activity", "earn"].map((id) =>
-                navigationButton(id),
-              )}
-            </div>
-            <div className={s.navGroup}>
-              <span className={s.navGroupLabel}>Tools</span>
-              {crosschainProduct && navigationButton("single")}
-              {navigationButton("markets")}
-              <a href="/app/bluechips" target="_blank" rel="noopener">
-                <svg
-                  className={s.navGlyph}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
+      <main id="account-main" className={b.main} ref={mainRef}>
+        {error && (
+          <p className={`${b.banner} ${b.systemBanner}`} role="alert">
+            {error}
+          </p>
+        )}
+        {batch.pending && (
+          <div className={`${b.banner} ${b.systemBanner}`} role="status">
+            <p>
+              A transaction on the {crosschain.networks[0].name} +{" "}
+              {crosschain.networks[1].name} vault is still unconfirmed. New
+              actions on it stay locked until it is checked.
+            </p>
+            <div className={b.requestActions}>
+              {batch.pending.hash ? (
+                <a
+                  href={crosschain.explorer + "/tx/" + batch.pending.hash}
+                  target="_blank"
+                  rel="noreferrer"
                 >
-                  <path d="M6 4h12l3 5-9 11L3 9l3-5ZM3 9h18" />
-                </svg>
-                <span>Blue chips</span>
-              </a>
-              {["developers", "settings"].map((id) => navigationButton(id))}
+                  View transaction ↗
+                </a>
+              ) : (
+                <label className={b.field}>
+                  <span>Transaction hash from your wallet</span>
+                  <span className={b.amount}>
+                    <input
+                      value={batch.recoveryHash}
+                      onChange={(event) =>
+                        batch.setRecoveryHash(event.target.value)
+                      }
+                    />
+                  </span>
+                </label>
+              )}
+              <button
+                className={b.secondary}
+                onClick={batch.recover}
+                disabled={batch.busy}
+              >
+                Check confirmation
+              </button>
             </div>
-          </nav>
-          <div className={s.sidebarBottom}>
-            <button onClick={openGuide}>How Earn works</button>
-            <a href={marketingHref("/contact")}>Contact support</a>
-            <button onClick={signOut} disabled={signingOut}>
-              {signingOut ? "Signing out…" : "Sign out"}
-            </button>
+            {batch.message && <p className={b.hint}>{batch.message}</p>}
           </div>
-        </aside>
-        {menu && (
-          <button
-            className={s.backdrop}
-            onClick={() => setMenu(false)}
-            aria-label="Close navigation"
-            tabIndex={-1}
+        )}
+        {route.view === "overview" && (
+          <PortfolioPage
+            book={book}
+            user={user}
+            batch={batch}
+            mine={mine}
+            account={account}
+            navigate={navigate}
+            institution={institution}
           />
         )}
-        <main id="account-main" className={s.main} inert={menu || undefined}>
-          <div className={s.heading}>
-            <div>
-              <h1 ref={heading} tabIndex={-1}>
-                {current === "overview" && mode === "institution"
-                  ? "Treasury"
-                  : labelOf(current)}
-              </h1>
-              {descriptions[current] && <p>{descriptions[current]}</p>}
-            </div>
-            {dataPage && toolbar}
-          </div>
-          {error && (
-            <p className={s.warning} role="alert">
-              {error}
-            </p>
-          )}
-          {dataPage && selection?.length === 0 && (
-            <div className={s.selectionNotice}>
-              No networks selected.
-              <button
-                className={s.textButton}
-                onClick={() => setSelection(null)}
-              >
-                Show all networks
-              </button>
-            </div>
-          )}
-          {crosschainProduct && crosschainAccountViews.includes(current) && (
-            <CrosschainWorkspace
-              user={user}
-              view={current}
-              navigate={navigate}
-              otherVaults={otherVaults}
-            />
-          )}
-          {crosschainProduct && current === "single" && !singleEarn && (
-            <Vaults
-              account={account}
-              market={market}
-              mine={mine}
-              period={period}
-              setPeriod={setPeriod}
-              onEarn={openEarn}
-              navigate={navigate}
-              needsWallet={!user.walletAddress}
-            />
-          )}
-          {crosschainProduct && current === "single" && singleEarn && (
-            <>
-              <button
-                className={s.textButton}
-                onClick={() => setSingleEarn(false)}
-              >
-                Back to single-network vaults
-              </button>
-              <EarnWorkspace
-                key={earnAction.n}
-                initialAction={earnAction.action}
-                user={user}
-                navigate={navigate}
-                onGuide={(event) => {
-                  guideOpener.current =
-                    event?.currentTarget || document.activeElement;
-                  setGuide("earn");
-                }}
-                account={account}
-                selectedVault={earnVault}
-                onSelectVault={chooseEarnVault}
-              />
-            </>
-          )}
-          {!crosschainProduct && current === "overview" && (
-            <Portfolio
-              mode={mode}
-              needsWallet={!user.walletAddress}
-              account={account}
-              market={market}
-              mine={mine}
-              period={period}
-              setPeriod={setPeriod}
-              navigate={navigate}
-              onEarn={openEarn}
-            />
-          )}
-          {!crosschainProduct && current === "vaults" && (
-            <Vaults
-              account={account}
-              market={market}
-              mine={mine}
-              period={period}
-              setPeriod={setPeriod}
-              onEarn={openEarn}
-              navigate={navigate}
-              needsWallet={!user.walletAddress}
-            />
-          )}
-          {!crosschainProduct && current === "activity" && (
-            <Activity
-              account={account}
-              mine={mine}
-              market={market}
-              onEarn={openEarn}
-              navigate={navigate}
-              needsWallet={!user.walletAddress}
-            />
-          )}
-          {!crosschainProduct && current === "earn" && !user.walletAddress && (
-            <div className={s.linkWallet}>
-              <p>
-                Link your treasury wallet to deposit and withdraw. Transactions
-                are signed in that wallet.
-              </p>
-              <button
-                className={s.secondaryButton}
-                onClick={() => navigate("settings")}
-              >
-                Link a wallet
-              </button>
-            </div>
-          )}
-          {!crosschainProduct && current === "earn" && user.walletAddress && (
-            <EarnWorkspace
-              key={earnAction.n}
-              initialAction={earnAction.action}
-              user={user}
-              navigate={navigate}
-              onGuide={(event) => {
-                guideOpener.current =
-                  event?.currentTarget || document.activeElement;
-                setGuide("earn");
-              }}
-              account={account}
-              selectedVault={earnVault}
-              onSelectVault={chooseEarnVault}
-            />
-          )}
-          {current === "markets" && (
-            <>
-              {!crosschainProduct && <OurMarkets market={market} />}
-              <Markets feed={markets} networks={selection} />
-            </>
-          )}
-          {current === "developers" && (
+        {(route.view === "vaults" || route.view === "markets") && (
+          <VaultsPage
+            book={book}
+            navigate={navigate}
+            user={user}
+            tab={route.view}
+          />
+        )}
+        {route.view === "vault" && vault && (
+          <VaultPage
+            key={vault.id}
+            vault={vault}
+            user={user}
+            account={account}
+            batch={batch}
+            wallet={wallet}
+            navigate={navigate}
+            intent={intent}
+          />
+        )}
+        {route.view === "activity" && (
+          <ActivityPage
+            book={book}
+            user={user}
+            mine={mine}
+            account={account}
+            batch={batch}
+          />
+        )}
+        {route.view === "transparency" && (
+          <TransparencyPage book={book} navigate={navigate} />
+        )}
+        {route.view === "developers" && (
+          <div className={b.page}>
+            <header className={b.pageHead}>
+              <h1 tabIndex={-1}>Developers and partners</h1>
+            </header>
             <DeveloperCenter user={user} navigate={navigate} />
-          )}
-          {current === "settings" &&
-            (institution ? (
+          </div>
+        )}
+        {route.view === "settings" && (
+          <div className={b.page}>
+            <header className={b.pageHead}>
+              <h1 tabIndex={-1}>Account</h1>
+            </header>
+            {!user ? (
+              <ConnectAction className={b.primary} />
+            ) : institution ? (
               <InstitutionSettings
                 user={user}
                 signOut={signOut}
@@ -595,29 +447,31 @@ export default function ProductApp({ mode = "individual", user }) {
                 signOut={signOut}
                 signingOut={signingOut}
               />
-            ))}
-          <footer className={s.footer}>
-            <span>Thesauros</span>
-            <a href={documentationHref("/security/controls/")}>Security</a>
-            <a href={documentationHref("/")}>Documentation</a>
-          </footer>
-        </main>
-      </div>
-      <nav
-        className={s.mobileDock}
-        aria-label="Quick navigation"
-        inert={menu || undefined}
-      >
-        {["overview", "vaults", "activity", "earn"].map((id) =>
-          navigationButton(id, true),
+            )}
+          </div>
         )}
+        <footer className={b.footer}>
+          <span>Thesauros</span>
+          <button className={b.linkButton} onClick={openGuide}>
+            How vaults work
+          </button>
+          <a href={marketingHref("/security")}>Security</a>
+          <a href={documentationHref("/")}>Documentation</a>
+          <a href={marketingHref("/contact")}>Contact</a>
+        </footer>
+      </main>
+      <nav className={b.dock} aria-label="Quick navigation">
+        {Object.keys(SECTIONS).map((id) => nav(id))}
       </nav>
-      {guide === "earn" && (
+      {guide && (
         <QuickGuide
-          steps={crosschainProduct ? crosschainGuide : undefined}
-          open={true}
-          onClose={closeGuide}
-          navigate={(id) => navigate(id === "overview" ? "earn" : id)}
+          steps={vaultGuide}
+          open
+          onClose={() => setGuide(false)}
+          navigate={(id) => {
+            setGuide(false);
+            navigate(id === "overview" ? "vaults" : id);
+          }}
           returnFocusRef={guideOpener}
         />
       )}
