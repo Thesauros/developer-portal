@@ -361,10 +361,10 @@ function WhatIf({ book, navigate }) {
               <tr className={b.comparisonRow}>
                 <td data-cell="vault">
                   <button className={b.rowLink} onClick={() => navigate("index")}>
-                    Blue-chip index
+                    USDC index
                   </button>
                   <small className={b.quietBlock}>
-                    same days{lead.from ? ", from " + dateLabel(lead.from, false) : ""}
+                    the same days as the vault above
                   </small>
                 </td>
                 <td data-label="Gain">{bar(lead.indexGain, "#5f7183", 0.55)}</td>
@@ -406,7 +406,8 @@ export default function VaultsPage({ book, navigate, user }) {
           <p className={b.pageLede}>
             Interest on stablecoins from approved lending markets: core lenders
             such as Aave and Compound, and curated Morpho vaults. Each vault
-            moves its money to the better rate and shows where every dollar is.{" "}
+            moves its money to the better rate among its approved markets and
+            shows where every dollar is.{" "}
             {money(totals.tvl, 0)} {totals.unit} in {book.products.length}{" "}
             products on {totals.networks} networks
             {Number.isFinite(totals.since)
@@ -485,8 +486,9 @@ export default function VaultsPage({ book, navigate, user }) {
                 Live: holds over 10,000 USD and runs code an outside firm has
                 reviewed. Early: smaller, or its code review is not confirmed.
                 Pilot: runs with team funds and has no external audit; outside
-                deposits are not part of its plan yet. A product shows its
-                largest vault’s stage; each network’s is on its page.
+                money is not part of its plan yet, and production builds keep
+                its deposits closed. A product shows its largest vault’s stage;
+                each network’s is on its page.
               </dd>
             </div>
             <div>

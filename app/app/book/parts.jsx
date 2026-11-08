@@ -148,14 +148,14 @@ export function VaultTitle({ vault, size = 28, place = true }) {
     </span>
   );
 }
-export function ProductTitle({ product, size = 28 }) {
+export function ProductTitle({ product, size = 28, stage = true }) {
   return (
     <span className={b.vaultTitle}>
       <TokenMark token={product.token} size={size} />
       <span>
         <strong className={b.titleLine}>
           {product.token} <span className={b.tag}>{product.tag}</span>
-          <Stage stage={product.stage} />
+          {stage && <Stage stage={product.stage} />}
         </strong>
         <small>{product.short || product.line}</small>
       </span>

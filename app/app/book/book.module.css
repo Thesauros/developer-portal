@@ -2609,3 +2609,44 @@
     color: var(--ink-3);
   }
 }
+
+.marketMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 4px 0 0 28px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.marketMeta .outside {
+  margin-left: 0;
+}
+
+/* The comparison table fits its column on every width. */
+.scoreTable {
+  width: 100%;
+  table-layout: fixed;
+}
+.scoreTable th:first-child {
+  width: 34%;
+}
+.scoreTable td,
+.scoreTable th {
+  padding: 12px 0 12px 8px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .indexTable td[data-cell="vault"] .phoneInline {
+    display: block;
+    margin: 2px 0 0 26px;
+  }
+  .indexTable td[data-cell="vault"] .market small.quiet {
+    display: none;
+  }
+  .indexTable td[data-label="Weight"],
+  .indexTable td[data-label="Rate now"] {
+    min-width: 64px;
+    text-align: right !important;
+  }
+}

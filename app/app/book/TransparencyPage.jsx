@@ -87,7 +87,7 @@ function Capital({ book, navigate }) {
                         className={b.swatch}
                         style={{ background: PRODUCT_COLOR[product.id] || "#5f7183" }}
                       />
-                      <ProductTitle product={product} size={22} />
+                      <ProductTitle product={product} size={22} stage={false} />
                     </button>
                   </td>
                   <td data-label="Stage">

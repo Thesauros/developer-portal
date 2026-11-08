@@ -94,6 +94,12 @@ function Notice({ vault }) {
     <details className={b.notice} open>
       <summary>Before you deposit</summary>
       <ul>
+        {vault.stage === "Pilot" && (
+          <li>
+            A pilot that runs with team funds. Deposits are open in this build
+            for testing; outside money is not part of its plan yet.
+          </li>
+        )}
         {vault.notice.map((line) => (
           <li key={line}>{line}</li>
         ))}

@@ -24,7 +24,7 @@ function describe(row, vaultName) {
         title: `${row.fromName} to ${row.toName}`,
         detail: `${where}${row.moves > 1 ? row.moves + " moves between markets" : "Moved between markets"}, ${clock(row.at)}${
           row.moves === 1 && row.rateFrom != null && row.rateTo != null
-            ? `. That day’s readings: ${pct(row.rateFrom)} where it left, ${pct(row.rateTo)} where it went`
+            ? `. Rates on the block before the move: ${pct(row.rateFrom)} where it left, ${pct(row.rateTo)} where it went`
             : ""
         }`,
       };

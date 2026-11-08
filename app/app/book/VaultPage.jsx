@@ -473,8 +473,6 @@ function ApprovedMarkets({ vault }) {
           <thead>
             <tr>
               <th>Market</th>
-              {many && <th>Network</th>}
-              <th>Group</th>
               <th className={b.num}>Rate now</th>
               <th className={b.num}>Amount</th>
               <th className={b.num}>Share</th>
@@ -520,6 +518,10 @@ function ApprovedMarkets({ vault }) {
                     ) : (
                       row.name
                     )}
+                  </span>
+                  <span className={b.marketMeta}>
+                    {many && row.kind !== "rest" && <span>{row.network}</span>}
+                    {row.tier && <Tier tier={row.tier} />}
                     {row.inIndex === false && (
                       <small
                         className={b.outside}
@@ -528,12 +530,8 @@ function ApprovedMarkets({ vault }) {
                         not in the index
                       </small>
                     )}
+                    {row.note && <span>{row.note}</span>}
                   </span>
-                  {row.note && <small className={b.quietBlock}>{row.note}</small>}
-                </td>
-                {many && <td data-label="Network">{row.kind === "rest" ? "" : row.network}</td>}
-                <td data-label="Group">
-                  <Tier tier={row.tier} />
                 </td>
                 <td className={b.num} data-label="Rate now">
                   {row.rate == null ? "—" : pct(row.rate)}
@@ -592,11 +590,12 @@ function ApprovedMarkets({ vault }) {
                         {row.name}
                       </a>
                     </span>
+                    <span className={b.marketMeta}>
+                      {many && <span>{row.network}</span>}
+                      <Tier tier={row.tier} />
+                    </span>
                   </td>
-                  {many && <td data-label="Network">{row.network}</td>}
-                  <td data-label="Group">
-                    <Tier tier={row.tier} />
-                  </td>
+
                   <td className={b.num} data-label="Rate now">
                     {pct(row.rate)}
                   </td>
@@ -626,7 +625,7 @@ function ApprovedMarkets({ vault }) {
           </tbody>
           <tfoot>
             <tr>
-              <th colSpan={many ? 3 : 2} data-cell="vault">
+              <th data-cell="vault">
                 Everything the vault holds
               </th>
               <td className={b.num} data-label="Rate now">

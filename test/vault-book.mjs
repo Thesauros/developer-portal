@@ -648,3 +648,30 @@ test("Live needs reviewed code as well as size", () => {
   assert.equal(book.byId.arbitrum.stage, "Live");
   assert.equal(book.byId.ethereum.stage, "Early", "a later build not yet confirmed as reviewed");
 });
+test("positions read from the contracts add up to the total, cash included", () => {
+  const withPositions = {
+    vaults: market.vaults.map((row) =>
+      row.id === "arbitrum"
+        ? {
+            ...row,
+            exitNow: {
+              held: 50010,
+              cash: 10,
+              canLeave: 50010,
+              at: new Date(now).toISOString(),
+              markets: [
+                { name: "Compound V3", position: 30000, canLeave: 30000, free: 1e7 },
+                { name: "Gauntlet Core", position: 20000, canLeave: 20000, free: 20000 },
+              ],
+            },
+          }
+        : row,
+    ),
+  };
+  const vault = buildBook({ market: withPositions, includeBatch: false, now }).byId.arbitrum;
+  const sum = vault.allocation.reduce((total, row) => total + row.amount, 0);
+  assert.equal(vault.tvl, 50010);
+  assert.ok(Math.abs(sum - 50010) < 1e-9, "rows add up to the total");
+  assert.ok(vault.allocation.some((row) => row.kind === "idle" && row.amount === 10));
+  assert.ok(Math.abs(vault.allocation.reduce((total, row) => total + row.share, 0) - 100) < 1e-9);
+});

@@ -229,7 +229,7 @@ export default function IndexPage({ book, navigate }) {
             vault: (index.earned || []).map((point) => ({ t: point.at, v: point.rate })),
             market: [],
           }}
-          vaultLabel="Blue-chip index, last 7 days"
+          vaultLabel={`${index.symbol || "USDC"} index, earned over the week before`}
           height={220}
         />
       </Section>
@@ -369,7 +369,7 @@ export default function IndexPage({ book, navigate }) {
         <Section
           id="changes"
           title="Changes to the members"
-          lede="Every day a market joined or left. A market joins when a vault is approved to use it and it holds 1 million USD, and leaves when either stops being true."
+          lede="Dates when a market joined or left. A market joins when a vault is approved to use it and it holds 1 million USD, and leaves when either stops being true."
         >
           <ul className={b.changeList}>
             {index.changes.slice(0, 20).map((change) => (
