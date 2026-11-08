@@ -425,8 +425,10 @@ function ApprovedMarkets({ vault }) {
   const notUsed = rows ? rows.filter((row) => !(row.amount > 0)) : [];
   const showLimit = !!vault.capital;
   const many = vault.networks.length > 1;
-  // The same total as the header unless live balances really differ from it.
-  const total = vault.capital?.held ?? vault.tvl;
+  // The rows add up to the total: it is their sum, from the same reading.
+  const total =
+    vault.capital?.held ??
+    vault.allocation.reduce((sum, row) => sum + (row.amount || 0), 0);
   // Positions under 0.1% of the vault are one line, not five rows of 0.0%.
   const big = vault.allocation.filter((row) => (row.share ?? 0) >= 0.1 || row.kind !== "market");
   const small = vault.allocation.filter((row) => row.kind === "market" && (row.share ?? 0) < 0.1);
@@ -482,7 +484,6 @@ function ApprovedMarkets({ vault }) {
               <th className={b.num} title="How much of the whole market this vault's money is">
                 Of the market
               </th>
-              {showLimit && <th className={b.num}>Limit</th>}
             </tr>
           </thead>
           <tbody>
@@ -531,6 +532,7 @@ function ApprovedMarkets({ vault }) {
                       </small>
                     )}
                     {row.note && <span>{row.note}</span>}
+                    {showLimit && row.limit > 0 && <span>limit {row.limit}%</span>}
                   </span>
                 </td>
                 <td className={b.num} data-label="Rate now">
@@ -554,15 +556,6 @@ function ApprovedMarkets({ vault }) {
                       ? "<0.01%"
                       : row.shareOfMarket.toFixed(2) + "%"}
                 </td>
-                {showLimit && (
-                  <td className={b.num} data-label="Limit">
-                    {row.limit == null
-                      ? "—"
-                      : row.limit === 0
-                        ? "None"
-                        : row.limit + "%"}
-                  </td>
-                )}
               </tr>
             ))}
             {all &&
@@ -611,15 +604,6 @@ function ApprovedMarkets({ vault }) {
                   <td className={b.num} data-label="Of the market">
                     —
                   </td>
-                  {showLimit && (
-                    <td className={b.num} data-label="Limit">
-                      {row.limit == null
-                        ? "—"
-                        : row.limit === 0
-                          ? "None"
-                          : row.limit + "%"}
-                    </td>
-                  )}
                 </tr>
               ))}
           </tbody>
@@ -641,7 +625,6 @@ function ApprovedMarkets({ vault }) {
                 {pct(vault.rateNow)}
               </td>
               <td />
-              {showLimit && <td />}
             </tr>
           </tfoot>
         </table>
@@ -775,6 +758,25 @@ function WhereTheMoneyIs({ vault, index }) {
   );
 }
 
+// Every market by name down to 1% of the money, the rest as one line, and
+// uninvested cash, so the list adds up to the figure above it.
+function exitList(vault) {
+  const capacity = vault.exit.capacity;
+  const many = vault.members?.length > 1;
+  const big = capacity.markets.filter((market) => market.position >= 0.01 * capacity.held);
+  const rest = capacity.markets.filter((market) => market.position < 0.01 * capacity.held);
+  const parts = big.map(
+    (market) =>
+      `${market.name}${market.network && many ? " on " + market.network : ""} ${money(market.canLeave)} of ${money(market.position)}`,
+  );
+  if (rest.length)
+    parts.push(
+      `${rest.length} small positions ${money(rest.reduce((sum, market) => sum + market.canLeave, 0))} of ${money(rest.reduce((sum, market) => sum + market.position, 0))}`,
+    );
+  if (capacity.cash >= 0.01) parts.push(`cash in the vault ${money(capacity.cash)}`);
+  return parts.join(", ");
+}
+
 function GettingOut({ vault, feedItems, name }) {
   if (vault.kind !== "batch")
     return (
@@ -819,10 +821,7 @@ function GettingOut({ vault, feedItems, name }) {
             </dd>
             <small>
               {vault.exit.capacity
-                ? `For each market, the smaller of the vault’s position and the cash that market can pay out now: ${vault.exit.capacity.markets
-                    .filter((market) => market.position >= 0.01 * vault.exit.capacity.held)
-                    .map((market) => `${market.name}${market.network && vault.members?.length > 1 ? " on " + market.network : ""} ${compact(market.canLeave)} of ${compact(market.position)}`)
-                    .join(", ")}. Read from the contracts at ${clock(Date.parse(vault.exit.capacity.at))}.`
+                ? `For each market, the smaller of the vault’s position and the cash that market can pay out now: ${exitList(vault)}. Read from the contracts at ${clock(Date.parse(vault.exit.capacity.at))}.`
                 : "Paid at once, up to the liquidity the markets have at that moment."}{" "}
               The contract checks this when you confirm.
               {vault.open.withdrawals ? "" : " Withdrawals are paused right now."}

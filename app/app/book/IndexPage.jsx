@@ -74,9 +74,9 @@ export function IndexComparison({ book, compact = false }) {
         <thead>
           <tr>
             <th />
-            <th className={b.num}>Thesauros USDC</th>
-            <th className={b.num}>USDC index</th>
-            <th className={b.num}>Difference</th>
+            <th className={b.num} title="Thesauros USDC vaults">Thesauros</th>
+            <th className={b.num} title="USDC blue-chip index">Index</th>
+            <th className={b.num}>Gap</th>
           </tr>
         </thead>
         <tbody>
