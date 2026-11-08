@@ -1,5 +1,5 @@
 "use client";
-import { clock, dateLabel, dayRange, money } from "./parts";
+import { clock, dateLabel, dayRange, money, pct } from "./parts";
 import b from "./book.module.css";
 
 const GLYPH = {
@@ -22,7 +22,11 @@ function describe(row, vaultName) {
     case "rebalance":
       return {
         title: `${row.fromName} to ${row.toName}`,
-        detail: `${where}${row.moves > 1 ? row.moves + " moves between markets" : "Moved between markets"}, ${clock(row.at)}`,
+        detail: `${where}${row.moves > 1 ? row.moves + " moves between markets" : "Moved between markets"}, ${clock(row.at)}${
+          row.moves === 1 && row.rateFrom != null && row.rateTo != null
+            ? `. That day’s readings: ${pct(row.rateFrom)} where it left, ${pct(row.rateTo)} where it went`
+            : ""
+        }`,
       };
     case "transfer":
       return {

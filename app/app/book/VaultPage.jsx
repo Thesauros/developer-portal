@@ -39,10 +39,24 @@ import {
 } from "./parts";
 import b from "./book.module.css";
 
-const compactUsd = (value) =>
-  value >= 1e6
-    ? (value / 1e6).toFixed(1) + " million USD"
-    : Math.round(value).toLocaleString("en-US") + " USD";
+
+
+// "USDC index", and for an index of one market, which market that is.
+const listOf = (items) =>
+  items.length < 2
+    ? items.join("")
+    : items.slice(0, -1).join(", ") + " and " + items.at(-1);
+const listNetworks = (rows) =>
+  "On " + [...new Set(rows.map((row) => row.network))].join(", ");
+const indexName = (index) =>
+  index?.symbol ? `${index.symbol} index` : "the index";
+function indexLong(index) {
+  if (!index) return "the blue-chip index";
+  const only = index.constituents?.length === 1 ? index.constituents[0] : null;
+  return only
+    ? `the ${index.symbol} index (one market: ${only.name} on ${only.network.charAt(0).toUpperCase() + only.network.slice(1)})`
+    : `the ${index.symbol} blue-chip index`;
+}
 
 function StageLine({ view }) {
   if (!view.stages || view.stages.length < 2) return <Stage stage={view.stage} />;
@@ -57,7 +71,7 @@ function StageLine({ view }) {
   );
 }
 
-function Header({ view, navigate }) {
+function Header({ view, index, navigate }) {
   return (
     <header className={b.vaultHead}>
       <button className={b.back} onClick={() => navigate("vaults")}>
@@ -86,24 +100,27 @@ function Header({ view, navigate }) {
       </div>
       <dl className={b.facts}>
         <div>
-          <dt>Rate now</dt>
-          <dd>{pct(view.rateNow)}</dd>
-          <small>
-            a year, before fees ·{" "}
-            <VsIndex diff={view.vsIndex?.nowDiff} suffix=" vs index" />
-          </small>
-        </div>
-        <div>
           <dt>30-day rate</dt>
           <dd>
             <MeasuredRate measure={view.measured.r30} />
           </dd>
           <small>
             {view.vsIndex?.r30Diff != null ? (
-              <VsIndex diff={view.vsIndex.r30Diff} suffix=" vs index, same days" />
+              <VsIndex
+                diff={view.vsIndex.r30Diff}
+                suffix={` vs ${indexName(index)}, same days`}
+              />
             ) : (
               "received, from the share price"
             )}
+          </small>
+        </div>
+        <div>
+          <dt>Rate now</dt>
+          <dd>{pct(view.rateNow)}</dd>
+          <small>
+            a year, before fees ·{" "}
+            <VsIndex diff={view.vsIndex?.nowDiff} suffix={` vs ${indexName(index)}`} />
           </small>
         </div>
         <div>
@@ -155,19 +172,24 @@ function Comparison({ vault, index }) {
   const m = vault.measured.r30;
   const indexRate = vault.vsIndex?.r30;
   if (!m?.from) return null;
-  const days = Math.round(m.days);
+  const days = Math.round(m.days ?? 30);
   const only = vault.onlyMarket
     ? ` It holds one market only, so its rate follows that market.`
     : "";
+  const name = indexLong(index);
   if (m.status !== "ok")
     return (
       <p className={b.compare}>
-        Over the last {days} days the share price rose{" "}
-        <strong>{Math.abs(m.change).toFixed(3)}%</strong>.{" "}
+        {m.change != null && (
+          <>
+            Over the last {days} days the share price rose{" "}
+            <strong>{Math.abs(m.change).toFixed(3)}%</strong>.{" "}
+          </>
+        )}
         {indexRate != null && (
           <>
-            The blue-chip index paid <strong>{pct(indexRate)}</strong> a year
-            over the same days.{" "}
+            {name.charAt(0).toUpperCase() + name.slice(1)} paid{" "}
+            <strong>{pct(indexRate)}</strong> a year over the same days.{" "}
           </>
         )}
         This vault holds too little for a yearly rate to mean much.{only}
@@ -181,8 +203,9 @@ function Comparison({ vault, index }) {
       which is not charged today.{" "}
       {indexRate != null && (
         <>
-          The blue-chip index paid <strong>{pct(indexRate)}</strong> over the
-          same days: <VsIndex diff={m.rate - indexRate} />.
+          {name.charAt(0).toUpperCase() + name.slice(1)} paid{" "}
+          <strong>{pct(indexRate)}</strong> over the same days:{" "}
+          <VsIndex diff={m.rate - indexRate} />.
         </>
       )}
       {only}
@@ -265,7 +288,9 @@ function Performance({ view, vault, index }) {
     (first && last && last !== first ? (last.price / first.price - 1) * 100 : null);
   const chained = useMemo(() => compositeMeasure(members, 30).series || [], [members]);
   const age = chained.length ? (Date.now() - chained[0].at) / 86400000 : 0;
-  const end = chained.at(-1)?.at ?? Date.now();
+  // The window ends where the index ends, so the index line is the same on
+  // every page.
+  const end = index?.series?.at(-1)?.at ?? chained.at(-1)?.at ?? Date.now();
   const from = days ? end - days * DAY : -Infinity;
   const ours = rebase(chained, from);
   const measurable = view.measured.r30.status === "ok";
@@ -278,10 +303,10 @@ function Performance({ view, vault, index }) {
       points: ours,
     },
     {
-      name: "Blue-chip index",
+      name: index?.symbol ? `${index.symbol} index` : "Blue-chip index",
       short: "Index",
       color: "#5f7183",
-      points: rebase(index?.series, ours[0]?.at ?? from),
+      points: rebase(index?.series, from),
     },
   ];
   const periodControl = (
@@ -397,12 +422,33 @@ function Performance({ view, vault, index }) {
 function ApprovedMarkets({ vault }) {
   const [all, setAll] = useState(false);
   const rows = vault.capital ? allMarkets(vault.capital) : null;
-  const inUse = vault.allocation;
   const notUsed = rows ? rows.filter((row) => !(row.amount > 0)) : [];
   const showLimit = !!vault.capital;
   const many = vault.networks.length > 1;
   // The same total as the header unless live balances really differ from it.
   const total = vault.capital?.held ?? vault.tvl;
+  // Positions under 0.1% of the vault are one line, not five rows of 0.0%.
+  const big = vault.allocation.filter((row) => (row.share ?? 0) >= 0.1 || row.kind !== "market");
+  const small = vault.allocation.filter((row) => row.kind === "market" && (row.share ?? 0) < 0.1);
+  const inUse = small.length > 1
+    ? [
+        ...big,
+        {
+          key: "small",
+          kind: "rest",
+          name: `${small.length} small positions`,
+          note: listNetworks(small),
+          amount: small.reduce((sum, row) => sum + (row.amount || 0), 0),
+          share: small.reduce((sum, row) => sum + (row.share || 0), 0),
+          rate:
+            small.reduce((sum, row) => sum + (row.amount || 0), 0) > 0
+              ? small.reduce((sum, row) => sum + (row.amount || 0) * (row.rate || 0), 0) /
+                small.reduce((sum, row) => sum + (row.amount || 0), 0)
+              : null,
+        },
+      ]
+    : vault.allocation;
+  const outside = inUse.filter((row) => row.kind === "market" && row.inIndex === false);
   // The current rate, added up so nobody has to take it on trust.
   const sum = inUse
     .filter((row) => row.rate != null && (row.share || 0) > 0)
@@ -434,6 +480,9 @@ function ApprovedMarkets({ vault }) {
               <th className={b.num}>Share</th>
               <th className={b.num} title="Rate times share: what this market adds to the vault's rate">
                 Adds
+              </th>
+              <th className={b.num} title="How much of the whole market this vault's money is">
+                Of the market
               </th>
               {showLimit && <th className={b.num}>Limit</th>}
             </tr>
@@ -471,9 +520,18 @@ function ApprovedMarkets({ vault }) {
                     ) : (
                       row.name
                     )}
+                    {row.inIndex === false && (
+                      <small
+                        className={b.outside}
+                        title="Under 1 million USD, so the blue-chip index leaves it out"
+                      >
+                        not in the index
+                      </small>
+                    )}
                   </span>
+                  {row.note && <small className={b.quietBlock}>{row.note}</small>}
                 </td>
-                {many && <td data-label="Network">{row.network}</td>}
+                {many && <td data-label="Network">{row.kind === "rest" ? "" : row.network}</td>}
                 <td data-label="Group">
                   <Tier tier={row.tier} />
                 </td>
@@ -490,6 +548,13 @@ function ApprovedMarkets({ vault }) {
                   {row.rate != null && row.share != null
                     ? pct((row.rate * row.share) / 100)
                     : "—"}
+                </td>
+                <td className={b.num} data-label="Of the market">
+                  {row.shareOfMarket == null
+                    ? "—"
+                    : row.shareOfMarket < 0.01
+                      ? "<0.01%"
+                      : row.shareOfMarket.toFixed(2) + "%"}
                 </td>
                 {showLimit && (
                   <td className={b.num} data-label="Limit">
@@ -544,6 +609,9 @@ function ApprovedMarkets({ vault }) {
                   <td className={b.num} data-label="Adds">
                     —
                   </td>
+                  <td className={b.num} data-label="Of the market">
+                    —
+                  </td>
                   {showLimit && (
                     <td className={b.num} data-label="Limit">
                       {row.limit == null
@@ -573,11 +641,36 @@ function ApprovedMarkets({ vault }) {
               <td className={b.num} data-label="Adds">
                 {pct(vault.rateNow)}
               </td>
+              <td />
               {showLimit && <td />}
             </tr>
           </tfoot>
         </table>
       </div>
+      {outside.length > 0 && (
+        <p className={b.compare}>
+          {outside
+            .map((row) => `${row.name} on ${row.network}`)
+            .join(" and ")}{" "}
+          {outside.length === 1 ? "holds" : "hold"}{" "}
+          <strong>
+            {pct(outside.reduce((sum, row) => sum + (row.share || 0), 0), 0)}
+          </strong>{" "}
+          of this vault but {outside.length === 1 ? "is" : "are"} under 1
+          million USD, so the blue-chip index leaves{" "}
+          {outside.length === 1 ? "it" : "them"} out. The vault is{" "}
+          {outside
+            .map((row) => `${(row.shareOfMarket ?? 0).toFixed(1)}%`)
+            .join(" and ")}{" "}
+          of {outside.length === 1 ? "that market" : "those markets"}.
+        </p>
+      )}
+      {vault.ratesAt && (
+        <p className={b.footnote}>
+          Rates read from the market contracts at {clock(vault.ratesAt)}, the
+          same readings the blue-chip index uses.
+        </p>
+      )}
       {sum.length > 1 && sum.length <= 6 && vault.rateNow != null && (
         <p className={b.sum}>
           {sum
@@ -597,12 +690,13 @@ function TierSplit({ vault, index }) {
   const total = lent.reduce((sum, row) => sum + row.amount, 0);
   if (!total || !index?.constituents?.length) return null;
   const ours = (lent.filter((row) => row.tier === "core").reduce((s, r) => s + r.amount, 0) / total) * 100;
+  if (ours > 99.5) return null; // all with core lenders: nothing extra to explain
   const theirs = index.constituents
     .filter((row) => row.protocol === "Aave" || row.protocol === "Compound")
     .reduce((sum, row) => sum + row.weight, 0);
   return (
     <p className={b.compare}>
-      Where the extra rate comes from: this vault lends{" "}
+      Where a higher rate can come from: this vault lends{" "}
       <strong>{pct(ours, 0)}</strong> to core lenders (Aave, Compound) and{" "}
       <strong>{pct(100 - ours, 0)}</strong> to curated Morpho vaults. The
       blue-chip index is <strong>{pct(theirs, 0)}</strong> core. Curated vaults
@@ -647,7 +741,7 @@ function WhereTheMoneyIs({ vault, index }) {
                 Map by network
                 <small>
                   {vault.networks.length > 1
-                    ? `How the money is split across ${vault.networks.join(" and ")}`
+                    ? `How the money is split across ${listOf(vault.networks)}`
                     : `All of it on ${vault.networks[0]}`}
                 </small>
               </summary>
@@ -715,8 +809,8 @@ function GettingOut({ vault, feedItems, name }) {
               {vault.exit.capacity ? (
                 <>
                   {compact(vault.exit.capacity.canLeave)} <small>{vault.token}</small>
-                  {vault.tvl > 0 &&
-                    vault.exit.capacity.canLeave >= vault.tvl * 0.999 && (
+                  {vault.exit.capacity.held > 0 &&
+                    vault.exit.capacity.canLeave >= vault.exit.capacity.held * 0.999 && (
                       <small> · all of it</small>
                     )}
                 </>
@@ -726,7 +820,10 @@ function GettingOut({ vault, feedItems, name }) {
             </dd>
             <small>
               {vault.exit.capacity
-                ? `The markets it lends to have ${compactUsd(vault.exit.capacity.available)} free to pay out, shared with their other lenders. Measured by the Thesauros monitor${vault.exit.capacity.at ? " at " + clock(Date.parse(vault.exit.capacity.at)) : ""}.`
+                ? `For each market, the smaller of the vault’s position and the cash that market can pay out now: ${vault.exit.capacity.markets
+                    .filter((market) => market.position >= 0.01 * vault.exit.capacity.held)
+                    .map((market) => `${market.name}${market.network && vault.members?.length > 1 ? " on " + market.network : ""} ${compact(market.canLeave)} of ${compact(market.position)}`)
+                    .join(", ")}. Read from the contracts at ${clock(Date.parse(vault.exit.capacity.at))}.`
                 : "Paid at once, up to the liquidity the markets have at that moment."}{" "}
               The contract checks this when you confirm.
               {vault.open.withdrawals ? "" : " Withdrawals are paused right now."}
@@ -991,7 +1088,7 @@ function Networks({ view }) {
           Balances, share prices and allocation are read from these contracts.
           {view.kind === "batch"
             ? " The valuation is calculated by Thesauros and published to the valuation contract."
-            : " Daily rates come from the Thesauros data service."}
+            : " Rates now are read from the market contracts; the daily rate history comes from the Thesauros data service."}
           {many
             ? " Each network’s vault is its own contract with its own share price; you choose which one in the deposit panel."
             : ""}
@@ -1024,7 +1121,7 @@ export default function VaultPage({
   );
   return (
     <div className={b.page}>
-      <Header view={view} navigate={navigate} />
+      <Header view={view} index={index} navigate={navigate} />
       <ValuationBanner vault={vault} />
       <div className={b.vaultLayout}>
         <div className={b.vaultMain}>

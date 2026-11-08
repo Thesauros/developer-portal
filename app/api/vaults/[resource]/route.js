@@ -17,8 +17,8 @@ export async function GET(request, { params }) {
     const value =
       resource === "history"
         ? await shared("vaults:history", 60000, async () => {
-            const { ticks, samples, index, indexes } = readHistoryBundle();
-            return { ticks, samples, index, indexes };
+            const { ticks, samples, index, indexes, markets } = readHistoryBundle();
+            return { ticks, samples, index, indexes, markets };
           })
         : await shared("vaults:feed", 120000, publicFeed);
     return Response.json(value, { headers });

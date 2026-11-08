@@ -617,3 +617,34 @@ test("market rates for the public list come from each market's own index", () =>
   assert.equal(venues[0].rate, 3.9, "the quoted rate is kept beside the earned one");
   assert.ok(venues[0].daily.every((point) => Math.abs(point.rate - 4) < 0.01));
 });
+
+test("a vault quotes the index's reading for each market and says which it leaves out", () => {
+  const markets = [
+    { key: "arbitrum:c", network: "arbitrum", name: "Compound V3", symbol: "USDC", tvl: 15_000_000, rate: 3.1, at: now },
+    { key: "arbitrum:g", network: "arbitrum", name: "Gauntlet Core", symbol: "USDC", tvl: 400_000, rate: 4.0, at: now },
+  ];
+  const book = buildBook({ market, batch: batchFeed, markets, now });
+  const rows = book.byId.arbitrum.allocation;
+  const compound = rows.find((row) => row.name === "Compound V3");
+  const gauntlet = rows.find((row) => row.name === "Gauntlet Core");
+  assert.equal(compound.rate, 3.1, "the index reading, not the monitor's figure");
+  assert.equal(compound.inIndex, true);
+  assert.equal(gauntlet.inIndex, false, "under 1 million USD");
+  assert.ok(Math.abs(gauntlet.shareOfMarket - (20000 / 400000) * 100) < 1e-9);
+  // Rate now follows from the same readings: 60% at 3.1 and 40% at 4.0.
+  assert.ok(Math.abs(book.byId.arbitrum.rateNow - (0.6 * 3.1 + 0.4 * 4.0)) < 1e-9);
+  assert.equal(book.byId.arbitrum.ratesAt, now);
+});
+test("Live needs reviewed code as well as size", () => {
+  const big = {
+    vaults: [
+      ...market.vaults,
+      standard("ethereum", "Ethereum", "USDC", 50000, [
+        { name: "Compound V3", address: "0x6", share: 100, apy: 3, riskTier: "core" },
+      ]),
+    ],
+  };
+  const book = buildBook({ market: big, includeBatch: false, now });
+  assert.equal(book.byId.arbitrum.stage, "Live");
+  assert.equal(book.byId.ethereum.stage, "Early", "a later build not yet confirmed as reviewed");
+});

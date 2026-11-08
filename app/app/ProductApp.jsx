@@ -40,7 +40,7 @@ const batchDepositsOpen =
 
 // The sidebar on a desktop, the dock on a phone. Same sections, same order.
 const MAIN = ["overview", "vaults", "activity", "transparency"];
-const TOOLS = ["index", "developers", "settings"];
+const TOOLS = ["index", "developers"];
 const LABELS = {
   overview: "Portfolio",
   vaults: "Earn",
@@ -260,6 +260,7 @@ export default function ProductApp({ mode = "individual", user }) {
         batch: batch.feed,
         index: history.data?.index || null,
         indexes: history.data?.indexes || null,
+        markets: history.data?.markets || null,
         includeBatch,
         depositsOpen: batchDepositsOpen,
       }),
@@ -415,7 +416,7 @@ export default function ProductApp({ mode = "individual", user }) {
   );
   const menuItems = (
     <>
-      {TOOLS.map((id) => (
+      {[...TOOLS, "settings"].map((id) => (
         <button key={id} role="menuitem" onClick={() => navigate(id)}>
           {label(id)}
         </button>
@@ -484,6 +485,7 @@ export default function ProductApp({ mode = "individual", user }) {
             </div>
           </nav>
           <div className={b.sideBottom}>
+            <nav aria-label="Account">{nav("settings")}</nav>
             <button onClick={openGuide}>How vaults work</button>
             <a href={marketingHref("/contact")}>Contact support</a>
             {user && (

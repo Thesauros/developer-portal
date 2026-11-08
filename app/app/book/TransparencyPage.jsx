@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { CASH_COLOR, exposure } from "../../../lib/vault-book.mjs";
 import { AUDITS, PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import { marketingHref } from "../../../lib/site-links.mjs";
@@ -15,21 +15,34 @@ import {
   Segmented,
   short,
   Stage,
+  NetworkMarks,
+  ProductTitle,
   usePublicResource,
   VaultTitle,
   VsIndex,
 } from "./parts";
+import { indexWindowRate } from "../../../lib/blue-chip-index.mjs";
 import b from "./book.module.css";
 
 const SERIES = ["#196aff", "#0b1b2b", "#7fa7f5", "#5f7183", CASH_COLOR];
 
+const PRODUCT_COLOR = {
+  "usdc-instant": "#196aff",
+  "usdc-multichain": "#8f5200",
+  "usdt0-instant": "#0b8f7b",
+};
+
 function Capital({ book, navigate }) {
-  const { totals, vaults } = book;
+  const { totals, products } = book;
+  const share = (value) =>
+    totals.tvl && value != null
+      ? ((value / totals.tvl) * 100).toFixed(value / totals.tvl < 0.001 ? 3 : 1) + "%"
+      : "—";
   return (
     <Section
       id="capital"
       title="Capital"
-      lede="Everything in Thesauros vaults, read from the contracts. USDC and USDT0 are added at face value."
+      lede="Everything in Thesauros vaults, read from the contracts, by product and then by network. USDC and USDT0 are added at face value."
     >
       <p className={b.totalLine}>
         <strong>
@@ -38,14 +51,14 @@ function Capital({ book, navigate }) {
         {!totals.complete && " at least; some vaults could not be read"}
       </p>
       <span className={b.allocationBar} style={{ height: 12 }} aria-hidden="true">
-        {vaults
-          .filter((vault) => vault.tvl > 0)
-          .map((vault, index) => (
+        {products
+          .filter((product) => product.tvl > 0)
+          .map((product) => (
             <i
-              key={vault.id}
+              key={product.id}
               style={{
-                flexGrow: Math.max((vault.tvl / totals.tvl) * 100, 0.8),
-                background: SERIES[index % SERIES.length],
+                flexGrow: Math.max((product.tvl / totals.tvl) * 100, 0.8),
+                background: PRODUCT_COLOR[product.id] || "#5f7183",
               }}
             />
           ))}
@@ -54,7 +67,7 @@ function Capital({ book, navigate }) {
         <table className={`${b.table} ${b.stack}`}>
           <thead>
             <tr>
-              <th>Vault</th>
+              <th>Product</th>
               <th>Stage</th>
               <th>Since</th>
               <th className={b.num}>Total value</th>
@@ -62,35 +75,56 @@ function Capital({ book, navigate }) {
             </tr>
           </thead>
           <tbody>
-            {vaults.map((vault, index) => (
-              <tr key={vault.id}>
-                <td data-cell="vault">
-                  <button
-                    className={b.rowLink}
-                    onClick={() => navigate("vault", vault.id)}
-                  >
-                    <i
-                      className={b.swatch}
-                      style={{ background: SERIES[index % SERIES.length] }}
-                    />
-                    <VaultTitle vault={vault} size={22} />
-                  </button>
-                </td>
-                <td data-label="Stage">
-                  <Stage stage={vault.stage} />
-                </td>
-                <td data-label="Since">{dateLabel(vault.since)}</td>
-                <td className={b.num} data-label="Total value">
-                  {compact(vault.tvl)} <small>{vault.token}</small>
-                </td>
-                <td className={b.num} data-label="Share">
-                  {totals.tvl && vault.tvl != null
-                    ? ((vault.tvl / totals.tvl) * 100).toFixed(
-                        vault.tvl / totals.tvl < 0.001 ? 3 : 1,
-                      ) + "%"
-                    : "—"}
-                </td>
-              </tr>
+            {products.map((product) => (
+              <Fragment key={product.id}>
+                <tr>
+                  <td data-cell="vault">
+                    <button
+                      className={b.rowLink}
+                      onClick={() => navigate("vault", product.id)}
+                    >
+                      <i
+                        className={b.swatch}
+                        style={{ background: PRODUCT_COLOR[product.id] || "#5f7183" }}
+                      />
+                      <ProductTitle product={product} size={22} />
+                    </button>
+                  </td>
+                  <td data-label="Stage">
+                    <Stage stage={product.stage} />
+                  </td>
+                  <td data-label="Since">
+                    {dateLabel(Math.min(...product.vaults.map((vault) => vault.since ?? Infinity)))}
+                  </td>
+                  <td className={b.num} data-label="Total value">
+                    {compact(product.tvl)} <small>{product.token}</small>
+                  </td>
+                  <td className={b.num} data-label="Share">
+                    {share(product.tvl)}
+                  </td>
+                </tr>
+                {product.vaults.length > 1 &&
+                  product.vaults.map((vault) => (
+                    <tr key={vault.id} className={b.subRow}>
+                      <td data-cell="vault">
+                        <span className={b.inlineMark}>
+                          <NetworkMarks vault={vault} size={16} />
+                          On {vault.place}
+                        </span>
+                      </td>
+                      <td data-label="Stage">
+                        <Stage stage={vault.stage} />
+                      </td>
+                      <td data-label="Since">{dateLabel(vault.since)}</td>
+                      <td className={b.num} data-label="Total value">
+                        {compact(vault.tvl)} <small>{vault.token}</small>
+                      </td>
+                      <td className={b.num} data-label="Share">
+                        {share(vault.tvl)}
+                      </td>
+                    </tr>
+                  ))}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -186,12 +220,51 @@ function Exposure({ book }) {
   );
 }
 
+function ResultRow({ item, sub = false, title }) {
+  const m = item.measured.r30;
+  const grown = item.measured.grown;
+  const grownIndex =
+    grown && item.index
+      ? indexWindowRate(item.index, grown.from, grown.to ?? item.measured.r30?.to?.at ?? Date.now())
+      : null;
+  return (
+    <tr className={sub ? b.subRow : undefined}>
+      <td data-cell="vault">{title}</td>
+      <td className={b.num} data-label="30-day rate">
+        <MeasuredRate measure={m} />
+        {m?.status !== "ok" && m?.change != null && (
+          <small className={b.quietBlock}>
+            share price {m.change >= 0 ? "+" : "−"}
+            {Math.abs(m.change).toFixed(3)}%
+          </small>
+        )}
+      </td>
+      <td className={b.num} data-label="Index, same days">
+        {pct(item.vsIndex?.r30)}
+      </td>
+      <td className={b.num} data-label="Difference">
+        <VsIndex diff={item.vsIndex?.r30Diff} />
+      </td>
+      <td className={b.num} data-label="Since reaching 10,000 USD">
+        {grown ? (
+          <>
+            {pct(grown.rate)}
+            <small className={b.quietBlock}>
+              from {dateLabel(grown.from, false)}
+              {grownIndex != null ? `; index ${pct(grownIndex)}` : ""}
+            </small>
+          </>
+        ) : sub || item.vaults ? (
+          <span className={b.quiet}>Not reached</span>
+        ) : (
+          <span className={b.quiet}>Not reached</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function Results({ book, navigate }) {
-  const rows = book.vaults.map((vault) => ({
-    vault,
-    m: vault.measured.r30,
-    index: vault.vsIndex?.r30 ?? null,
-  }));
   const all = book.totals;
   return (
     <Section
@@ -199,11 +272,12 @@ function Results({ book, navigate }) {
       title="Results"
       lede={
         <>
-          What holders received, from each vault’s share price, against the{" "}
+          What holders received, from share prices, against the{" "}
           <button className={b.linkButton} onClick={() => navigate("index")}>
             blue-chip index
           </button>{" "}
-          over the same days. Both are simple annual rates, before fees.
+          for the same stablecoin over the same days. Simple annual rates,
+          before fees; no vault charges a fee today.
         </>
       }
     >
@@ -211,59 +285,50 @@ function Results({ book, navigate }) {
         <table className={`${b.table} ${b.stack}`}>
           <thead>
             <tr>
-              <th>Vault</th>
-              <th className={b.num}>Share price, 30 days</th>
+              <th>Product</th>
               <th className={b.num}>30-day rate</th>
               <th className={b.num}>Index, same days</th>
               <th className={b.num}>Difference</th>
               <th className={b.num}>Since reaching 10,000 USD</th>
-              <th className={b.num}>Fee now</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ vault, m, index }) => (
-              <tr key={vault.id}>
-                <td data-cell="vault">
-                  <VaultTitle vault={vault} size={22} />
-                </td>
-                <td className={b.num} data-label="Share price, 30 days">
-                  {m?.change == null
-                    ? "—"
-                    : `${m.change >= 0 ? "+" : "−"}${Math.abs(m.change).toFixed(3)}%`}
-                </td>
-                <td className={b.num} data-label="30-day rate">
-                  <MeasuredRate measure={m} />
-                </td>
-                <td className={b.num} data-label="Index, same days">
-                  {pct(index)}
-                </td>
-                <td className={b.num} data-label="Difference">
-                  <VsIndex diff={vault.vsIndex?.r30Diff} />
-                </td>
-                <td className={b.num} data-label="Since reaching 10,000 USD">
-                  {vault.measured.grown ? (
-                    <>
-                      {pct(vault.measured.grown.rate)}
-                      <small className={b.quietBlock}>
-                        from {dateLabel(vault.measured.grown.from, false)}
-                      </small>
-                    </>
-                  ) : (
-                    <span className={b.quiet}>Not reached</span>
-                  )}
-                </td>
-                <td className={b.num} data-label="Fee now">
-                  {vault.fees.performance == null
-                    ? "—"
-                    : pct(vault.fees.performance)}
-                </td>
-              </tr>
+            {book.products.map((product) => (
+              <Fragment key={product.id}>
+                <ResultRow
+                  item={{
+                    ...product,
+                    measured: {
+                      ...product.measured,
+                      grown:
+                        product.vaults.length === 1
+                          ? product.vaults[0].measured.grown
+                          : product.lead.measured.grown,
+                    },
+                    index: product.index,
+                  }}
+                  title={<ProductTitle product={product} size={22} />}
+                />
+                {product.vaults.length > 1 &&
+                  product.vaults.map((vault) => (
+                    <ResultRow
+                      key={vault.id}
+                      sub
+                      item={vault}
+                      title={
+                        <span className={b.inlineMark}>
+                          <NetworkMarks vault={vault} size={16} />
+                          On {vault.place}
+                        </span>
+                      }
+                    />
+                  ))}
+              </Fragment>
             ))}
           </tbody>
           <tfoot>
             <tr>
-              <th data-cell="vault">All vaults, weighted by size</th>
-              <td className={b.num} data-label="Share price, 30 days" />
+              <th data-cell="vault">All USDC vaults, weighted by size</th>
               <td className={b.num} data-label="30-day rate">
                 <MeasuredRate measure={all.measured.r30} />
               </td>
@@ -274,15 +339,15 @@ function Results({ book, navigate }) {
                 <VsIndex diff={all.vsIndex?.r30Diff} />
               </td>
               <td />
-              <td />
             </tr>
           </tfoot>
         </table>
       </div>
       <p className={b.footnote}>
         A rate is shown once a vault held over 10,000 USD for the whole period:
-        below that, a cent would move it by whole points. Each vault’s raw share
-        price change is shown either way.
+        below that, a cent would move it by whole points, so the raw share price
+        change is shown instead. A product’s “since 10,000 USD” is its largest
+        vault’s.
       </p>
     </Section>
   );
@@ -336,7 +401,7 @@ function Security({ book }) {
             </tr>
           </thead>
           <tbody>
-            {book.vaults.map((vault) => (
+            {book.products.flatMap((product) => product.vaults).map((vault) => (
               <tr key={vault.id}>
                 <td data-cell="vault">
                   <VaultTitle vault={vault} size={22} />

@@ -404,9 +404,11 @@ export default function VaultsPage({ book, navigate, user }) {
         <div>
           <h1 tabIndex={-1}>Earn</h1>
           <p className={b.pageLede}>
-            Interest on stablecoins from blue-chip lending markets. Each vault
+            Interest on stablecoins from approved lending markets: core lenders
+            such as Aave and Compound, and curated Morpho vaults. Each vault
             moves its money to the better rate and shows where every dollar is.{" "}
-            {money(totals.tvl, 0)} {totals.unit} in {book.vaults.length} vaults
+            {money(totals.tvl, 0)} {totals.unit} in {book.products.length}{" "}
+            products on {totals.networks} networks
             {Number.isFinite(totals.since)
               ? `, since ${dateLabel(totals.since, false)}`
               : ""}
@@ -448,48 +450,55 @@ export default function VaultsPage({ book, navigate, user }) {
         lede="Choose the stablecoin and how fast you want to be able to leave. Where it is deposited is a detail inside."
       >
         <Products book={book} navigate={navigate} user={user} />
-        <dl className={b.definitions}>
-          <div>
-            <dt>Rate now</dt>
-            <dd>
-              Today’s lending rates, weighted by where the money is, a year,
-              before fees. Cash counts at 0%.
-            </dd>
-          </div>
-          <div>
-            <dt>30-day rate</dt>
-            <dd>
-              What holders received over 30 days, from the share price, a year.
-              Shown once a vault holds over 10,000 USD: below that, a cent would
-              move it by whole points.
-            </dd>
-          </div>
-          <div>
-            <dt>Against the index</dt>
-            <dd>
-              The 30-day rate minus the blue-chip index over the same days, in
-              percentage points. Where there is no 30-day rate, today’s rates
-              are compared and marked “now”.
-            </dd>
-          </div>
-          <div>
-            <dt>Withdraw in</dt>
-            <dd>
-              Now: paid in one transaction, up to what the markets can pay. Next
-              batch: requests settle together, then you collect. No time is
-              promised.
-            </dd>
-          </div>
-          <div>
-            <dt>Stage</dt>
-            <dd>
-              Live: holds over 10,000 USD, so its rates can be measured. Early:
-              smaller than that. Pilot: running with team funds and no external
-              audit. A product shows the stage of its largest vault; each
-              network’s stage is on its page.
-            </dd>
-          </div>
-        </dl>
+        <details className={b.disclosure}>
+          <summary>
+            How to read this table
+            <small>Rate now, 30-day rate, the index, stages, withdrawals</small>
+          </summary>
+          <dl className={b.definitions}>
+            <div>
+              <dt>30-day rate</dt>
+              <dd>
+                What holders received over 30 days, from the share price, a
+                year. Shown once a vault holds over 10,000 USD: below that, a
+                cent would move it by whole points.
+              </dd>
+            </div>
+            <div>
+              <dt>Against the index</dt>
+              <dd>
+                The 30-day rate minus the blue-chip index for the same
+                stablecoin over the same days, in percentage points. Where there
+                is no 30-day rate, today’s rates are compared and marked “now”.
+              </dd>
+            </div>
+            <div>
+              <dt>Rate now</dt>
+              <dd>
+                Today’s lending rates read from the market contracts, weighted
+                by where the money is, a year, before fees. Cash counts at 0%.
+              </dd>
+            </div>
+            <div>
+              <dt>Stage</dt>
+              <dd>
+                Live: holds over 10,000 USD and runs code an outside firm has
+                reviewed. Early: smaller, or its code review is not confirmed.
+                Pilot: runs with team funds and has no external audit; outside
+                deposits are not part of its plan yet. A product shows its
+                largest vault’s stage; each network’s is on its page.
+              </dd>
+            </div>
+            <div>
+              <dt>Withdraw in</dt>
+              <dd>
+                Now: paid in one transaction, up to what the markets can pay.
+                Next batch: requests settle together, then you collect. No time
+                is promised.
+              </dd>
+            </div>
+          </dl>
+        </details>
       </Section>
       <WhatIf book={book} navigate={navigate} />
     </div>

@@ -116,7 +116,7 @@ function Endpoint({ endpoint }) {
   return (
     <details className={b.endpoint}>
       <summary>
-        <span className={b.method} data-method={endpoint.method}>
+        <span className={b.httpMethod} data-method={endpoint.method}>
           {endpoint.method}
         </span>
         <span className={b.endpointIdentity}>

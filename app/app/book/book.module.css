@@ -2190,7 +2190,7 @@
 .endpoint > summary:hover {
   background: var(--side);
 }
-.method {
+.httpMethod {
   justify-self: start;
   padding: 2px 8px;
   border-radius: 6px;
@@ -2198,15 +2198,15 @@
   color: var(--ink-2);
   font: 500 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-.method[data-method="GET"] {
+.httpMethod[data-method="GET"] {
   background: var(--blue-wash);
   color: var(--blue-deep);
 }
-.method[data-method="POST"] {
+.httpMethod[data-method="POST"] {
   background: #e6f4ec;
   color: var(--good);
 }
-.method[data-method="DELETE"] {
+.httpMethod[data-method="DELETE"] {
   background: #fdecec;
   color: var(--bad);
 }
@@ -2531,4 +2531,81 @@
 .vsIndex[data-tone="behind"],
 .vsIndex[data-tone="even"] {
   color: var(--ink);
+}
+
+.sideBottom nav {
+  margin-bottom: 8px;
+}
+.sideBottom nav button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.sideBottom nav button[aria-current="page"] {
+  background: #fff;
+  color: var(--blue-deep);
+  font-weight: 500;
+  box-shadow: inset 0 0 0 1px var(--rule-soft);
+}
+
+.outside {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.secondaryRow th,
+.secondaryRow td {
+  color: var(--ink-3);
+  font-size: 14px;
+}
+@media (max-width: 900px) {
+  /* A member on a phone is one line: market and network, weight, rate. */
+  .indexTable tr {
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    align-items: center;
+    padding: 10px 0 !important;
+  }
+  .indexTable td[data-label="Network"],
+  .indexTable td[data-label="Size, USD"] {
+    display: none !important;
+  }
+  .indexTable td[data-cell="vault"] {
+    grid-column: auto !important;
+  }
+  .indexTable td[data-label]::before {
+    display: none !important;
+  }
+  .indexTable td[data-label="Weight"] {
+    grid-column: auto !important;
+  }
+  .indexTable .weight {
+    grid-template-columns: 56px;
+  }
+  .indexTable .weightTrack {
+    display: none;
+  }
+}
+
+.phoneInline {
+  display: none;
+}
+@media (max-width: 900px) {
+  .phoneInline {
+    display: inline;
+    margin-left: 6px;
+    color: var(--ink-3);
+  }
 }

@@ -52,7 +52,7 @@ export function IndexComparison({ book, compact = false }) {
           points: rebase(ours, from),
         },
         {
-          name: "Blue-chip index",
+          name: "USDC index",
           short: "Index",
           color: "#5f7183",
           points: rebase(index?.series, from),
@@ -74,20 +74,12 @@ export function IndexComparison({ book, compact = false }) {
         <thead>
           <tr>
             <th />
-            <th className={b.num}>Thesauros</th>
-            <th className={b.num}>Index</th>
+            <th className={b.num}>Thesauros USDC</th>
+            <th className={b.num}>USDC index</th>
             <th className={b.num}>Difference</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <th scope="row">Rate now</th>
-            <td className={b.num}>{pct(t.rateNow)}</td>
-            <td className={b.num}>{pct(index?.rateNow)}</td>
-            <td className={b.num}>
-              <VsIndex diff={t.vsIndex?.nowDiff} />
-            </td>
-          </tr>
           <tr>
             <th scope="row">Last 30 days</th>
             <td className={b.num}>
@@ -96,6 +88,14 @@ export function IndexComparison({ book, compact = false }) {
             <td className={b.num}>{pct(t.vsIndex?.r30 ?? index?.r30)}</td>
             <td className={b.num}>
               <VsIndex diff={t.vsIndex?.r30Diff} />
+            </td>
+          </tr>
+          <tr className={b.secondaryRow}>
+            <th scope="row">Rate now</th>
+            <td className={b.num}>{pct(t.rateNow)}</td>
+            <td className={b.num}>{pct(index?.rateNow)}</td>
+            <td className={b.num}>
+              <VsIndex diff={t.vsIndex?.nowDiff} />
             </td>
           </tr>
         </tbody>
@@ -136,17 +136,16 @@ export default function IndexPage({ book, navigate }) {
     );
   const groups =
     by === "market" ? null : groupConstituents(index.constituents, by);
-  const name = (id) => {
-    const vault = book.byId[id];
-    return vault ? `${vault.product.tag}, ${vault.kind === "batch" ? vault.networks.join(" + ") : vault.place}` : null;
-  };
+  const name = (id) => book.byId[id]?.title || null;
+  const approvedFor = (ids) => [...new Set(ids.map(name).filter(Boolean))].join(", ");
   return (
     <div className={b.page}>
       <header className={b.pageHead}>
         <div>
           <h1 tabIndex={-1}>Blue-chip index</h1>
           <p className={b.pageLede}>
-            What Thesauros measures itself against. {INDEX_DEFINITION}
+            The market average Thesauros measures itself against, one for each
+            stablecoin. {INDEX_DEFINITION}
           </p>
         </div>
       </header>
@@ -165,14 +164,14 @@ export default function IndexPage({ book, navigate }) {
       )}
       <dl className={`${b.facts} ${b.factsTop}`}>
         <div>
-          <dt>Rate now</dt>
-          <dd>{pct(index.rateNow)}</dd>
-          <small>a year, what the markets pay lenders today</small>
-        </div>
-        <div>
           <dt>Last 30 days</dt>
           <dd>{pct(index.r30)}</dd>
           <small>a year, from the markets’ own interest</small>
+        </div>
+        <div>
+          <dt>Rate now</dt>
+          <dd>{pct(index.rateNow)}</dd>
+          <small>a year, what the markets pay lenders today</small>
         </div>
         <div>
           <dt>Markets</dt>
@@ -287,6 +286,9 @@ export default function IndexPage({ book, navigate }) {
                           {row.protocol === "Morpho" && (
                             <small className={b.quiet}> on Morpho</small>
                           )}
+                          <small className={b.phoneInline}>
+                            {NETWORK[row.network]?.name || row.network}
+                          </small>
                         </span>
                       </td>
                       <td data-label="Network">
@@ -320,7 +322,7 @@ export default function IndexPage({ book, navigate }) {
                       </td>
                       <td data-label="Approved for">
                         <span className={b.quiet}>
-                          {row.vaults.map(name).filter(Boolean).join("; ")}
+                          {approvedFor(row.vaults)}
                         </span>
                       </td>
                     </tr>
