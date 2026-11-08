@@ -58,6 +58,12 @@ export default function ActivityPage({ book, user, mine, account, batch }) {
               ? "Your deposits, withdrawals, requests and estimated earnings, across every vault."
               : "What every vault did: money moved between markets and networks, batches settled and any gap in valuations."}
           </p>
+          {!signedIn && (
+            <p className={b.footnote}>
+              This is the public record of all vaults. Your own history appears
+              here once you connect a wallet.
+            </p>
+          )}
         </div>
         {signedIn && (
           <Segmented

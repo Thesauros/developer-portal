@@ -468,7 +468,7 @@ export const ENDPOINT_GROUPS = [
         path: '/lab/market',
         summary: 'Inspect the rate paths',
         description:
-          'The daily APY series a backtest would run on, without running one. mode=synthetic is a seeded simulation; mode=historical is real DeFiLlama pool history.',
+          'The daily APY series a backtest would run on, without running one. mode=synthetic is a seeded simulation; mode=historical is the real daily rate history of the markets Thesauros vaults may use, from the Thesauros indexer.',
         params: [
           { name: 'mode', in: 'query', type: 'enum', required: false, options: ['synthetic', 'historical'], desc: 'Rate source', example: 'synthetic' },
           { name: 'asset', in: 'query', type: 'enum', required: false, options: ['USDC', 'USDT'], desc: 'Stablecoin asset', example: 'USDC' },

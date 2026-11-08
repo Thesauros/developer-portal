@@ -171,8 +171,8 @@ try {
     "vault rates and allocation are public",
   );
   check(
-    (await request("/app/live?kind=markets")).status === 200,
-    "market rates are public",
+    [200, 503].includes((await request("/app/live?kind=markets")).status),
+    "market rates are public (503 until the indexer has read the markets)",
   );
   check(
     [200, 503].includes((await request("/api/vaults/history")).status),

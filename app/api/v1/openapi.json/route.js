@@ -493,7 +493,7 @@ function buildDoc() {
           tags: ['lab'],
           summary: 'Inspect rate paths',
           description:
-            'The daily APY series a backtest would run on, without running one. mode=synthetic returns a seeded simulation reproducible from (seed, regime); mode=historical returns real DeFiLlama pool history and may shorten the window to the days every venue covers.',
+            'The daily APY series a backtest would run on, without running one. mode=synthetic returns a seeded simulation reproducible from (seed, regime); mode=historical returns the real daily rate history of the markets Thesauros vaults may use, read by the Thesauros indexer, and may shorten the window to the days every venue covers.',
           parameters: [
             q('mode', 'Rate source', { enum: ['synthetic', 'historical'], default: 'synthetic' }),
             q('asset', 'Stablecoin asset', { enum: ['USDC', 'USDT'], default: 'USDC' }),

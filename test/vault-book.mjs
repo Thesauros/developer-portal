@@ -24,6 +24,7 @@ import {
 import {
   buildBlueChipIndex,
   groupConstituents,
+  marketVenues,
   membersOf,
   membershipChanges,
   indexTrailingRate,
@@ -604,4 +605,15 @@ test("index members: one stablecoin, at least a million, every change dated", ()
   assert.equal(changes.length, 1);
   assert.equal(changes[0].kind, "joined");
   assert.equal(changes[0].day, 965);
+});
+
+test("market rates for the public list come from each market's own index", () => {
+  const rows = [
+    ...lending("ethereum:aave", 2_000_000, 0.04 / 365, 3.9, 10),
+    ...lending("arbitrum:tiny", 8_000, 0.04 / 365, 0, 10),
+  ];
+  const venues = marketVenues(rows);
+  assert.equal(venues.length, 1, "markets under a million are left out");
+  assert.equal(venues[0].rate, 3.9, "the quoted rate is kept beside the earned one");
+  assert.ok(venues[0].daily.every((point) => Math.abs(point.rate - 4) < 0.01));
 });

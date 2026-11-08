@@ -10,7 +10,7 @@ import { crosschain } from "../../../lib/crosschain-config.mjs";
 import { getVault } from "../../../lib/vault-contracts.mjs";
 import { requestStage, REQUEST_STEPS } from "../../../lib/crosschain-feed.mjs";
 import { sharesForAmount } from "../../../lib/vault-metrics.mjs";
-import { TransactionPanel } from "../EarnWorkspace";
+import { TransactionPanel } from "./InstantTransaction";
 import { ConnectAction } from "../wallet/WalletAccess";
 import {
   compact,

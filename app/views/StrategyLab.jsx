@@ -655,7 +655,7 @@ export default function StrategyLab({ apiKey }) {
         </div>
         <p className={s.faint} style={{ fontSize: 12, marginTop: 0 }}>
           {isHistorical
-            ? 'Real daily APY from the DeFiLlama pool charts. One history, so samples are non-overlapping blocks of it — enough to describe the past, not enough to call a p-value.'
+            ? 'Real daily rates of the markets Thesauros vaults may use, from their own interest indexes. One history, so samples are non-overlapping blocks of it — enough to describe the past, not enough to call a p-value.'
             : 'Seeded simulation around the sandbox venues. Reproducible from (seed, regime) and able to produce as many independent markets as the statistics need — but a model, not evidence about real rates.'}
         </p>
 

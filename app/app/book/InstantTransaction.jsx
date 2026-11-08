@@ -10,58 +10,26 @@ import {
   displayAmount,
   tokenAmount,
   friendlyTransactionError,
-} from "../../lib/vault-contracts.mjs";
-import { vaultClients } from "../../lib/vault-rpc.mjs";
+} from "../../../lib/vault-contracts.mjs";
+import { vaultClients } from "../../../lib/vault-rpc.mjs";
 import {
   prepareTransaction,
   executeTransaction,
-} from "../../lib/vault-transactions.mjs";
-import { documentationHref } from "../../lib/site-links.mjs";
-import { historyKey } from "../../lib/transaction-history.mjs";
-import { balanceLabel, amountFeedback } from "../../lib/earn-presentation.mjs";
-import p from "./product.module.css";
-import e from "./earn.module.css";
-import b from "./book/book.module.css";
+} from "../../../lib/vault-transactions.mjs";
+import { documentationHref } from "../../../lib/site-links.mjs";
+import { historyKey } from "../../../lib/transaction-history.mjs";
+import { balanceLabel, amountFeedback } from "../../../lib/earn-presentation.mjs";
+import t from "./transaction.module.css";
+import b from "./book.module.css";
 
-const WalletFunding = dynamic(() => import("./WalletFunding"));
+// One module for the form: the rules it kept from the former workspace styles.
+const p = t;
+const e = t;
+
+const WalletFunding = dynamic(() => import("../WalletFunding"));
 const activeSubmissions = new Set();
 const short = (value) =>
   value ? value.slice(0, 6) + "…" + value.slice(-4) : "—";
-function percentage(value, decimals = 27) {
-  if (value == null) return "—";
-  return (Number(formatUnits(BigInt(value), decimals)) * 100).toFixed(2) + "%";
-}
-function Icon({ type = "wallet" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {type === "layers" ? (
-        <>
-          <rect x="3" y="3" width="12" height="12" rx="3" />
-          <path d="M9 18v1a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1" />
-          <path d="M7 9h4M9 7v4" />
-        </>
-      ) : type === "history" ? (
-        <>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3 2" />
-        </>
-      ) : (
-        <>
-          <rect x="3" y="5" width="18" height="15" rx="3" />
-          <path d="M3 9h18M16 14h2M7 5V3h10v2" />
-        </>
-      )}
-    </svg>
-  );
-}
 function ExplorerLink({ vault, hash, children }) {
   return (
     <a
@@ -827,131 +795,5 @@ export function TransactionPanel({
       </details>
       )}
     </section>
-  );
-}
-
-function TransactionList({
-  transactions,
-  emptyAction,
-  emptyActionLabel = "Open Earn",
-}) {
-  if (!transactions.length)
-    return (
-      <div className={p.emptyState}>
-        <span className={p.emptyIcon}>
-          <Icon type="history" />
-        </span>
-        <div>
-          <h3>Your next move will appear here.</h3>
-          <p>
-            Deposits, withdrawals and approvals made from this browser, with a
-            link to each onchain receipt.
-          </p>
-          {emptyAction && (
-            <button className={p.textButton} onClick={emptyAction}>
-              {emptyActionLabel}
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  return (
-    <div className={p.positionList}>
-      {transactions.map((tx) => {
-        const vault = getVault(tx.vaultId);
-        return (
-          <div key={tx.hash} className={p.positionRow}>
-            <div className={p.positionIdentity}>
-              <img
-                className={p.tokenIcon}
-                src="/brand/tokens/usdc.svg"
-                width="40"
-                height="40"
-                alt=""
-              />
-              <div>
-                <strong>
-                  {tx.kind === "approve"
-                    ? `${vault.symbol} approval`
-                    : tx.kind === "withdraw"
-                      ? "Withdrawal"
-                      : "Deposit"}
-                </strong>
-                <small>
-                  {vault.name} ·{" "}
-                  {new Date(tx.createdAt).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                  })}
-                </small>
-                <ExplorerLink
-                  vault={vault}
-                  hash={tx.replacementHash || tx.hash}
-                >
-                  {tx.replacementHash ? "View replacement" : "View receipt"}
-                </ExplorerLink>
-              </div>
-            </div>
-            <div className={p.positionValue}>
-              <strong>
-                {tx.amountEstimated ? "≈ " : ""}
-                {tx.amount} {vault.symbol}
-              </strong>
-              {tx.amountEstimated && <small>Estimated amount</small>}
-              <span className={e[tx.status]}>
-                {tx.status === "success"
-                  ? "Confirmed"
-                  : tx.status === "reverted"
-                    ? "Reverted"
-                    : tx.status === "cancelled"
-                      ? "Replaced / cancelled"
-                      : "Awaiting confirmation"}
-              </span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-export function Transactions({ account, navigate }) {
-  return (
-    <div className={p.product}>
-      <div className={p.guideRail}>
-        <div className={p.guideText}>
-          <Icon type="history" />
-          <div>
-            <strong>Your activity, with receipts.</strong>
-            <span>
-              Transactions initiated in this browser. Explore your address for a
-              complete onchain history.
-            </span>
-          </div>
-        </div>
-      </div>
-      {account.historyError && (
-        <p className={p.stateMessage} role="status">
-          {account.historyError}
-        </p>
-      )}
-      <TransactionList
-        transactions={account.transactions}
-        emptyAction={() => navigate("overview")}
-        emptyActionLabel="Open Earn"
-      />
-      <div className={p.headerActions}>
-        {vaults.map((v) => (
-          <a
-            className={p.secondaryButton}
-            key={v.id}
-            href={v.explorer + "/address/" + account.owner}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {v.name} account history
-          </a>
-        ))}
-      </div>
-    </div>
   );
 }
