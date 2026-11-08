@@ -36,6 +36,45 @@ const PERIODS = [
 // The same window as every rate in the tables beside it.
 const DEFAULT_DAYS = 30;
 
+// The gap to the index in two parts: the choice among the markets a vault can
+// use, and how those markets' networks paid against the whole index.
+export function GapSplit({ local, total }) {
+  const where = local.networks.join(" and ");
+  return (
+    <div className={b.gapSplit}>
+      <p className={b.gapTitle}>Where the gap comes from</p>
+      <dl>
+        <div>
+          <dt>
+            Choice of markets
+            <small>against blue-chip markets on {where}</small>
+          </dt>
+          <dd>
+            <VsIndex diff={local.selection} />
+          </dd>
+        </div>
+        <div>
+          <dt>
+            Where the money works
+            <small>{where} markets against the whole index</small>
+          </dt>
+          <dd>
+            <VsIndex diff={local.place} />
+          </dd>
+        </div>
+        {total != null && (
+          <div className={b.gapTotal}>
+            <dt>Gap to the index</dt>
+            <dd>
+              <VsIndex diff={total} />
+            </dd>
+          </div>
+        )}
+      </dl>
+    </div>
+  );
+}
+
 export function IndexComparison({ book, compact = false }) {
   const [days, setDays] = useState(DEFAULT_DAYS);
   const index = book.index;
@@ -70,6 +109,7 @@ export function IndexComparison({ book, compact = false }) {
         </div>
         <GrowthChart lines={lines} height={compact ? 220 : 260} />
       </div>
+      {!compact && (
       <table className={`${b.table} ${b.scoreTable}`}>
         <thead>
           <tr>
@@ -100,11 +140,14 @@ export function IndexComparison({ book, compact = false }) {
           </tr>
         </tbody>
       </table>
+      )}
+      {t.local?.selection != null && t.local?.place != null && (
+        <GapSplit local={t.local} total={t.vsIndex?.r30Diff} />
+      )}
       <p className={b.footnote}>
         Thesauros: every USDC vault, weighted by size, from share prices; the
         30-day figure comes from the vaults large enough to measure. Index: USDC
-        markets’ own interest, weighted by size. Both a year, before fees; no
-        vault charges a fee today.
+        markets’ own interest, weighted by size. Both a year, before fees.
       </p>
     </div>
   );

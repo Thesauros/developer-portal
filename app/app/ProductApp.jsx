@@ -261,6 +261,7 @@ export default function ProductApp({ mode = "individual", user }) {
         index: history.data?.index || null,
         indexes: history.data?.indexes || null,
         markets: history.data?.markets || null,
+        networkIndexes: history.data?.networkIndexes || null,
         includeBatch,
         depositsOpen: batchDepositsOpen,
       }),
@@ -369,6 +370,11 @@ export default function ProductApp({ mode = "individual", user }) {
     setGuide(true);
   }
   const section = route.view === "vault" ? "vaults" : route.view;
+  // Activity is a wallet's own history; without one, the public record is in
+  // Transparency and the menu does not offer an empty page.
+  const signedIn = !!user?.walletAddress;
+  const main = signedIn ? MAIN : MAIN.filter((id) => id !== "activity");
+  const dock = signedIn ? MAIN : [...main, "index"];
   const wallet = book.account.wallet;
   // The product on the page, and the vault its deposit panel works with: the one
   // asked for, else the one holding the person's money, else the one their
@@ -478,7 +484,7 @@ export default function ProductApp({ mode = "individual", user }) {
       <div className={b.frame}>
         <aside className={b.side} aria-label="Sections">
           <nav aria-label="Main">
-            <div className={b.sideGroup}>{MAIN.map((id) => nav(id))}</div>
+            <div className={b.sideGroup}>{main.map((id) => nav(id))}</div>
             <div className={b.sideGroup}>
               <span className={b.sideLabel}>Tools</span>
               {TOOLS.map((id) => nav(id))}
@@ -580,6 +586,7 @@ export default function ProductApp({ mode = "individual", user }) {
             mine={mine}
             account={account}
             batch={batch}
+            navigate={navigate}
           />
         )}
         {route.view === "transparency" && (
@@ -622,7 +629,7 @@ export default function ProductApp({ mode = "individual", user }) {
       </main>
       </div>
       <nav className={b.dock} aria-label="Quick navigation">
-        {MAIN.map((id) => nav(id, true))}
+        {dock.map((id) => nav(id, true))}
       </nav>
       {guide && (
         <QuickGuide

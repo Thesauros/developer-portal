@@ -3,7 +3,7 @@ import { Fragment, useMemo, useState } from "react";
 import { DAY, measuredRate } from "../../../lib/vault-metrics.mjs";
 import { PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import { AllocationBar } from "./charts";
-import { IndexComparison, INDEX_DEFINITION } from "./IndexPage";
+import { IndexComparison } from "./IndexPage";
 import {
   compact,
   dateLabel,
@@ -404,16 +404,9 @@ export default function VaultsPage({ book, navigate, user }) {
         <div>
           <h1 tabIndex={-1}>Earn</h1>
           <p className={b.pageLede}>
-            Interest on stablecoins from approved lending markets: core lenders
-            such as Aave and Compound, and curated Morpho vaults. Each vault
-            moves its money to the better rate among its approved markets and
-            shows where every dollar is.{" "}
-            {money(totals.tvl, 0)} {totals.unit} in {book.products.length}{" "}
-            products on {totals.networks} networks
-            {Number.isFinite(totals.since)
-              ? `, since ${dateLabel(totals.since, false)}`
-              : ""}
-            .
+            Interest on stablecoins from approved lending markets. Each vault
+            moves its money to the better rate among them and shows where every
+            dollar is.
           </p>
         </div>
         {book.products[0] && (
@@ -429,16 +422,44 @@ export default function VaultsPage({ book, navigate, user }) {
           </div>
         )}
       </header>
+      <dl className={`${b.facts} ${b.headline}`}>
+        <div>
+          <dt>Last 30 days, USDC</dt>
+          <dd>
+            {totals.measured.r30?.status === "ok" ? pct(totals.measured.r30.rate) : "—"}
+          </dd>
+          <small>
+            <VsIndex diff={totals.vsIndex?.r30Diff} suffix=" vs USDC index" />
+          </small>
+        </div>
+        <div>
+          <dt>Rate now, USDC</dt>
+          <dd>{pct(totals.rateNow)}</dd>
+          <small>
+            <VsIndex diff={totals.vsIndex?.nowDiff} suffix=" vs USDC index" />
+          </small>
+        </div>
+        <div>
+          <dt>In vaults</dt>
+          <dd>
+            {money(totals.tvl, 0)} <small>{totals.unit}</small>
+          </dd>
+          <small>
+            {book.products.length} products on {totals.networks} networks
+            {Number.isFinite(totals.since) ? `, since ${dateLabel(totals.since, false)}` : ""}
+          </small>
+        </div>
+      </dl>
       <Section
         id="against-index"
         title="Against the blue-chip index"
         lede={
           <>
+            The market average: lending across every approved blue-chip market,
+            weighted by size.{" "}
             <button className={b.linkButton} onClick={() => navigate("index")}>
-              The blue-chip index
-            </button>{" "}
-            is the market average Thesauros measures itself against:{" "}
-            {INDEX_DEFINITION.charAt(0).toLowerCase() + INDEX_DEFINITION.slice(1)}
+              How the index is built
+            </button>
           </>
         }
         className={b.firstSection}
@@ -448,7 +469,7 @@ export default function VaultsPage({ book, navigate, user }) {
       <Section
         id="vaults"
         title="Vaults"
-        lede="Choose the stablecoin and how fast you want to be able to leave. Where it is deposited is a detail inside."
+        lede="Choose the stablecoin and how fast you want to leave. The network you deposit from is chosen inside."
       >
         <Products book={book} navigate={navigate} user={user} />
         <details className={b.disclosure}>

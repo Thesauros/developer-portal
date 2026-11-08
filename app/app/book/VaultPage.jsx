@@ -19,6 +19,7 @@ import {
   RateChart,
 } from "./charts";
 import { LedgerRows } from "./ledger";
+import { GapSplit } from "./IndexPage";
 import {
   ago,
   clock,
@@ -211,6 +212,12 @@ function Comparison({ vault, index }) {
       {only}
     </p>
   );
+}
+
+function GapBlock({ vault }) {
+  const local = vault.local;
+  if (local?.selection == null || local?.place == null) return null;
+  return <GapSplit local={local} total={vault.vsIndex?.r30Diff} />;
 }
 
 function StrategyRates({ vault, index }) {
@@ -415,6 +422,7 @@ function Performance({ view, vault, index }) {
         <StrategyRates vault={priced} index={index} />
       )}
       <Comparison vault={view} index={index} />
+      <GapBlock vault={view} />
     </Section>
   );
 }

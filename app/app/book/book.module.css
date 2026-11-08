@@ -2650,3 +2650,123 @@
     text-align: right !important;
   }
 }
+
+/* The gap to the index, split in two. */
+.gapSplit {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  max-width: 560px;
+}
+.gapTitle {
+  margin-bottom: 8px !important;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.gapSplit dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.gapSplit dt {
+  display: grid;
+  font-size: 14px;
+}
+.gapSplit dt small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.gapSplit dd {
+  font-size: 16px;
+}
+.gapTotal {
+  border-bottom: 0 !important;
+}
+.gapTotal dt {
+  font-weight: 500;
+}
+.versus .gapSplit {
+  grid-column: 2;
+  margin-top: 0;
+}
+@media (max-width: 1099px) {
+  .versus .gapSplit {
+    grid-column: 1;
+  }
+}
+
+
+/* Premium pass: a quieter page with a clearer order. Titles and the figures
+   that matter get size; explanations get less room and no boxes. */
+.pageHead h1,
+.vaultName h1 {
+  font-size: 40px;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+.pageHead {
+  padding: 44px 0 28px;
+}
+.pageLede {
+  font-size: 17px;
+  line-height: 1.55;
+  max-width: 60ch;
+}
+.section {
+  padding: 48px 0;
+}
+.sectionHead h2 {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.facts {
+  gap: 20px 64px;
+}
+.facts dd {
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+.facts dt {
+  margin-bottom: 2px;
+}
+/* Explanations read as notes beside the figures, not as boxes of prose. */
+.compare {
+  padding: 0 0 0 14px;
+  border-radius: 0;
+  background: none;
+  border-left: 0;
+  position: relative;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+.compare::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-4);
+}
+.headline {
+  margin: 4px 0 8px;
+}
+@media (max-width: 900px) {
+  .pageHead h1,
+  .vaultName h1 {
+    font-size: 30px;
+  }
+  .facts dd {
+    font-size: 24px;
+  }
+  .section {
+    padding: 36px 0;
+  }
+}

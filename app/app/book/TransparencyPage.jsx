@@ -4,6 +4,7 @@ import { CASH_COLOR, exposure } from "../../../lib/vault-book.mjs";
 import { AUDITS, PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import { marketingHref } from "../../../lib/site-links.mjs";
 import { LedgerRows } from "./ledger";
+import { Ledger } from "./ActivityPage";
 import { vaultNamer } from "./activity";
 import {
   compact,
@@ -477,6 +478,7 @@ export default function TransparencyPage({ book, navigate }) {
           ["exposure", "Exposure"],
           ["results", "Results"],
           ["operations", "Operating record"],
+          ["record", "Every move"],
           ["security", "Audits and control"],
           ["fees", "Fees"],
         ].map(([id, label]) => (
@@ -489,6 +491,13 @@ export default function TransparencyPage({ book, navigate }) {
       <Exposure book={book} />
       <Results book={book} navigate={navigate} />
       <Operations book={book} name={name} />
+      <Section
+        id="record"
+        title="Every move"
+        lede="Everything the vaults did, from the contracts: money moved between markets and networks, with the rates on each side, batches settled and valuation gaps. No wallet appears here."
+      >
+        <Ledger book={book} scope="all" />
+      </Section>
       <Security book={book} />
       <Fees />
     </div>

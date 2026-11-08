@@ -19,18 +19,19 @@ const TYPES = {
   ],
 };
 
-// One record of everything, for one wallet or for all vaults. The vault-wide view
-// has no wallet in it, so anyone can read it.
-export default function ActivityPage({ book, user, mine, account, batch }) {
-  const signedIn = !!user?.walletAddress;
-  const [scope, setScope] = useState(signedIn ? "mine" : "all");
+// One record: a wallet's own history, or what every vault did. The vault-wide
+// record has no wallet in it, so anyone can read it; it lives in Transparency.
+export function Ledger({ book, scope, mine, account, batch }) {
   const [type, setType] = useState("all");
   const [vaultId, setVaultId] = useState("");
   const publicFeed = usePublicResource("/api/vaults/feed", { refreshMs: 120000 });
   const name = useMemo(() => vaultNamer(book), [book]);
   const mineRows = useMemo(
-    () => mineLedger({ mine: mine.data, account, batch: batch.feed }),
-    [mine.data, account, batch.feed],
+    () =>
+      scope === "mine"
+        ? mineLedger({ mine: mine?.data, account, batch: batch?.feed })
+        : [],
+    [scope, mine?.data, account, batch?.feed],
   );
   const source = scope === "mine" ? mineRows : publicFeed.data?.items || [];
   const filter = (TYPES[scope].find(([id]) => id === type) || TYPES[scope][0])[2];
@@ -49,37 +50,7 @@ export default function ActivityPage({ book, user, mine, account, batch }) {
     })
     .filter(Boolean);
   return (
-    <div className={b.page}>
-      <header className={b.pageHead}>
-        <div>
-          <h1 tabIndex={-1}>Activity</h1>
-          <p className={b.pageLede}>
-            {scope === "mine"
-              ? "Your deposits, withdrawals, requests and estimated earnings, across every vault."
-              : "What every vault did: money moved between markets and networks, batches settled and any gap in valuations."}
-          </p>
-          {!signedIn && (
-            <p className={b.footnote}>
-              This is the public record of all vaults. Your own history appears
-              here once you connect a wallet.
-            </p>
-          )}
-        </div>
-        {signedIn && (
-          <Segmented
-            label="Whose activity"
-            value={scope}
-            onChange={(next) => {
-              setScope(next);
-              setType("all");
-            }}
-            options={[
-              { value: "mine", label: "Mine" },
-              { value: "all", label: "All vaults" },
-            ]}
-          />
-        )}
-      </header>
+    <>
       {scope === "mine" && mineRows.length > 0 && (
         <dl className={b.facts}>
           <div>
@@ -153,6 +124,34 @@ export default function ActivityPage({ book, user, mine, account, batch }) {
           amount held each day and that day’s rate; the Earned figure in your
           portfolio is exact when the history explains your whole balance.
         </p>
+      )}
+    </>
+  );
+}
+
+export default function ActivityPage({ book, user, mine, account, batch, navigate }) {
+  const signedIn = !!user?.walletAddress;
+  return (
+    <div className={b.page}>
+      <header className={b.pageHead}>
+        <div>
+          <h1 tabIndex={-1}>Activity</h1>
+          <p className={b.pageLede}>
+            {signedIn
+              ? "Your deposits, withdrawals, requests and estimated earnings, across every vault."
+              : "Connect a wallet to see your own history here."}
+          </p>
+          <p className={b.footnote}>
+            What every vault did, every move between markets and networks, is in{" "}
+            <button className={b.linkButton} onClick={() => navigate("transparency")}>
+              Transparency
+            </button>
+            .
+          </p>
+        </div>
+      </header>
+      {signedIn && (
+        <Ledger book={book} scope="mine" mine={mine} account={account} batch={batch} />
       )}
     </div>
   );
