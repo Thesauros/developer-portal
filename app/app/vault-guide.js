@@ -2,11 +2,11 @@
 export const vaultGuide = [
   {
     short: "Choose",
-    title: "Choose how fast you want to be able to leave.",
-    body: "Every vault lends stablecoins across approved markets and shows where the money is. Some pay out in one transaction. One settles requests in batches, so it can keep money working on more than one network.",
+    title: "Choose the stablecoin and how fast you want to be able to leave.",
+    body: "Every vault lends stablecoins across approved blue-chip markets and shows where the money is. Instant vaults pay out in one transaction. The Multichain vault settles requests in batches, so it can keep money working on more than one network.",
     detail:
-      "Compare what each vault holds, how long it has run, what it pays and how it pays you out. Rates change.",
-    note: "One deposit network for each vault, shown on its page.",
+      "Each vault is measured against the blue-chip index: the lending rate of every market Thesauros vaults may use, weighted by size. Rates change.",
+    note: "Pick the network you deposit from inside the vault.",
     visual: [
       ["wallet", "Your stablecoins", "On the network you deposit on"],
       ["vault", "A Thesauros vault", "You hold shares in it"],

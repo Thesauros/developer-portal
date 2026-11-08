@@ -5,10 +5,11 @@ import { useDisconnect } from "wagmi";
 import { documentationHref, marketingHref } from "../../lib/site-links.mjs";
 import { workspaceDestination } from "./destination.mjs";
 import useEarnAccount from "./useEarnAccount";
-import useInsights from "./cabinet/useInsights";
-import InstitutionSettings from "./cabinet/InstitutionSettings";
+import useInsights from "./book/useInsights";
+import InstitutionSettings from "./book/InstitutionSettings";
 import BrandLoading from "../ui/BrandLoading";
-import { buildBook } from "../../lib/vault-book.mjs";
+import { buildBook, PRODUCT_IDS, productView } from "../../lib/vault-book.mjs";
+import { vaults as standardVaults } from "../../lib/vault-contracts.mjs";
 import { BATCH_VAULT_ID } from "../../lib/vault-facts.mjs";
 import { crosschain } from "../../lib/crosschain-config.mjs";
 import useBatchVault from "./book/useBatchVault";
@@ -19,6 +20,7 @@ import VaultsPage from "./book/VaultsPage";
 import VaultPage from "./book/VaultPage";
 import ActivityPage from "./book/ActivityPage";
 import TransparencyPage from "./book/TransparencyPage";
+import IndexPage from "./book/IndexPage";
 import { vaultGuide } from "./vault-guide";
 import shell from "./workspace.module.css";
 import b from "./book/book.module.css";
@@ -36,16 +38,22 @@ const batchVaultAvailable =
 const batchDepositsOpen =
   process.env.NEXT_PUBLIC_THESAUROS_BATCH_DEPOSITS === "open";
 
-const SECTIONS = {
+// The sidebar on a desktop, the dock on a phone. Same sections, same order.
+const MAIN = ["overview", "vaults", "activity", "transparency"];
+const TOOLS = ["index", "developers", "settings"];
+const LABELS = {
   overview: "Portfolio",
-  vaults: "Vaults",
+  vaults: "Earn",
   activity: "Activity",
   transparency: "Transparency",
+  index: "Blue-chip index",
+  developers: "Developers",
+  settings: "Account",
 };
 const PATHS = {
   overview: "",
   vaults: "/vaults",
-  markets: "/vaults/markets",
+  index: "/blue-chip-index",
   activity: "/activity",
   transparency: "/transparency",
   developers: "/developers",
@@ -56,7 +64,69 @@ const LEGACY = {
   earn: "vaults",
   single: "vaults",
   crosschain: "vaults",
+  markets: "index",
+  bluechips: "index",
 };
+const ICONS = {
+  overview: (
+    <>
+      <rect x="3" y="3" width="7" height="8" rx="1.5" />
+      <rect x="14" y="3" width="7" height="5" rx="1.5" />
+      <rect x="3" y="15" width="7" height="6" rx="1.5" />
+      <rect x="14" y="12" width="7" height="9" rx="1.5" />
+    </>
+  ),
+  vaults: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 8v8m-4-4h8" />
+    </>
+  ),
+  activity: (
+    <>
+      <path d="M8 6h12M8 12h12M8 18h12" />
+      <circle cx="3" cy="6" r=".8" />
+      <circle cx="3" cy="12" r=".8" />
+      <circle cx="3" cy="18" r=".8" />
+    </>
+  ),
+  transparency: (
+    <>
+      <path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6l7-3Z" />
+      <path d="M9 12l2 2 4-4" />
+    </>
+  ),
+  index: <path d="M4 20h16M5 16l4-5 4 3 6-8" />,
+  developers: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <path d="M17.5 14v7M14 17.5h7" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21v-2a8 6 0 0 1 16 0v2" />
+    </>
+  ),
+};
+const Glyph = ({ id }) => (
+  <svg
+    className={b.navGlyph}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {ICONS[id]}
+  </svg>
+);
 function parseRoute(pathname, mode, known) {
   const prefix = "/app/" + mode;
   const parts = pathname.startsWith(prefix)
@@ -64,18 +134,26 @@ function parseRoute(pathname, mode, known) {
     : [];
   if (!parts.length) return { view: "overview" };
   if (parts[0] === "vaults") {
-    if (parts[1] === "markets") return { view: "markets" };
-    if (parts[1] && known.has(parts[1])) return { view: "vault", id: parts[1] };
+    if (parts[1] === "markets") return { view: "index" };
+    if (parts[1] && known.has(parts[1])) {
+      const from = new URLSearchParams(location.search).get("from");
+      return {
+        view: "vault",
+        id: parts[1],
+        from: from && known.has(from) ? from : null,
+      };
+    }
     return { view: "vaults" };
   }
+  if (parts[0] === "blue-chip-index") return { view: "index" };
   if (parts[0] === "account") return { view: "settings" };
   if (["activity", "transparency", "developers"].includes(parts[0]))
     return { view: parts[0] };
   return { view: "overview" };
 }
-const STANDARD_IDS = ["arbitrum", "base", "monad", "plasma"];
+const STANDARD_IDS = standardVaults.map((vault) => vault.id);
 
-function AccountMenu({ label, items }) {
+function AccountMenu({ label, items, icon = false }) {
   const [open, setOpen] = useState(false);
   const box = useRef(null);
   useEffect(() => {
@@ -96,12 +174,24 @@ function AccountMenu({ label, items }) {
   return (
     <div className={b.account} ref={box}>
       <button
-        className={b.accountButton}
+        className={icon ? b.menuIcon : b.accountButton}
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label={icon ? label : undefined}
         onClick={() => setOpen(!open)}
       >
-        {label}
+        {icon ? (
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              d="M4 7h16M4 12h16M4 17h16"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        ) : (
+          label
+        )}
       </button>
       {open && (
         <div className={b.accountMenu} role="menu" onClick={() => setOpen(false)}>
@@ -117,7 +207,11 @@ export default function ProductApp({ mode = "individual", user }) {
   const includeBatch = batchVaultAvailable;
   const known = useMemo(
     () =>
-      new Set([...STANDARD_IDS, ...(includeBatch ? [BATCH_VAULT_ID] : [])]),
+      new Set([
+        ...STANDARD_IDS,
+        ...PRODUCT_IDS.filter((id) => includeBatch || id !== "usdc-multichain"),
+        ...(includeBatch ? [BATCH_VAULT_ID] : []),
+      ]),
     [includeBatch],
   );
   const { disconnectAsync } = useDisconnect();
@@ -164,6 +258,8 @@ export default function ProductApp({ mode = "individual", user }) {
         samples: history.data?.samples || {},
         ticks: history.data?.ticks || [],
         batch: batch.feed,
+        index: history.data?.index || null,
+        indexes: history.data?.indexes || null,
         includeBatch,
         depositsOpen: batchDepositsOpen,
       }),
@@ -183,8 +279,14 @@ export default function ProductApp({ mode = "individual", user }) {
     let path = PATHS[target];
     if (target === "vault") {
       if (!known.has(id)) return;
-      next = { view: "vault", id };
-      path = "/vaults/" + id;
+      // A vault opens its product's page with that network chosen to deposit from.
+      const product =
+        book.products.find((item) => item.id === id) || book.productOf[id];
+      const productId = product?.id || id;
+      const from =
+        product && product.id !== id && product.vaults.length > 1 ? id : null;
+      next = { view: "vault", id: productId, from };
+      path = "/vaults/" + productId + (from ? "?from=" + from : "");
       setIntent(options?.action ? { action: options.action, at: Date.now() } : null);
     }
     if (path === undefined) return;
@@ -196,7 +298,8 @@ export default function ProductApp({ mode = "individual", user }) {
     );
   }
   function history_push(path) {
-    if (location.pathname !== path) window.history.pushState(null, "", path);
+    if (location.pathname + location.search !== path)
+      window.history.pushState(null, "", path);
   }
   useEffect(() => {
     const sync = () => {
@@ -264,18 +367,75 @@ export default function ProductApp({ mode = "individual", user }) {
     guideOpener.current = event?.currentTarget || document.activeElement;
     setGuide(true);
   }
-  const section =
-    route.view === "vault" || route.view === "markets" ? "vaults" : route.view;
+  const section = route.view === "vault" ? "vaults" : route.view;
   const wallet = book.account.wallet;
-  const vault = route.view === "vault" ? book.byId[route.id] : null;
-  const nav = (id, label = SECTIONS[id]) => (
+  // The product on the page, and the vault its deposit panel works with: the one
+  // asked for, else the one holding the person's money, else the one their
+  // wallet can fund, else the largest.
+  const product =
+    route.view === "vault"
+      ? book.products.find((item) => item.id === route.id) ||
+        book.productOf[route.id] ||
+        null
+      : null;
+  const pickedId = route.from || (book.byId[route.id] ? route.id : null);
+  const vault = product
+    ? (pickedId && product.vaults.find((item) => item.id === pickedId)) ||
+      product.vaults.find((item) => item.position.balance > 0) ||
+      product.vaults.find((item) =>
+        wallet.some(
+          (row) =>
+            row.network === item.depositNetwork && row.token === item.token,
+        ),
+      ) ||
+      product.lead
+    : null;
+  const view = useMemo(() => (product ? productView(product) : null), [product]);
+  function chooseVault(id) {
+    if (!product) return;
+    const from = id === product.lead.id ? null : id;
+    window.history.replaceState(
+      null,
+      "",
+      "/app/" + mode + "/vaults/" + product.id + (from ? "?from=" + from : ""),
+    );
+    setRoute({ view: "vault", id: product.id, from: id });
+  }
+  const label = (id) =>
+    id === "overview" && institution ? "Treasury" : LABELS[id];
+  const nav = (id, compact = false) => (
     <button
       key={id}
       onClick={() => navigate(id)}
       aria-current={section === id ? "page" : undefined}
     >
-      {id === "overview" && institution ? "Treasury" : label}
+      <Glyph id={id} />
+      <span>{compact && id === "index" ? "Index" : label(id)}</span>
     </button>
+  );
+  const menuItems = (
+    <>
+      {TOOLS.map((id) => (
+        <button key={id} role="menuitem" onClick={() => navigate(id)}>
+          {label(id)}
+        </button>
+      ))}
+      <button role="menuitem" onClick={openGuide}>
+        How vaults work
+      </button>
+      <a role="menuitem" href={marketingHref("/contact")}>
+        Contact support
+      </a>
+      {user ? (
+        <button role="menuitem" onClick={signOut} disabled={signingOut}>
+          {signingOut ? "Signing out…" : "Sign out"}
+        </button>
+      ) : (
+        <a role="menuitem" href="/app/institution">
+          Institution sign in
+        </a>
+      )}
+    </>
   );
   return (
     <div className={`${shell.shell} ${b.app} ${vault ? b.onVault : ""}`}>
@@ -294,43 +454,45 @@ export default function ProductApp({ mode = "individual", user }) {
           <img src="/brand/mark.svg" width="26" height="26" alt="" />
           Thesauros
         </a>
-        <nav className={b.nav} aria-label="Main">
-          {Object.keys(SECTIONS).map((id) => nav(id))}
-        </nav>
         <div className={b.topRight}>
           {institution && <span className={b.modeTag}>Institution</span>}
-          <a href={documentationHref("/")}>Docs</a>
+          <a className={b.topLink} href={documentationHref("/")}>
+            Docs
+          </a>
+          {!user && (
+            <a className={b.topLink} href="/app/institution">
+              Institution sign in
+            </a>
+          )}
+          {!user && <ConnectAction className={b.primary} />}
           {user ? (
-            <AccountMenu
-              label={displayName}
-              items={
-                <>
-                  <button role="menuitem" onClick={() => navigate("settings")}>
-                    Account
-                  </button>
-                  <button role="menuitem" onClick={() => navigate("developers")}>
-                    Developers and partners
-                  </button>
-                  <button role="menuitem" onClick={openGuide}>
-                    How vaults work
-                  </button>
-                  <a role="menuitem" href={marketingHref("/contact")}>
-                    Contact support
-                  </a>
-                  <button role="menuitem" onClick={signOut} disabled={signingOut}>
-                    {signingOut ? "Signing out…" : "Sign out"}
-                  </button>
-                </>
-              }
-            />
+            <AccountMenu label={displayName} items={menuItems} />
           ) : (
-            <>
-              <a href="/app/institution">Institution sign in</a>
-              <ConnectAction className={b.primary} />
-            </>
+            <span className={b.phoneOnly}>
+              <AccountMenu label="Menu" items={menuItems} icon />
+            </span>
           )}
         </div>
       </header>
+      <div className={b.frame}>
+        <aside className={b.side} aria-label="Sections">
+          <nav aria-label="Main">
+            <div className={b.sideGroup}>{MAIN.map((id) => nav(id))}</div>
+            <div className={b.sideGroup}>
+              <span className={b.sideLabel}>Tools</span>
+              {TOOLS.map((id) => nav(id))}
+            </div>
+          </nav>
+          <div className={b.sideBottom}>
+            <button onClick={openGuide}>How vaults work</button>
+            <a href={marketingHref("/contact")}>Contact support</a>
+            {user && (
+              <button onClick={signOut} disabled={signingOut}>
+                {signingOut ? "Signing out…" : "Sign out"}
+              </button>
+            )}
+          </div>
+        </aside>
       <main id="account-main" className={b.main} ref={mainRef}>
         {error && (
           <p className={`${b.banner} ${b.systemBanner}`} role="alert">
@@ -340,9 +502,8 @@ export default function ProductApp({ mode = "individual", user }) {
         {batch.pending && (
           <div className={`${b.banner} ${b.systemBanner}`} role="status">
             <p>
-              A transaction on the {crosschain.networks[0].name} +{" "}
-              {crosschain.networks[1].name} vault is still unconfirmed. New
-              actions on it stay locked until it is checked.
+              A transaction on the USDC Multichain vault is still
+              unconfirmed. New actions on it stay locked until it is checked.
             </p>
             <div className={b.requestActions}>
               {batch.pending.hash ? (
@@ -388,18 +549,20 @@ export default function ProductApp({ mode = "individual", user }) {
             institution={institution}
           />
         )}
-        {(route.view === "vaults" || route.view === "markets") && (
-          <VaultsPage
-            book={book}
-            navigate={navigate}
-            user={user}
-            tab={route.view}
-          />
+        {route.view === "vaults" && (
+          <VaultsPage book={book} navigate={navigate} user={user} />
+        )}
+        {route.view === "index" && (
+          <IndexPage book={book} navigate={navigate} />
         )}
         {route.view === "vault" && vault && (
           <VaultPage
-            key={vault.id}
+            key={product.id}
+            view={view}
             vault={vault}
+            product={product}
+            chooseVault={chooseVault}
+            index={product.index || book.index}
             user={user}
             account={account}
             batch={batch}
@@ -421,12 +584,7 @@ export default function ProductApp({ mode = "individual", user }) {
           <TransparencyPage book={book} navigate={navigate} />
         )}
         {route.view === "developers" && (
-          <div className={b.page}>
-            <header className={b.pageHead}>
-              <h1 tabIndex={-1}>Developers and partners</h1>
-            </header>
-            <DeveloperCenter user={user} navigate={navigate} />
-          </div>
+          <DeveloperCenter user={user} navigate={navigate} />
         )}
         {route.view === "settings" && (
           <div className={b.page}>
@@ -460,8 +618,9 @@ export default function ProductApp({ mode = "individual", user }) {
           <a href={marketingHref("/contact")}>Contact</a>
         </footer>
       </main>
+      </div>
       <nav className={b.dock} aria-label="Quick navigation">
-        {Object.keys(SECTIONS).map((id) => nav(id))}
+        {MAIN.map((id) => nav(id, true))}
       </nav>
       {guide && (
         <QuickGuide

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   DAY,
-  indexRate,
   measuredRate,
   sharesForAmount,
   sinceMeasurable,
@@ -16,10 +15,21 @@ import {
 } from "../lib/crosschain-feed.mjs";
 import {
   buildBook,
+  compositeMeasure,
   exposure,
   marketName,
+  productView,
   walletBalances,
 } from "../lib/vault-book.mjs";
+import {
+  buildBlueChipIndex,
+  groupConstituents,
+  membersOf,
+  membershipChanges,
+  indexTrailingRate,
+  indexWindowRate,
+  rebase,
+} from "../lib/blue-chip-index.mjs";
 
 const now = 1000 * DAY;
 const daily = (days, price = (i) => 1 + i * 0.0001, tvl = 50000) =>
@@ -86,18 +96,6 @@ test("an old last reading is flagged", () => {
   const points = daily(60).map((point) => ({ ...point, at: point.at - 3 * DAY }));
   assert.equal(measuredRate(points, 30, { now }).stale, true);
   assert.equal(measuredRate(daily(60), 30, { now }).stale, false);
-});
-test("the Aave comparison uses the index over the same days, or nothing", () => {
-  const points = daily(60).map((point, i) => ({
-    ...point,
-    index: 1 + i * 0.0002,
-  }));
-  const m = measuredRate(points, 30, { now });
-  const rate = indexRate(points, m.from.at, m.to.at);
-  const expected = ((1.012 / 1.006 - 1) * 365 * 100) / 30;
-  assert.ok(Math.abs(rate - expected) < 1e-9);
-  assert.equal(indexRate(points.slice(0, 5), m.from.at, m.to.at), null);
-  assert.equal(indexRate([], m.from.at, m.to.at), null);
 });
 test("a valuation outage is dated and counted in the time out of date", () => {
   const hour = 3600000;
@@ -460,9 +458,150 @@ test("exposure adds up by market and by network, across vaults", () => {
   const byMarket = exposure(book.vaults, (row) => row.tvl);
   const total = byMarket.reduce((sum, row) => sum + row.amount, 0);
   assert.ok(Math.abs(total - (50000 + 1 + 6 + 4 + 11)) < 1e-6);
-  assert.equal(byMarket[0].name, "Compound V3");
+  // A market on two networks is two rows, named with its network.
+  assert.equal(byMarket[0].name, "Compound V3, Arbitrum");
   assert.ok(Math.abs(byMarket.reduce((s, r) => s + r.share, 0) - 100) < 1e-9);
   const byNetwork = exposure(book.vaults, (row) => row.tvl, "network");
   assert.equal(byNetwork[0].name, "Arbitrum");
   assert.ok(byNetwork.some((row) => row.name === "Plasma"));
+});
+
+// The blue-chip index: two markets a day apart, one ten times the other.
+const lending = (key, size, dailyMove, rate, days = 40, skip = []) =>
+  Array.from({ length: days + 1 }, (_, i) => i)
+    .filter((i) => !skip.includes(i))
+    .map((i) => ({
+      key,
+      network: key.split(":")[0],
+      source: key.split(":")[1],
+      day: 960 + i,
+      at: (960 + i) * DAY,
+      name: key,
+      protocol: "Aave",
+      symbol: "USDC",
+      idx: (1 + dailyMove) ** i,
+      tvl: size,
+      rate,
+      vaults: ["arbitrum"],
+    }));
+
+test("the index weights each market by its size and earns what they paid", () => {
+  const big = 0.04 / 365,
+    small = 0.15 / 365;
+  const index = buildBlueChipIndex([
+    ...lending("ethereum:aave", 1000, big, 4),
+    ...lending("base:morpho", 100, small, 15),
+  ]);
+  const rate = indexTrailingRate(index, 30);
+  const expected = ((1000 * 4 + 100 * 15) / 1100);
+  assert.ok(Math.abs(rate - expected) < 0.05, `${rate} near ${expected}`);
+  assert.ok(Math.abs(index.rateNow - expected) < 1e-9);
+  assert.equal(index.constituents[0].key, "ethereum:aave");
+  assert.ok(Math.abs(index.constituents[0].weight - (1000 / 1100) * 100) < 1e-9);
+  assert.deepEqual(index.networks.sort(), ["base", "ethereum"]);
+});
+test("a missed reading neither drops a market's interest nor counts it twice", () => {
+  const move = 0.05 / 365;
+  const alone = buildBlueChipIndex(lending("arbitrum:vault", 50000, move, 5));
+  const withGaps = buildBlueChipIndex([
+    ...lending("arbitrum:vault", 50000, move, 5, 40, [33, 36, 37]),
+    ...lending("monad:vault", 6, 0.09 / 365, 9),
+  ]);
+  const a = indexTrailingRate(alone, 30),
+    b = indexTrailingRate(withGaps, 30);
+  assert.ok(Math.abs(a - b) < 0.01, `${a} and ${b} agree`);
+});
+test("a market whose rate cannot be read stays in the return, not in rate now", () => {
+  const index = buildBlueChipIndex([
+    ...lending("ethereum:aave", 1000, 0.04 / 365, 4),
+    ...lending("arbitrum:prime", 1000, 0.06 / 365, null),
+  ]);
+  assert.equal(index.rateNow, 4);
+  assert.deepEqual(index.unread, ["arbitrum:prime"]);
+  assert.ok(indexTrailingRate(index, 30) > 4.9);
+});
+test("a broken read is left out instead of moving the index", () => {
+  const rows = lending("ethereum:aave", 1000, 0.04 / 365, 4);
+  rows[20] = { ...rows[20], idx: rows[20].idx * 1.5 };
+  const index = buildBlueChipIndex(rows);
+  assert.ok(index.skipped >= 1);
+  assert.ok(indexTrailingRate(index, 10) < 4.1);
+});
+test("two lines rebased to 100 start on the same reading", () => {
+  const index = buildBlueChipIndex(lending("ethereum:aave", 1000, 0.04 / 365, 4));
+  const line = rebase(index.series, 970 * DAY + 0.4 * DAY);
+  assert.equal(line[0].at, 970 * DAY);
+  assert.equal(line[0].value, 100);
+  assert.equal(rebase([], 0).length, 0);
+  assert.equal(indexWindowRate(index, 980 * DAY, 970 * DAY), null);
+});
+test("constituents add up by network and protocol", () => {
+  const index = buildBlueChipIndex([
+    ...lending("ethereum:aave", 1000, 0.04 / 365, 4),
+    ...lending("ethereum:comp", 1000, 0.04 / 365, 6),
+    ...lending("base:aave", 2000, 0.04 / 365, 5),
+  ]);
+  const byNetwork = groupConstituents(index.constituents, "network");
+  assert.deepEqual(byNetwork.map((row) => row.name), ["base", "ethereum"]);
+  assert.equal(byNetwork[1].rate, 5);
+  assert.equal(byNetwork[1].weight, 50);
+});
+test("vaults group into products by stablecoin and how you leave", () => {
+  const samples = {
+    arbitrum: daily(60),
+    monad: daily(60, (i) => 1 + i * 0.0003, 6),
+  };
+  const index = buildBlueChipIndex(
+    lending("ethereum:aave", 1000, 0.04 / 365, 4, 70).map((row) => ({
+      ...row,
+      day: row.day - 30,
+      at: row.at - 30 * DAY,
+    })),
+  );
+  const book = buildBook({ market, batch: batchFeed, samples, index, now });
+  const ids = book.products.map((product) => product.id);
+  assert.deepEqual(ids.slice().sort(), ["usdc-instant", "usdc-multichain", "usdt0-instant"]);
+  const usdc = book.products.find((product) => product.id === "usdc-instant");
+  assert.ok(usdc.vaults.length >= 3);
+  assert.equal(usdc.title, "USDC Instant");
+  assert.equal(book.productOf.arbitrum.id, "usdc-instant");
+  // A product quotes exactly the rate of the vault that can be measured.
+  assert.equal(usdc.measured.r30.status, "ok");
+  assert.ok(Math.abs(usdc.measured.r30.rate - book.byId.arbitrum.measured.r30.rate) < 1e-9);
+  // And the same comparison with the index as that vault.
+  assert.ok(Math.abs(usdc.vsIndex.r30Diff - book.byId.arbitrum.vsIndex.r30Diff) < 1e-9);
+  // No vault is named after its network.
+  for (const vault of book.vaults) assert.ok(!/Arbitrum|Base|Monad|Plasma/.test(vault.title));
+  // The chained series is drawn, and agrees with the measured vault.
+  const chained = compositeMeasure(usdc.vaults, 30, now);
+  assert.ok(Math.abs(chained.rate - usdc.measured.r30.rate) < 0.1);
+});
+
+test("a product page adds its networks up and keeps their differences", () => {
+  const book = buildBook({ market, batch: batchFeed, now });
+  const usdc = book.products.find((product) => product.id === "usdc-instant");
+  const view = productView(usdc);
+  const sum = usdc.vaults.reduce((total, vault) => total + (vault.tvl || 0), 0);
+  assert.ok(Math.abs(view.tvl - sum) < 1e-9);
+  assert.equal(view.members.length, usdc.vaults.length);
+  assert.ok(view.stages.length >= 2, "Live and Early networks are both named");
+  const shares = view.allocation.reduce((total, row) => total + (row.share || 0), 0);
+  assert.ok(shares <= 100.0001);
+  // A product with one vault is that vault.
+  const single = productView(book.products.find((product) => product.vaults.length === 1));
+  assert.equal(single.members.length, 1);
+});
+test("index members: one stablecoin, at least a million, every change dated", () => {
+  const rows = [
+    ...lending("ethereum:aave", 2_000_000, 0.04 / 365, 4, 10),
+    ...lending("arbitrum:tiny", 8_000, 0.04 / 365, 0, 10),
+    ...lending("plasma:aave", 5_000_000, 0.04 / 365, 4, 10).map((row) => ({ ...row, symbol: "USDT0" })),
+    ...lending("base:new", 3_000_000, 0.05 / 365, 5, 10).filter((row) => row.day >= 965),
+  ];
+  const usdc = membersOf(rows, "USDC");
+  assert.deepEqual([...new Set(usdc.map((row) => row.key))].sort(), ["base:new", "ethereum:aave"]);
+  const changes = membershipChanges(usdc);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].kind, "joined");
+  assert.equal(changes[0].day, 965);
 });

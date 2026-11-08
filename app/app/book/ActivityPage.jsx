@@ -43,7 +43,10 @@ export default function ActivityPage({ book, user, mine, account, batch }) {
       .reduce((total, row) => total + (row.amount || 0), 0);
   const unreadable = Object.entries(publicFeed.data?.sources?.rebalances || {})
     .filter(([, complete]) => !complete)
-    .map(([id]) => book.byId[id]?.networkLabel)
+    .map(([id]) => {
+      const vault = book.byId[id];
+      return vault ? `${vault.title} on ${vault.place}` : null;
+    })
     .filter(Boolean);
   return (
     <div className={b.page}>

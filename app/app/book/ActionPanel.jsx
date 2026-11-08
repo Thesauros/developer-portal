@@ -12,7 +12,15 @@ import { requestStage, REQUEST_STEPS } from "../../../lib/crosschain-feed.mjs";
 import { sharesForAmount } from "../../../lib/vault-metrics.mjs";
 import { TransactionPanel } from "../EarnWorkspace";
 import { ConnectAction } from "../wallet/WalletAccess";
-import { dateLabel, hourOnly, money, pct, Segmented } from "./parts";
+import {
+  compact,
+  dateLabel,
+  hourOnly,
+  money,
+  pct,
+  Segmented,
+  Stage,
+} from "./parts";
 import b from "./book.module.css";
 
 const WalletFunding = dynamic(() => import("../WalletFunding"));
@@ -528,8 +536,47 @@ function InstantForm({ vault, account, user, action, setAction, initial, navigat
 
 // Everything a person does with one vault, in one place. Below the wide layout
 // it lives in a sheet opened from the bar at the bottom of the screen.
+// One product, several networks: the panel works with the vault on the network
+// chosen here, and says plainly what that vault is.
+function NetworkChoice({ vault, choices, onChoose, wallet }) {
+  return (
+    <div className={b.networkChoice}>
+      <label className={b.field}>
+        <span>Network</span>
+        <select
+          className={b.select}
+          value={vault.id}
+          onChange={(event) => onChoose(event.target.value)}
+        >
+          {choices.map((choice) => {
+            const funds = (wallet || []).find(
+              (row) =>
+                row.network === choice.depositNetwork &&
+                row.token === choice.token,
+            );
+            return (
+              <option key={choice.id} value={choice.id}>
+                {choice.place}
+                {choice.position.balance > 0 ? " · your balance is here" : ""}
+                {funds ? ` · ${money(funds.amount)} ${choice.token} in wallet` : ""}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+      <p className={b.networkNote}>
+        <Stage stage={vault.stage} /> {compact(vault.tvl)} {vault.token} in
+        the {vault.place} vault · {pct(vault.rateNow)} now ·{" "}
+        {vault.audit.label}
+      </p>
+    </div>
+  );
+}
+
 export default function ActionPanel({
   vault,
+  choices,
+  onChoose,
   user,
   account,
   batch,
@@ -565,6 +612,14 @@ export default function ActionPanel({
         >
           Close
         </button>
+        {choices?.length > 1 && (
+          <NetworkChoice
+            vault={vault}
+            choices={choices}
+            onChoose={onChoose}
+            wallet={wallet}
+          />
+        )}
         {user?.walletAddress && <Plate vault={vault} user={user} />}
         {action === "deposit" && vault.open.deposits && <Notice vault={vault} />}
         {!user ? (

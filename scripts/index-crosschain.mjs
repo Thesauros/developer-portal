@@ -4,6 +4,7 @@ import {
   syncCrosschainHistory,
 } from "../lib/crosschain-history.mjs";
 import { syncVaultSamples } from "../lib/vault-samples.mjs";
+import { syncMarketSamples } from "../lib/market-index.mjs";
 import { vaultClients } from "../lib/vault-rpc.mjs";
 
 const store = openCrosschainHistory();
@@ -25,6 +26,12 @@ function sampleVaults() {
   syncVaultSamples(store, {
     log: (line) => console.error("vault samples:", line),
   })
+    .then(() =>
+      // The blue-chip index reuses the blocks the vault samples just found.
+      syncMarketSamples(store, {
+        log: (line) => console.error("market samples:", line),
+      }),
+    )
     .catch((error) => console.error("vault samples:", error.message))
     .finally(() => {
       samplesRunning = false;

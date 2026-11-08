@@ -187,6 +187,24 @@ try {
     "a vault page opens without a session",
   );
   check(
+    (await request("/app/individual/vaults/ethereum")).status === 200,
+    "the Ethereum vault has a page",
+  );
+  check(
+    (await request("/app/individual/blue-chip-index")).status === 200,
+    "the blue-chip index opens without a session",
+  );
+  {
+    const old = await request("/app/bluechips");
+    check(
+      [307, 308].includes(old.status) &&
+        (old.headers.get("location") || "").endsWith(
+          "/app/individual/blue-chip-index",
+        ),
+      "the old blue-chip window leads to the index",
+    );
+  }
+  check(
     (await request("/app/individual")).headers.get("x-frame-options") ===
       "DENY",
     "pages that can ask for a signature cannot be framed",

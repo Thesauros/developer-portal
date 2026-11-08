@@ -126,10 +126,10 @@
   min-height: 44px;
   margin-top: 13px;
   padding: 9px 13px;
-  border: 1px solid #b8cbd8;
-  border-radius: 8px;
+  border: 1px solid rgba(11, 27, 43, 0.12);
+  border-radius: 999px;
   background: #fff;
-  color: #204d70;
+  color: #0b1b2b;
   font-size: 14px !important;
   font-weight: 500 !important;
 }
@@ -200,17 +200,17 @@
   min-height: 46px;
   padding: 11px 14px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 999px;
   font-size: 14px !important;
   font-weight: 500 !important;
   line-height: 1.4;
 }
 .primary {
-  background: #163b59;
+  background: #196aff;
   color: #fff;
 }
 .primary:hover:not(:disabled) {
-  background: #234d6d;
+  background: #0f56db;
 }
 .secondary {
   background: #f4f7f9;

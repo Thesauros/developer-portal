@@ -4,7 +4,7 @@
 
 **Build flags.** `NEXT_PUBLIC_THESAUROS_PRODUCT=standard` leaves the batch vault out and stops serving `/live`. The Dockerfile defaults to it. `NEXT_PUBLIC_THESAUROS_BATCH_DEPOSITS=open` lets the app request deposits into it; without this, deposits are shown as closed while withdrawing, collecting and cancelling keep working. The contract review in `thesauros-materials/review-20261031/contracts.md` advises against outside deposits until its conditions are met.
 
-**History.** `scripts/index-crosschain.mjs` indexes valuations and also samples each vault's share price, size, allocation and the Aave index once a day into the same SQLite file. It needs a persistent disk. Without it the pages stay up and show those figures as unavailable.
+**History.** `scripts/index-crosschain.mjs` indexes valuations and also samples, once a day into the same SQLite file, each vault's share price, size and allocation (`vault_samples`) and every market a vault is approved to use (`market_samples`: size, interest index and quoted rate, found through each vault's `getProviders` and each provider's `getSource`). The blue-chip index is computed from `market_samples` (`lib/blue-chip-index.mjs`). It needs a persistent disk. Without it the pages stay up and show those figures as unavailable. A first run backfills 95 days a few days at a time; `THESAUROS_RPC_<NETWORK>` replaces the public endpoints in `lib/chains.mjs` with keyed ones.
 
 Change: `crosschain-stand-20261028`. Branch: `сcrosschain` (initial Cyrillic `с`).
 

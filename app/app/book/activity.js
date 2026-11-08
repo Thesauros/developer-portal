@@ -1,4 +1,4 @@
-import { mergeActivity } from "../cabinet/feed";
+import { mergeActivity } from "./feed";
 import { BATCH_VAULT_ID } from "../../../lib/vault-facts.mjs";
 import { crosschain } from "../../../lib/crosschain-config.mjs";
 
@@ -69,7 +69,8 @@ export function mineLedger({ mine, account, batch }) {
 
 export const vaultNamer = (book) => (id) => {
   const vault = book.byId[id];
-  return vault ? `${vault.token}, ${vault.networkLabel}` : "";
+  if (!vault) return "";
+  return vault.kind === "batch" ? vault.title : `${vault.title}, ${vault.place}`;
 };
 
 export function ledgerCsv(rows, name) {

@@ -81,14 +81,97 @@ export function Marks({ vault, size = 28 }) {
   );
 }
 
-export function VaultTitle({ vault, size = 28 }) {
+const TOKEN_ICON = {
+  USDC: "/brand/tokens/usdc.svg",
+  USDT0: "/brand/tokens/usdt.svg",
+  USDT: "/brand/tokens/usdt.svg",
+};
+// The stablecoin leads; networks are a detail of where a vault takes deposits.
+export function TokenMark({ token, size = 28 }) {
+  return (
+    <img
+      className={b.tokenMark}
+      src={TOKEN_ICON[token] || TOKEN_ICON.USDC}
+      width={size}
+      height={size}
+      alt=""
+    />
+  );
+}
+export function NetworkMarks({ vault, networks, size = 14 }) {
+  const list = networks || vault?.marks?.map((mark) => mark.network) || [];
+  const icons = vault?.marks
+    ? Object.fromEntries(vault.marks.map((mark) => [mark.network, mark.icon]))
+    : {};
+  return (
+    <span className={b.networkMarks} aria-hidden="true">
+      {list.map((name) => (
+        <img
+          key={name}
+          src={icons[name] || NETWORK_ICONS[name]}
+          width={size}
+          height={size}
+          alt=""
+          title={name}
+        />
+      ))}
+    </span>
+  );
+}
+const NETWORK_ICONS = {
+  Ethereum: "/brand/tokens/eth.svg",
+  Arbitrum: "/brand/tokens/arb.png",
+  Base: "/brand/tokens/base.svg",
+  Monad: "/brand/tokens/monad.png",
+  Plasma: "/brand/tokens/plasma.png",
+};
+export const placeLabel = (vault) =>
+  vault.kind === "batch"
+    ? "Across " + vault.networks.join(", ")
+    : "On " + vault.place;
+
+export function VaultTitle({ vault, size = 28, place = true }) {
   return (
     <span className={b.vaultTitle}>
-      <Marks vault={vault} size={size} />
+      <TokenMark token={vault.token} size={size} />
       <span>
-        <strong>{vault.token}</strong>
-        <small>{vault.networkLabel}</small>
+        <strong>
+          {vault.token} <span className={b.tag}>{vault.product.tag}</span>
+        </strong>
+        {place && (
+          <small>
+            <NetworkMarks vault={vault} size={12} />
+            {placeLabel(vault)}
+          </small>
+        )}
       </span>
+    </span>
+  );
+}
+export function ProductTitle({ product, size = 28 }) {
+  return (
+    <span className={b.vaultTitle}>
+      <TokenMark token={product.token} size={size} />
+      <span>
+        <strong className={b.titleLine}>
+          {product.token} <span className={b.tag}>{product.tag}</span>
+          <Stage stage={product.stage} />
+        </strong>
+        <small>{product.short || product.line}</small>
+      </span>
+    </span>
+  );
+}
+
+// How far a rate is above or below the blue-chip index, in percentage points.
+export function VsIndex({ diff, suffix = "" }) {
+  if (diff == null || !Number.isFinite(diff))
+    return <span className={b.quiet}>—</span>;
+  const tone = Math.abs(diff) < 0.005 ? "even" : diff > 0 ? "ahead" : "behind";
+  return (
+    <span className={b.vsIndex} data-tone={tone}>
+      {diff >= 0 ? "+" : "−"}
+      {Math.abs(diff).toFixed(2)} pts{suffix}
     </span>
   );
 }

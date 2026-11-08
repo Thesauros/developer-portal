@@ -482,8 +482,169 @@ export function PriceChart({
   );
 }
 
+// Growth of 100 over the same days, for two or three lines worked out the same
+// way. Labels sit at the line ends; hovering reads every line on that day.
+export function GrowthChart({ lines, height = 260, unit = "" }) {
+  const [hover, setHover] = useState(null);
+  const [box, width] = useWidth();
+  const usable = (lines || []).filter((line) => line.points?.length >= 2);
+  if (!usable.length)
+    return (
+      <div ref={box} className={b.chartEmpty} style={{ height: 120 }}>
+        Not enough readings yet to compare.
+      </div>
+    );
+  const W = width || 720,
+    H = height,
+    left = 2,
+    right = 132,
+    top = 16,
+    bottom = 24;
+  const all = usable.flatMap((line) => line.points);
+  const values = all.map((point) => point.value);
+  const lo = Math.min(...values),
+    hi = Math.max(...values);
+  const pad = Math.max((hi - lo) * 0.08, 0.005);
+  const t0 = Math.min(...all.map((point) => point.at)),
+    t1 = Math.max(...all.map((point) => point.at));
+  const x = (t) => left + ((t - t0) / Math.max(t1 - t0, 1)) * (W - left - right);
+  const y = (v) =>
+    top + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (H - top - bottom);
+  const path = (points) =>
+    points
+      .map(
+        (point, index) =>
+          (index ? "L" : "M") + x(point.at).toFixed(1) + " " + y(point.value).toFixed(1),
+      )
+      .join("");
+  const grid = [0, 1, 2].map((step) => lo - pad + ((hi - lo + 2 * pad) * step) / 2);
+  const nearest = (points, at) =>
+    points.reduce((a, c) => (Math.abs(c.at - at) < Math.abs(a.at - at) ? c : a));
+  function move(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const at =
+      t0 +
+      (((event.clientX - rect.left) / rect.width) * W - left) /
+        ((W - left - right) / Math.max(t1 - t0, 1));
+    setHover(Math.min(Math.max(at, t0), t1));
+  }
+  // End labels may not collide: push them apart by at least 16px.
+  const ends = usable
+    .map((line) => ({ line, y: y(line.points.at(-1).value) }))
+    .sort((a, c) => a.y - c.y);
+  for (let i = 1; i < ends.length; i++)
+    if (ends[i].y - ends[i - 1].y < 16) ends[i].y = ends[i - 1].y + 16;
+  const shownAt = hover ?? t1;
+  return (
+    <div ref={box} className={b.chartBox}>
+      <svg
+        className={b.chart}
+        width={W}
+        height={H}
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label={usable
+          .map(
+            (line) =>
+              `${line.name}: 100 became ${line.points.at(-1).value.toFixed(2)}`,
+          )
+          .join("; ")}
+        onPointerMove={move}
+        onPointerLeave={() => setHover(null)}
+      >
+        {grid.map((level) => (
+          <line
+            key={level}
+            x1={left}
+            x2={W - right}
+            y1={y(level)}
+            y2={y(level)}
+            className={b.gridLine}
+          />
+        ))}
+        <line
+          x1={left}
+          x2={W - right}
+          y1={y(100)}
+          y2={y(100)}
+          className={b.baseLine}
+        />
+        {usable.map((line) => (
+          <path
+            key={line.name}
+            d={path(line.points)}
+            fill="none"
+            stroke={line.color}
+            strokeWidth={line.strong ? 2.25 : 1.75}
+          />
+        ))}
+        {ends.map(({ line, y: labelY }) => (
+          <g key={line.name}>
+            <circle
+              cx={x(line.points.at(-1).at)}
+              cy={y(line.points.at(-1).value)}
+              r="3.5"
+              fill={line.color}
+            />
+            <text x={W - right + 10} y={labelY + 4} className={b.endLabel}>
+              <tspan className={b.endValue}>
+                {line.points.at(-1).value.toFixed(2)}
+              </tspan>{" "}
+              {line.short || line.name}
+            </text>
+          </g>
+        ))}
+        {hover != null && (
+          <>
+            <line
+              x1={x(hover)}
+              x2={x(hover)}
+              y1={top}
+              y2={H - bottom}
+              className={b.hoverLine}
+            />
+            {usable.map((line) => {
+              const point = nearest(line.points, hover);
+              return (
+                <circle
+                  key={line.name}
+                  cx={x(point.at)}
+                  cy={y(point.value)}
+                  r="4"
+                  fill={line.color}
+                />
+              );
+            })}
+          </>
+        )}
+        <text x={left} y={H - 6} className={b.axis}>
+          {niceDay(t0)}
+        </text>
+        <text x={W - right} y={H - 6} textAnchor="end" className={b.axis}>
+          {niceDay(t1)}
+        </text>
+      </svg>
+      <p className={b.chartRead} aria-live="polite">
+        {usable.map((line) => (
+          <span key={line.name}>
+            <i className={b.key} style={{ background: line.color }} /> {line.name}{" "}
+            <strong>{nearest(line.points, shownAt).value.toFixed(3)}</strong>
+          </span>
+        ))}{" "}
+        <span>{niceDay(shownAt)}</span>
+        {unit && <span> {unit}</span>}
+      </p>
+    </div>
+  );
+}
+
 // The vault's rate against a named comparison, with the same grid.
-export function RateChart({ series, height = 240, vaultLabel = "This vault" }) {
+export function RateChart({
+  series,
+  height = 240,
+  vaultLabel = "This vault",
+  compareLabel = "Blue-chip index",
+}) {
   const [hover, setHover] = useState(null);
   const [box, width] = useWidth();
   const vault = (series?.vault || []).filter((point) => point.v != null);
@@ -531,7 +692,11 @@ export function RateChart({ series, height = 240, vaultLabel = "This vault" }) {
     );
   }
   const shown = hover ?? vault.at(-1);
-  const marketAt = market.find((point) => point.t === shown.t)?.v;
+  const marketAt = market.length
+    ? market.reduce((a, c) =>
+        Math.abs(c.t - shown.t) < Math.abs(a.t - shown.t) ? c : a,
+      ).v
+    : null;
   return (
     <div ref={box} className={b.chartBox}>
       <svg
@@ -591,7 +756,7 @@ export function RateChart({ series, height = 240, vaultLabel = "This vault" }) {
         {market.length > 1 && (
           <>
             {" "}
-            <i className={b.keyMarket} /> Market average{" "}
+            <i className={b.keyMarket} /> {compareLabel}{" "}
             <strong>{pct(marketAt)}</strong>
           </>
         )}{" "}

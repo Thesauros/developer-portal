@@ -2,6 +2,7 @@ import { workspaceSession } from "../../../lib/auth.mjs";
 import { accountInsights, marketInsights } from "../../../lib/insights.mjs";
 import { refreshVaultEvents } from "../../../lib/vault-events.mjs";
 import { overLimit, shared } from "../../../lib/public-guard.mjs";
+import { vaults } from "../../../lib/vault-contracts.mjs";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(request) {
@@ -33,7 +34,7 @@ export async function GET(request) {
         { headers },
       );
     if (query.get("fresh") === "1")
-      await refreshVaultEvents(["arbitrum", "base", "monad", "plasma"]);
+      await refreshVaultEvents(vaults.map((vault) => vault.id));
     return Response.json(await accountInsights(session.user.walletAddress), {
       headers,
     });

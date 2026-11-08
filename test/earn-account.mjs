@@ -178,7 +178,7 @@ check("history accepts bounded typed records", () => {
   assert.equal(validateTransaction(record).hash, hash);
   for (const overrides of [
     { hash: "<script>" },
-    { vaultId: "ethereum" },
+    { vaultId: "solana" },
     { status: "complete" },
     { amount: "Infinity" },
     { amount: "1e6" },

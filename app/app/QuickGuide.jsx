@@ -261,7 +261,7 @@ export default function QuickGuide({
         </nav>
         <div ref={content} className={s.content}>
           <div className={s.visual} aria-hidden="true">
-            <span className={s.visualLabel}>THESAUROS</span>
+            <span className={s.visualLabel}>How it works</span>
             <div className={s.diagram}>
               {current.visual.map(([icon, label, detail], index) => (
                 <div

@@ -1,7 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
 import { CASH_COLOR, exposure } from "../../../lib/vault-book.mjs";
-import { indexRate } from "../../../lib/vault-metrics.mjs";
 import { AUDITS, PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import { marketingHref } from "../../../lib/site-links.mjs";
 import { LedgerRows } from "./ledger";
@@ -18,6 +17,7 @@ import {
   Stage,
   usePublicResource,
   VaultTitle,
+  VsIndex,
 } from "./parts";
 import b from "./book.module.css";
 
@@ -186,26 +186,26 @@ function Exposure({ book }) {
   );
 }
 
-function Results({ book }) {
-  const rows = book.vaults.map((vault) => {
-    const m = vault.measured.r30;
-    const benchmarkSource =
-      vault.id === "arbitrum" || vault.id === "base"
-        ? vault.samples
-        : vault.kind === "batch"
-          ? book.byId.base?.samples
-          : null;
-    const aave =
-      benchmarkSource && m?.from
-        ? indexRate(benchmarkSource, m.from.at, m.to.at)
-        : null;
-    return { vault, m, aave };
-  });
+function Results({ book, navigate }) {
+  const rows = book.vaults.map((vault) => ({
+    vault,
+    m: vault.measured.r30,
+    index: vault.vsIndex?.r30 ?? null,
+  }));
+  const all = book.totals;
   return (
     <Section
       id="results"
       title="Results"
-      lede="What holders received, from each vault’s share price, against Aave V3 USDC on the network you deposit on, without rewards, over the same days. Both are simple annual rates."
+      lede={
+        <>
+          What holders received, from each vault’s share price, against the{" "}
+          <button className={b.linkButton} onClick={() => navigate("index")}>
+            blue-chip index
+          </button>{" "}
+          over the same days. Both are simple annual rates, before fees.
+        </>
+      }
     >
       <div className={b.tableWrap}>
         <table className={`${b.table} ${b.stack}`}>
@@ -214,13 +214,14 @@ function Results({ book }) {
               <th>Vault</th>
               <th className={b.num}>Share price, 30 days</th>
               <th className={b.num}>30-day rate</th>
-              <th className={b.num}>Aave, same days</th>
+              <th className={b.num}>Index, same days</th>
+              <th className={b.num}>Difference</th>
               <th className={b.num}>Since reaching 10,000 USD</th>
               <th className={b.num}>Fee now</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ vault, m, aave }) => (
+            {rows.map(({ vault, m, index }) => (
               <tr key={vault.id}>
                 <td data-cell="vault">
                   <VaultTitle vault={vault} size={22} />
@@ -233,12 +234,11 @@ function Results({ book }) {
                 <td className={b.num} data-label="30-day rate">
                   <MeasuredRate measure={m} />
                 </td>
-                <td className={b.num} data-label="Aave, same days">
-                  {vault.onlyMarket
-                    ? "Holds Aave only"
-                    : aave == null
-                      ? "—"
-                      : pct(aave)}
+                <td className={b.num} data-label="Index, same days">
+                  {pct(index)}
+                </td>
+                <td className={b.num} data-label="Difference">
+                  <VsIndex diff={vault.vsIndex?.r30Diff} />
                 </td>
                 <td className={b.num} data-label="Since reaching 10,000 USD">
                   {vault.measured.grown ? (
@@ -260,6 +260,23 @@ function Results({ book }) {
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr>
+              <th data-cell="vault">All vaults, weighted by size</th>
+              <td className={b.num} data-label="Share price, 30 days" />
+              <td className={b.num} data-label="30-day rate">
+                <MeasuredRate measure={all.measured.r30} />
+              </td>
+              <td className={b.num} data-label="Index, same days">
+                {pct(all.vsIndex?.r30)}
+              </td>
+              <td className={b.num} data-label="Difference">
+                <VsIndex diff={all.vsIndex?.r30Diff} />
+              </td>
+              <td />
+              <td />
+            </tr>
+          </tfoot>
         </table>
       </div>
       <p className={b.footnote}>
@@ -283,8 +300,8 @@ function Operations({ book, name }) {
     >
       {batch?.gaps?.staleShare != null && (
         <p className={b.compare}>
-          Since {dateLabel(batch.gaps.since)}, the {batch.token}{" "}
-          {batch.networkLabel} vault’s valuation was out of date{" "}
+          Since {dateLabel(batch.gaps.since)}, the {batch.title} vault’s
+          valuation was out of date{" "}
           <strong>{batch.gaps.staleShare.toFixed(1)}%</strong> of the time. While
           it is, batches do not settle. This vault’s record is exact because it
           publishes a valuation every hour; the others have no equivalent signal.
@@ -405,7 +422,7 @@ export default function TransparencyPage({ book, navigate }) {
       </nav>
       <Capital book={book} navigate={navigate} />
       <Exposure book={book} />
-      <Results book={book} />
+      <Results book={book} navigate={navigate} />
       <Operations book={book} name={name} />
       <Security book={book} />
       <Fees />

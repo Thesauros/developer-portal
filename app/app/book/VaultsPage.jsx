@@ -1,149 +1,205 @@
 "use client";
-import { useMemo, useState } from "react";
-import { measuredRate, pricePoints } from "../../../lib/vault-metrics.mjs";
-import { marketColor } from "../../../lib/vault-book.mjs";
+import { Fragment, useMemo, useState } from "react";
+import { DAY, measuredRate } from "../../../lib/vault-metrics.mjs";
 import { PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
-import { useLive } from "../LivePanels";
-import { AllocationBar, Sparkline } from "./charts";
+import { AllocationBar } from "./charts";
+import { IndexComparison, INDEX_DEFINITION } from "./IndexPage";
 import {
   compact,
   dateLabel,
   MeasuredRate,
   money,
+  NetworkMarks,
   pct,
+  ProductTitle,
   Section,
   Segmented,
   signed,
   Stage,
-  Tier,
-  VaultTitle,
+  TokenMark,
+  VsIndex,
 } from "./parts";
 import b from "./book.module.css";
 
-function whereLabel(vault) {
-  const names = new Set(
-    vault.allocation
-      .filter((row) => row.kind === "market")
-      .map((row) => row.name),
-  );
-  if (!names.size) return "—";
-  return names.size === 1 ? [...names][0] : names.size + " markets";
+// The 30-day difference when there is one, otherwise today's, and it says which.
+function IndexCell({ vs, measure }) {
+  if (measure?.status === "ok" && vs?.r30Diff != null)
+    return <VsIndex diff={vs.r30Diff} />;
+  if (vs?.nowDiff != null)
+    return (
+      <span title="Rate now against the index rate now. The 30-day figure needs a larger vault.">
+        <VsIndex diff={vs.nowDiff} /> <small className={b.quiet}>now</small>
+      </span>
+    );
+  return <span className={b.quiet}>—</span>;
 }
 
-function VaultRow({ vault, navigate, showBalance }) {
-  const open = () => navigate("vault", vault.id);
-  const recent = pricePoints(vault.samples, 30, Date.now());
-  const logos = [
-    ...new Set(vault.allocation.map((row) => row.logo).filter(Boolean)),
-  ].slice(0, 4);
+function NetworkCell({ networks, count }) {
   return (
-    <tr className={b.vaultRow} onClick={open}>
-      <td data-cell="vault">
-        <div className={b.vaultCell}>
-          <button className={b.rowLink} onClick={open}>
-            <VaultTitle vault={vault} />
-          </button>
-          <Stage stage={vault.stage} />
-        </div>
-      </td>
-      <td data-cell="where">
-        <AllocationBar rows={vault.allocation} />
-        <span className={b.logoRow}>
-          {logos.map((logo) => (
-            <img
-              key={logo}
-              src={"/brand/protocols/" + logo + ".png"}
-              width="16"
-              height="16"
-              alt=""
-            />
-          ))}
-          {whereLabel(vault)}
-        </span>
-      </td>
-      <td className={b.num} data-label="Total value">
-        {compact(vault.tvl)} <small>{vault.token}</small>
-      </td>
-      <td className={b.num} data-label="Rate now">
-        {pct(vault.rateNow)}
-      </td>
-      <td className={b.num} data-label="30-day rate">
-        <MeasuredRate measure={vault.measured.r30} />
-      </td>
-      <td data-cell="spark" aria-hidden="true">
-        <Sparkline points={recent} />
-      </td>
-      <td data-label="Withdraw in">
-        <span className={b.exit}>{vault.exit.label}</span>
-        <small className={b.quietBlock}>{vault.exit.note}</small>
-      </td>
-      <td data-label="Deposit on">{vault.depositNetwork}</td>
-      {showBalance && (
-        <td className={b.num} data-label="Your balance">
-          {vault.position.balance > 0 ? money(vault.position.balance) : "—"}
-        </td>
-      )}
-    </tr>
+    <span className={b.inlineMark}>
+      <NetworkMarks networks={networks} size={16} />
+      {count > 1 ? `${count} networks` : networks[0]}
+    </span>
   );
 }
 
-function Directory({ book, navigate, user }) {
-  const showBalance = !!user?.walletAddress;
+function ProductRows({ product, navigate, showBalance, open, toggle }) {
+  const many = product.vaults.length > 1;
+  const go = () => navigate("vault", product.lead.id);
   return (
     <>
-      <div className={b.tableWrap}>
-        <table className={`${b.table} ${b.directory}`}>
-          <thead>
-            <tr>
-              <th>Vault</th>
-              <th>Where the money is</th>
-              <th className={b.num}>Total value</th>
-              <th className={b.num}>Rate now</th>
-              <th className={b.num}>30-day rate</th>
-              <th aria-hidden="true" />
-              <th>Withdraw in</th>
-              <th>Deposit on</th>
-              {showBalance && <th className={b.num}>Your balance</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {book.vaults.map((vault) => (
-              <VaultRow
-                key={vault.id}
-                vault={vault}
-                navigate={navigate}
-                showBalance={showBalance}
+      <tr className={b.vaultRow} onClick={many ? toggle : go}>
+        <td data-cell="vault">
+          <div className={b.vaultCell}>
+            <button
+              className={b.rowLink}
+              onClick={(event) => {
+                event.stopPropagation();
+                go();
+              }}
+            >
+              <ProductTitle product={product} />
+            </button>
+          </div>
+        </td>
+        <td className={b.num} data-label="Rate now">
+          {pct(product.rateNow)}
+        </td>
+        <td className={b.num} data-label="30-day rate">
+          <MeasuredRate measure={product.measured.r30} />
+        </td>
+        <td className={b.num} data-label="Against the index">
+          <IndexCell vs={product.vsIndex} measure={product.measured.r30} />
+        </td>
+        <td className={b.num} data-label="Total value">
+          {compact(product.tvl)} <small>{product.token}</small>
+        </td>
+        <td data-label="Withdraw in">
+          <span className={b.exit}>{product.exit.label}</span>
+          <small className={b.quietBlock}>{product.exit.note}</small>
+        </td>
+        <td data-label="Deposit from">
+          {many ? (
+            <button
+              className={b.expand}
+              aria-expanded={open}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggle();
+              }}
+            >
+              <NetworkCell
+                networks={product.vaults.map((vault) => vault.place)}
+                count={product.vaults.length}
               />
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <dl className={b.definitions}>
-        <div>
-          <dt>Rate now</dt>
-          <dd>
-            Today’s lending rates, weighted by where the money is, a year,
-            before fees. Cash counts at 0%.
-          </dd>
-        </div>
-        <div>
-          <dt>30-day rate</dt>
-          <dd>
-            What holders received over 30 days, from the share price, a year.
-            Shown once a vault holds over 10,000 USD: below that, a cent would
-            move it by whole points.
-          </dd>
-        </div>
-        <div>
-          <dt>Withdraw in</dt>
-          <dd>
-            Now: paid in one transaction, up to what the markets can pay. Next
-            batch: requests settle together, then you collect. No time is
-            promised.
-          </dd>
-        </div>
-      </dl>
+            </button>
+          ) : (
+            <NetworkCell
+              networks={[product.lead.depositNetwork]}
+              count={1}
+            />
+          )}
+        </td>
+        {showBalance && (
+          <td className={b.num} data-label="Your balance">
+            {product.position.balance > 0 ? money(product.position.balance) : "—"}
+          </td>
+        )}
+      </tr>
+      {many &&
+        open &&
+        product.vaults.map((vault) => (
+          <tr
+            key={vault.id}
+            className={b.subRow}
+            onClick={() => navigate("vault", vault.id)}
+          >
+            <td data-cell="vault">
+              <div className={b.vaultCell}>
+                <button
+                  className={b.rowLink}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    navigate("vault", vault.id);
+                  }}
+                >
+                  <span className={b.inlineMark}>
+                    <NetworkMarks vault={vault} size={18} />
+                    <span>
+                      From {vault.place}
+                      <AllocationBar rows={vault.allocation} height={4} />
+                    </span>
+                  </span>
+                </button>
+                <Stage stage={vault.stage} />
+              </div>
+            </td>
+            <td className={b.num} data-label="Rate now">
+              {pct(vault.rateNow)}
+            </td>
+            <td className={b.num} data-label="30-day rate">
+              <MeasuredRate measure={vault.measured.r30} />
+            </td>
+            <td className={b.num} data-label="Against the index">
+              <IndexCell vs={vault.vsIndex} measure={vault.measured.r30} />
+            </td>
+            <td className={b.num} data-label="Total value">
+              {compact(vault.tvl)} <small>{vault.token}</small>
+            </td>
+            <td data-label="Withdraw in">
+              <span className={b.exit}>{vault.exit.label}</span>
+            </td>
+            <td data-label="Deposit from">{vault.depositNetwork}</td>
+            {showBalance && (
+              <td className={b.num} data-label="Your balance">
+                {vault.position.balance > 0 ? money(vault.position.balance) : "—"}
+              </td>
+            )}
+          </tr>
+        ))}
     </>
+  );
+}
+
+export function Products({ book, navigate, user }) {
+  const showBalance = !!user?.walletAddress;
+  const [open, setOpen] = useState(() => new Set());
+  const toggle = (id) =>
+    setOpen((last) => {
+      const next = new Set(last);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  return (
+    <div className={b.tableWrap}>
+      <table className={`${b.table} ${b.directory}`}>
+        <thead>
+          <tr>
+            <th>Vault</th>
+            <th className={b.num}>Rate now</th>
+            <th className={b.num}>30-day rate</th>
+            <th className={b.num}>Against the index</th>
+            <th className={b.num}>Total value</th>
+            <th>Withdraw in</th>
+            <th>Deposit from</th>
+            {showBalance && <th className={b.num}>Your balance</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {book.products.map((product) => (
+            <ProductRows
+              key={product.id}
+              product={product}
+              navigate={navigate}
+              showBalance={showBalance}
+              open={open.has(product.id)}
+              toggle={() => toggle(product.id)}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -153,49 +209,62 @@ const PERIODS = [
   { value: 36500, label: "Since launch" },
 ];
 
-// What a real amount would have done over a real period. Uses only readings
-// taken from the chain, shows the same comparison for each vault, and says which
-// vaults are too small for the result to mean much.
+// Growth between two moments of a chained level series, or null.
+function growthBetween(series, fromAt, toAt) {
+  const near = (at) =>
+    (series || []).reduce(
+      (best, point) =>
+        Math.abs(point.at - at) <= 1.1 * DAY &&
+        (!best || Math.abs(point.at - at) < Math.abs(best.at - at))
+          ? point
+          : best,
+      null,
+    );
+  const a = near(fromAt),
+    c = near(toAt);
+  return a && c && c.at > a.at ? c.level / a.level - 1 : null;
+}
+
+// What a real amount would have done over a real period, for each vault and
+// for the blue-chip index over exactly the same days.
 function WhatIf({ book, navigate }) {
   const [amount, setAmount] = useState("5000");
   const [days, setDays] = useState(30);
   const value = Number(String(amount).replace(/[^\d.]/g, "")) || 0;
   const rows = useMemo(() => {
-    const all = book.vaults.map((vault) => {
-      const measure = measuredRate(vault.samples, days);
+    const out = book.products.map((product) => {
+      // The same calculation as each vault's own rate: its share price between
+      // the readings nearest the period, added up by size.
+      const parts = product.vaults
+        .map((vault) => ({ vault, measure: measuredRate(vault.samples, days) }))
+        .filter((part) => part.measure.from && part.vault.tvl > 0);
+      const measured = parts.filter((part) => part.measure.status === "ok");
+      const use = measured.length ? measured : parts.slice(0, 1);
+      const total = use.reduce((sum, part) => sum + part.vault.tvl, 0);
+      const change = total
+        ? use.reduce((sum, part) => sum + part.vault.tvl * part.measure.change, 0) / total / 100
+        : null;
+      const window = use[0]?.measure;
+      const indexChange =
+        window && book.index
+          ? growthBetween(book.index.series, window.from.at, window.to.at)
+          : null;
       return {
-        vault,
-        measure,
-        gain: measure.from ? (value * measure.change) / 100 : null,
+        product,
+        gain: change == null ? null : value * change,
+        indexGain: indexChange == null ? null : value * indexChange,
+        reliable: measured.length > 0,
+        from: window?.from.at ?? null,
       };
     });
     return {
-      measured: all.filter((row) => row.measure.status === "ok"),
-      small: all.filter((row) => row.measure.status !== "ok"),
+      measured: out.filter((row) => row.reliable),
+      small: out.filter((row) => !row.reliable),
     };
-  }, [book.vaults, days, value]);
-  const comparisons = useMemo(() => {
-    const out = [];
-    for (const id of ["arbitrum", "base"]) {
-      const vault = book.byId[id];
-      const series = (vault?.samples || []).filter((point) => point.index);
-      const measure = measuredRate(
-        series.map((point) => ({ ...point, price: point.index })),
-        days,
-        { minTvl: 0 },
-      );
-      if (measure.from)
-        out.push({
-          name: "Aave V3 USDC on " + vault.networkLabel + ", without rewards",
-          gain: (value * measure.change) / 100,
-        });
-    }
-    return out;
-  }, [book.byId, days, value]);
+  }, [book.products, book.index, days, value]);
+  const lead = rows.measured[0];
   const maxGain = Math.max(
-    ...rows.measured.map((row) => row.gain ?? 0),
-    ...rows.small.map((row) => row.gain ?? 0),
-    ...comparisons.map((row) => row.gain),
+    ...[...rows.measured, ...rows.small].flatMap((row) => [row.gain ?? 0, row.indexGain ?? 0]),
     0.000001,
   );
   const bar = (gain, color, opacity = 1) => (
@@ -203,7 +272,7 @@ function WhatIf({ book, navigate }) {
       <span className={b.gainTrack}>
         <i
           style={{
-            width: Math.max((gain / maxGain) * 100, 1) + "%",
+            width: Math.max((Math.max(gain, 0) / maxGain) * 100, 1) + "%",
             background: color,
             opacity,
           }}
@@ -212,26 +281,26 @@ function WhatIf({ book, navigate }) {
       {signed(gain)}
     </span>
   );
-  const vaultRow = ({ vault, measure, gain }) => (
-    <tr key={vault.id}>
+  const productRow = ({ product, gain }) => (
+    <tr key={product.id}>
       <td data-cell="vault">
         <button
           className={b.rowLink}
-          onClick={() => navigate("vault", vault.id)}
+          onClick={() => navigate("vault", product.lead.id)}
         >
-          <VaultTitle vault={vault} size={22} />
+          <span className={b.vaultTitle}>
+            <TokenMark token={product.token} size={22} />
+            <strong>
+              {product.token} <span className={b.tag}>{product.tag}</span>
+            </strong>
+          </span>
         </button>
-        {measure.sinceLaunch && measure.days && (
-          <small className={b.quietBlock}>
-            {Math.round(measure.days)} days of history
-          </small>
-        )}
       </td>
       <td data-label="Gain">
         {gain == null ? (
           <span className={b.quiet}>Not enough history</span>
         ) : (
-          bar(gain, measure.status === "ok" ? "var(--blue)" : "var(--ink-4)")
+          bar(gain, product.measured.r30.status === "ok" ? "var(--blue)" : "var(--ink-4)")
         )}
       </td>
       <td className={b.num} data-label="Value now">
@@ -251,7 +320,7 @@ function WhatIf({ book, navigate }) {
     <Section
       id="what-if"
       title="What if you had deposited"
-      lede="Worked out from each vault’s real share price. Past results; rates change."
+      lede="Worked out from each vault’s real share price, and from the index over the same days. Past results; rates change."
       aside={
         <div className={b.controls}>
           <label className={b.inlineField}>
@@ -287,21 +356,26 @@ function WhatIf({ book, navigate }) {
             </tr>
           </thead>
           <tbody>
-            {rows.measured.map(vaultRow)}
-            {comparisons.map((row) => (
-              <tr key={row.name} className={b.comparisonRow}>
-                <td data-cell="vault">{row.name}</td>
-                <td data-label="Gain">
-                  {bar(row.gain, marketColor("Aave V3"), 0.45)}
+            {rows.measured.map(productRow)}
+            {lead?.indexGain != null && (
+              <tr className={b.comparisonRow}>
+                <td data-cell="vault">
+                  <button className={b.rowLink} onClick={() => navigate("index")}>
+                    Blue-chip index
+                  </button>
+                  <small className={b.quietBlock}>
+                    same days{lead.from ? ", from " + dateLabel(lead.from, false) : ""}
+                  </small>
                 </td>
+                <td data-label="Gain">{bar(lead.indexGain, "#5f7183", 0.55)}</td>
                 <td className={b.num} data-label="Value now">
-                  {money(value + row.gain)}
+                  {money(value + lead.indexGain)}
                 </td>
                 <td className={b.num} data-label="After fees">
-                  {money(value + row.gain)}
+                  <span className={b.quiet}>no fee</span>
                 </td>
               </tr>
-            ))}
+            )}
             {rows.small.length > 0 && (
               <tr className={b.tableNote}>
                 <td colSpan="4">
@@ -309,237 +383,115 @@ function WhatIf({ book, navigate }) {
                 </td>
               </tr>
             )}
-            {rows.small.map(vaultRow)}
+            {rows.small.map(productRow)}
           </tbody>
         </table>
       </div>
       <p className={b.footnote}>
         No vault charges a fee today; the planned fee is shown for comparison.
-        Network costs are not included.
+        The index is a measure, not something you can deposit into. Network
+        costs are not included.
       </p>
     </Section>
   );
 }
 
-function OurMarkets({ book }) {
-  const rows = book.vaults.flatMap((vault) =>
-    vault.allocation
-      .filter((row) => row.kind === "market")
-      .map((row) => ({ ...row, vault })),
-  );
-  rows.sort((a, c) => (c.amount || 0) - (a.amount || 0));
-  if (!rows.length) return null;
-  return (
-    <Section
-      title="Where Thesauros lends"
-      lede="Every market holding money from a vault now, with the rate read from its contract."
-    >
-      <div className={b.tableWrap}>
-        <table className={`${b.table} ${b.stack}`}>
-          <thead>
-            <tr>
-              <th>Market</th>
-              <th>Network</th>
-              <th>Vault</th>
-              <th>Group</th>
-              <th className={b.num}>Rate now</th>
-              <th className={b.num}>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.vault.id + row.key}>
-                <td data-cell="vault">
-                  <span className={b.market}>
-                    <i
-                      className={b.swatch}
-                      style={{ background: marketColor(row.name) }}
-                    />
-                    {row.logo && (
-                      <img
-                        src={"/brand/protocols/" + row.logo + ".png"}
-                        width="18"
-                        height="18"
-                        alt=""
-                      />
-                    )}
-                    {row.name}
-                  </span>
-                </td>
-                <td data-label="Network">{row.network}</td>
-                <td data-label="Vault">
-                  {row.vault.token}, {row.vault.networkLabel}
-                </td>
-                <td data-label="Group">
-                  <Tier tier={row.tier} />
-                </td>
-                <td className={b.num} data-label="Rate now">
-                  {pct(row.rate)}
-                </td>
-                <td className={b.num} data-label="Amount">
-                  {compact(row.amount)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className={b.footnote}>
-        Core: Aave and Compound. Satellite: curated Morpho vaults.
-      </p>
-    </Section>
-  );
-}
-
-// Rates across the wider market, with the markets Thesauros uses marked. Only tokens
-// people know: the feed's raw pool tickers mean nothing to a reader.
-const READABLE_TOKEN =
-  /^(USDC|USDT|USDT0|USDC\.E|USDE|SUSDE|DAI|USDS|SUSDS|GHO|SGHO|PYUSD|RLUSD|FRAX|USDG|AUSD)$/;
-function WiderMarket({ book }) {
-  const feed = useLive("markets", true);
-  const [all, setAll] = useState(false);
-  // Protocol, network and token must all match: Aave on Monad also lists tokens
-  // no vault holds. Morpho's curated vaults go by other names in this feed, so
-  // they are left unmarked rather than guessed.
-  const ours = new Set(
-    book.vaults.flatMap((vault) =>
-      vault.allocation
-        .filter((row) => row.kind === "market")
-        .map((row) => `${row.name.split(" ")[0]}:${row.network}:${vault.token}`),
-    ),
-  );
-  const rows = (feed.data?.data || [])
-    .filter((row) => row.apy > 0 && READABLE_TOKEN.test(row.token))
-    .sort((a, c) => (c.tvlUsd || 0) - (a.tvlUsd || 0));
-  const shown = all ? rows : rows.slice(0, 12);
-  return (
-    <Section
-      title="The wider market"
-      lede="Stablecoin lending across DeFi, largest first, for comparison. From DefiLlama, and it includes rewards where a market pays them, so it can differ from the contract rates above."
-      aside={
-        <a
-          className={b.linkOut}
-          href="/app/bluechips"
-          target="_blank"
-          rel="noopener"
-        >
-          Blue chips ↗
-        </a>
-      }
-    >
-      {!rows.length ? (
-        <p className={b.quiet}>
-          {feed.loading ? "Loading…" : "Market data is not available right now."}
-        </p>
-      ) : (
-        <>
-          <div className={b.tableWrap}>
-            <table className={`${b.table} ${b.stack}`}>
-              <thead>
-                <tr>
-                  <th>Market</th>
-                  <th>Token</th>
-                  <th>Network</th>
-                  <th className={b.num}>Rate now</th>
-                  <th className={b.num}>Size</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((row) => (
-                  <tr key={row.id}>
-                    <td data-cell="vault">
-                      <span className={b.market}>
-                        {row.logo && (
-                          <img
-                            src={"/brand/protocols/" + row.logo + ".png"}
-                            width="18"
-                            height="18"
-                            alt=""
-                          />
-                        )}
-                        {row.name}
-                        {ours.has(`${row.name.split(" ")[0]}:${row.chain}:${row.token}`) && (
-                          <span className={b.stage} data-stage="Live">
-                            Thesauros lends here
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td data-label="Token">{row.token}</td>
-                    <td data-label="Network">{row.chain}</td>
-                    <td className={b.num} data-label="Rate now">
-                      {pct(row.apy)}
-                    </td>
-                    <td className={b.num} data-label="Size">
-                      {row.tvlUsd >= 1e6
-                        ? money(row.tvlUsd / 1e6, 1) + "M"
-                        : compact(row.tvlUsd)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {rows.length > shown.length && (
-            <button
-              className={`${b.linkButton} ${b.moreButton}`}
-              onClick={() => setAll(true)}
-            >
-              Show all {rows.length}
-            </button>
-          )}
-        </>
-      )}
-    </Section>
-  );
-}
-
-function MarketsTab({ book }) {
-  return (
-    <>
-      <OurMarkets book={book} />
-      <WiderMarket book={book} />
-    </>
-  );
-}
-
-export default function VaultsPage({ book, navigate, user, tab = "vaults" }) {
+export default function VaultsPage({ book, navigate, user }) {
   const { totals } = book;
   return (
     <div className={b.page}>
       <header className={b.pageHead}>
         <div>
-          <h1 tabIndex={-1}>Vaults</h1>
+          <h1 tabIndex={-1}>Earn</h1>
           <p className={b.pageLede}>
+            Interest on stablecoins from blue-chip lending markets. Each vault
+            moves its money to the better rate and shows where every dollar is.{" "}
             {money(totals.tvl, 0)} {totals.unit} in {book.vaults.length} vaults
-            on {totals.networks} networks
             {Number.isFinite(totals.since)
               ? `, since ${dateLabel(totals.since, false)}`
               : ""}
-            . Deposit stablecoins; the vault lends them across markets and you
-            can see where every dollar is.
+            .
           </p>
         </div>
-        <Segmented
-          label="View"
-          value={tab}
-          onChange={(next) =>
-            navigate(next === "markets" ? "markets" : "vaults")
-          }
-          options={[
-            { value: "vaults", label: "Vaults" },
-            { value: "markets", label: "Markets" },
-          ]}
-        />
+        {book.products[0] && (
+          <div className={b.headActions}>
+            <button
+              className={b.primary}
+              onClick={() =>
+                navigate("vault", book.products[0].id, { action: "deposit" })
+              }
+            >
+              Deposit {book.products[0].token}
+            </button>
+          </div>
+        )}
       </header>
-      {tab === "markets" ? (
-        <MarketsTab book={book} />
-      ) : (
-        <>
-          <Directory book={book} navigate={navigate} user={user} />
-          <WhatIf book={book} navigate={navigate} />
-        </>
-      )}
+      <Section
+        id="against-index"
+        title="Against the blue-chip index"
+        lede={
+          <>
+            <button className={b.linkButton} onClick={() => navigate("index")}>
+              The blue-chip index
+            </button>{" "}
+            is the market average Thesauros measures itself against:{" "}
+            {INDEX_DEFINITION.charAt(0).toLowerCase() + INDEX_DEFINITION.slice(1)}
+          </>
+        }
+        className={b.firstSection}
+      >
+        <IndexComparison book={book} compact />
+      </Section>
+      <Section
+        id="vaults"
+        title="Vaults"
+        lede="Choose the stablecoin and how fast you want to be able to leave. Where it is deposited is a detail inside."
+      >
+        <Products book={book} navigate={navigate} user={user} />
+        <dl className={b.definitions}>
+          <div>
+            <dt>Rate now</dt>
+            <dd>
+              Today’s lending rates, weighted by where the money is, a year,
+              before fees. Cash counts at 0%.
+            </dd>
+          </div>
+          <div>
+            <dt>30-day rate</dt>
+            <dd>
+              What holders received over 30 days, from the share price, a year.
+              Shown once a vault holds over 10,000 USD: below that, a cent would
+              move it by whole points.
+            </dd>
+          </div>
+          <div>
+            <dt>Against the index</dt>
+            <dd>
+              The 30-day rate minus the blue-chip index over the same days, in
+              percentage points. Where there is no 30-day rate, today’s rates
+              are compared and marked “now”.
+            </dd>
+          </div>
+          <div>
+            <dt>Withdraw in</dt>
+            <dd>
+              Now: paid in one transaction, up to what the markets can pay. Next
+              batch: requests settle together, then you collect. No time is
+              promised.
+            </dd>
+          </div>
+          <div>
+            <dt>Stage</dt>
+            <dd>
+              Live: holds over 10,000 USD, so its rates can be measured. Early:
+              smaller than that. Pilot: running with team funds and no external
+              audit. A product shows the stage of its largest vault; each
+              network’s stage is on its page.
+            </dd>
+          </div>
+        </dl>
+      </Section>
+      <WhatIf book={book} navigate={navigate} />
     </div>
   );
 }

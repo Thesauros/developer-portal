@@ -15,7 +15,15 @@ Stablecoin vaults that show where every dollar is, what it earns and how to get 
 
 ## One model
 
-One account in stablecoins and a set of neighbouring vaults. Vaults differ in three ways only: where the money works, how fast you can leave, and how proven they are. Everything else about them looks the same on every screen. There is no separate product for any of them, and the words "cross-chain" and "single-network" do not appear in the interface.
+One account in stablecoins, sold as native yield from blue-chip lending across many networks. A vault belongs to a product, named by the stablecoin and how you get out: USDC Instant, USDC Multichain, USDT0 Instant. The network a vault takes deposits on is a choice inside the product, never its name, and network detail (which network, contracts, cash per network) sits in nested places. Vaults differ only in where the money works, how fast you can leave and how proven they are. The words "cross-chain" and "single-network" do not appear in the interface.
+
+## The market
+
+"The market" means one thing everywhere: the blue-chip index. Its members are every lending market a Thesauros vault is approved to use, as the vault contracts list them; each counts by how much it holds; its return comes from each market's own interest index, chained day by day. Every vault, product and the whole of Thesauros are compared with it over the same days, in percentage points. The index page shows its members, weights and method.
+
+## Where the data comes from
+
+Only Thesauros resources: the vault and market contracts read over RPC, the Thesauros indexer and its SQLite history, and the team's own API and monitor. No outside aggregator and no Monolit service is called by the app; they may be used to check figures during analysis only.
 
 ## Principles
 
@@ -24,6 +32,7 @@ One account in stablecoins and a set of neighbouring vaults. Vaults differ in th
 3. **Bad news sits next to good news.** An audit that has not happened, a valuation that stopped, a rate below Aave: on the page, in plain words, before someone has to find it.
 4. **Say what happens next.** Before a transaction: what you will sign and what follows. After: where it is now, and that you can close the tab. Never promise a time the contracts do not.
 5. **Reading needs no wallet.** Connect only to see a balance or to act.
+6. **One comparison.** Every rate is set against the blue-chip index over the same days, and the gap is shown in points, good or bad.
 
 ## Tone
 

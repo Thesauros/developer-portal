@@ -1,8 +1,7 @@
-import BlueChips from "./BlueChips";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-export const metadata = { title: "Thesauros · Blue chips" };
-
+// The blue-chip window became the blue-chip index, built from the vault
+// contracts rather than an outside data service.
 export default function Page() {
-  return <BlueChips />;
+  redirect("/app/individual/blue-chip-index");
 }

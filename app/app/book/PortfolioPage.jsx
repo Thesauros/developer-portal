@@ -15,97 +15,25 @@ import {
   Segmented,
   Stage,
   VaultTitle,
+  VsIndex,
 } from "./parts";
+import { Products } from "./VaultsPage";
 import b from "./book.module.css";
 
 // Vaults side by side, for anyone choosing where to start.
-function Compare({ book, navigate, wallet }) {
+// The same three products as Earn: where to start is the same choice everywhere.
+function Compare({ book, navigate }) {
   return (
     <Section
       title="Where to start"
-      lede="The main choice is how fast you can leave and how much history a vault has."
+      lede="Choose the stablecoin and how fast you want to be able to leave. The network you deposit from is chosen inside."
       aside={
         <button className={b.linkButton} onClick={() => navigate("vaults")}>
-          All vaults and what-if
+          Earn: the index and what-if
         </button>
       }
     >
-      <div className={b.tableWrap}>
-        <table className={`${b.table} ${b.directory}`}>
-          <thead>
-            <tr>
-              <th>Vault</th>
-              <th className={b.num}>Total value</th>
-              <th className={b.num}>Rate now</th>
-              <th className={b.num}>30-day rate</th>
-              <th>Withdraw in</th>
-              <th>Deposit on</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {book.vaults.map((vault) => {
-              const here = wallet?.find(
-                (row) =>
-                  row.network === vault.depositNetwork &&
-                  row.token === vault.token,
-              );
-              return (
-                <tr key={vault.id}>
-                  <td data-cell="vault">
-                    <div className={b.vaultCell}>
-                      <button
-                        className={b.rowLink}
-                        onClick={() => navigate("vault", vault.id)}
-                      >
-                        <VaultTitle vault={vault} />
-                      </button>
-                      <Stage stage={vault.stage} />
-                    </div>
-                  </td>
-                  <td className={b.num} data-label="Total value">
-                    {compact(vault.tvl)} <small>{vault.token}</small>
-                  </td>
-                  <td className={b.num} data-label="Rate now">
-                    {pct(vault.rateNow)}
-                  </td>
-                  <td className={b.num} data-label="30-day rate">
-                    <MeasuredRate measure={vault.measured.r30} />
-                  </td>
-                  <td data-label="Withdraw in">
-                    <span className={b.exit}>{vault.exit.label}</span>
-                    <small className={b.quietBlock}>{vault.exit.note}</small>
-                  </td>
-                  <td data-label="Deposit on">
-                    {vault.depositNetwork}
-                    {here && (
-                      <small className={b.quietBlock}>
-                        {money(here.amount)} in your wallet
-                      </small>
-                    )}
-                  </td>
-                  <td className={b.right} data-cell="action">
-                    <button
-                      className={b.secondary}
-                      disabled={!vault.open.deposits}
-                      title={
-                        vault.open.deposits
-                          ? undefined
-                          : "Not open for deposits yet"
-                      }
-                      onClick={() =>
-                        navigate("vault", vault.id, { action: "deposit" })
-                      }
-                    >
-                      {vault.open.deposits ? "Deposit" : "Not open yet"}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Products book={book} navigate={navigate} user={null} />
     </Section>
   );
 }
@@ -135,6 +63,7 @@ function Positions({ held, navigate }) {
               <th className={b.num}>Balance</th>
               <th className={b.num}>Earned</th>
               <th className={b.num}>Rate now</th>
+              <th className={b.num}>Against the index</th>
               <th aria-hidden="true" />
               <th>Withdraw in</th>
               <th />
@@ -167,6 +96,9 @@ function Positions({ held, navigate }) {
                 </td>
                 <td className={b.num} data-label="Rate now">
                   {pct(vault.rateNow)}
+                </td>
+                <td className={b.num} data-label="Against the index">
+                  <VsIndex diff={vault.vsIndex?.nowDiff} />
                 </td>
                 <td data-cell="spark" aria-hidden="true">
                   <Sparkline points={pricePoints(vault.samples, 30)} />
@@ -393,6 +325,11 @@ export default function PortfolioPage({
             <div>
               <dt>Rate now</dt>
               <dd>{pct(holdings.rateNow)}</dd>
+              {book.index?.rateNow != null && holdings.rateNow != null && (
+                <small>
+                  Blue-chip index {pct(book.index.rateNow)}
+                </small>
+              )}
             </div>
             <div>
               <dt>At this rate</dt>
@@ -416,7 +353,7 @@ export default function PortfolioPage({
                 request={request}
                 price={price}
                 batch={batch}
-                compactVault={`${vault.token}, ${vault.networkLabel}`}
+                compactVault={vault.kind === "batch" ? vault.title : `${vault.title}, ${vault.place}`}
               />
             ))}
           </div>
@@ -428,7 +365,7 @@ export default function PortfolioPage({
           <Exposure held={held} />
         </>
       ) : (
-        <Compare book={book} navigate={navigate} wallet={wallet} />
+        <Compare book={book} navigate={navigate} />
       )}
       {holds && wallet.length > 0 && (
         <Section title="In your wallet" lede="Ready to deposit. Never counted in the balance above.">
@@ -441,11 +378,16 @@ export default function PortfolioPage({
                 <span>on {row.network}</span>
                 <button
                   className={b.linkButton}
-                  onClick={() =>
-                    navigate("vault", row.network.toLowerCase(), {
-                      action: "deposit",
-                    })
-                  }
+                  onClick={() => {
+                    const target = book.vaults.find(
+                      (vault) =>
+                        vault.kind === "instant" &&
+                        vault.depositNetwork === row.network &&
+                        vault.token === row.token,
+                    );
+                    if (target)
+                      navigate("vault", target.id, { action: "deposit" });
+                  }}
                 >
                   Deposit
                 </button>

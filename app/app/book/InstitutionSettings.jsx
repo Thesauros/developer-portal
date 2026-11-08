@@ -1,7 +1,28 @@
 "use client";
 import { useEffect, useState } from "react";
 import { EmailForm } from "../InstitutionEmail";
-import c from "./cabinet.module.css";
+import b from "./book.module.css";
+
+// The settings use the same rules and fields as every other screen.
+const c = {
+  page: b.settings,
+  section: b.settingsSection,
+  sectionHead: b.sectionHead,
+  muted: b.quiet,
+  factsGrid: b.settingsFacts,
+  split: b.settingsSplit,
+  formField: b.formField,
+  stackForm: b.stackForm,
+  inlineForm: b.inlineForm,
+  formError: b.formError,
+  formDone: b.formDone,
+  breakAll: b.breakAll,
+  walletRow: b.walletRow,
+  primary: b.primary,
+  secondary: b.secondary,
+  footnote: b.footnote,
+  actions: b.headActions,
+};
 
 async function send(url, body) {
   const response = await fetch(url, {
