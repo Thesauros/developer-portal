@@ -56,22 +56,24 @@ export function compareLines(ours, index, oursName = "Thesauros", { oursRate, in
     },
     {
       id: "index",
-      name: `${index.symbol || "USDC"} blue-chip index`,
-      short: "Index",
+      name: `${index.symbol || "USDC"} Market Average`,
+      short: "Market Average",
+      tiny: "Market Average",
       color: COMPARE_COLORS.index,
       strong: true,
       series: index.series || [],
       rate: indexRate ?? undefined,
     },
     // References say what they are where they are drawn.
-    ...(index.references || []).map((ref) => ({
+    // Two references for scale: Aave on its own and T-bills.
+    ...(index.references || []).filter((ref) => ref.id === "aave" || ref.id === "tbills").map((ref) => ({
       id: ref.id,
       name: ref.name,
       short:
         ref.id === "tbills"
           ? "T-bills (Ondo USDY)"
           : ref.share != null
-            ? `${ref.name.replace(" alone", "")} only, ${ref.share.toFixed(0)}% of index`
+            ? `${ref.name.replace(" alone", "")} only, ${ref.share.toFixed(0)}% of Market Average`
             : ref.name,
       tiny: ref.id === "tbills" ? "T-bills" : ref.name.replace(" alone", ""),
       color: COMPARE_COLORS[ref.id] || "#8a94a6",
@@ -118,13 +120,13 @@ export function windowVerdict(lines, from) {
 
 // What each reference line is, for the note under the chart.
 export function referenceNote(index) {
-  const refs = index?.references || [];
+  const refs = (index?.references || []).filter((ref) => ref.id === "aave" || ref.id === "tbills");
   const lenders = refs.filter((ref) => ref.id !== "tbills");
   const bills = refs.find((ref) => ref.id === "tbills");
   const parts = [];
   if (lenders.length)
     parts.push(
-      `${lenders.map((ref) => ref.name).join(" and ")}: the index built only from that lender’s markets` +
+      `${lenders.map((ref) => ref.name).join(" and ")}: the Market Average built only from that lender’s markets` +
         (lenders.every((ref) => ref.share != null)
           ? `, ${lenders.map((ref) => ref.share.toFixed(0) + "%").join(" and ")} of it.`
           : "."),
@@ -199,7 +201,7 @@ export function GapSplit({ local, total, curated, days = 30 }) {
           <dt>
             Where the money sits
             <small>
-              the blue-chip markets on {where} against the whole USDC index
+              the blue-chip markets on {where} against the whole USDC Market Average
             </small>
           </dt>
           <dd>
@@ -283,7 +285,7 @@ export function IndexComparison({ book, compact = false }) {
           <tr>
             <th />
             <th className={b.num} title="Thesauros USDC vaults">Thesauros</th>
-            <th className={b.num} title="USDC blue-chip index">Index</th>
+            <th className={b.num} title="USDC Market Average">Market Average</th>
             <th className={b.num}>Gap</th>
           </tr>
         </thead>
@@ -314,8 +316,8 @@ export function IndexComparison({ book, compact = false }) {
           <details className={`${b.disclosure} ${b.gapDisclosure}`}>
             <summary>
               {verdict
-                ? `${verdict.gap >= 0 ? "+" : "−"}${Math.abs(verdict.gap).toFixed(2)} pts against the USDC index over ${days ? days + " days" : "the whole period"}`
-                : `Against the USDC index`}
+                ? `${verdict.gap >= 0 ? "+" : "−"}${Math.abs(verdict.gap).toFixed(2)} pts against the USDC Market Average over ${days ? days + " days" : "the whole period"}`
+                : `Against the USDC Market Average`}
               <small>Why</small>
             </summary>
             <GapSplit
@@ -356,7 +358,7 @@ export default function IndexPage({ book, navigate }) {
       <div className={b.page}>
         <header className={b.pageHead}>
           <div>
-            <h1 tabIndex={-1}>Blue-chip index</h1>
+            <h1 tabIndex={-1}>Market Average</h1>
             <p className={b.pageLede}>{INDEX_DEFINITION}</p>
           </div>
         </header>
@@ -374,9 +376,9 @@ export default function IndexPage({ book, navigate }) {
     <div className={b.page}>
       <header className={b.pageHead}>
         <div>
-          <h1 tabIndex={-1}>Blue-chip index</h1>
+          <h1 tabIndex={-1}>Market Average</h1>
           <p className={b.pageLede}>
-            The market average Thesauros measures itself against, one for each
+            What Thesauros measures itself against, a TVL-weighted blue-chip index, one for each
             stablecoin. {INDEX_DEFINITION}
           </p>
         </div>
@@ -423,7 +425,7 @@ export default function IndexPage({ book, navigate }) {
         <p className={b.compare}>
           {index.constituents.length === 1 ? (
             <>
-              One market makes up this index: {NAME(index.constituents[0])} on{" "}
+              One market makes up this Market Average: {NAME(index.constituents[0])} on{" "}
               {NETWORK[index.constituents[0].network]?.name}. The only{" "}
               {symbol} vault lends there too, so this index mostly shows that
               it keeps pace.
@@ -463,7 +465,7 @@ export default function IndexPage({ book, navigate }) {
             vault: (index.earned || []).map((point) => ({ t: point.at, v: point.rate })),
             market: [],
           }}
-          vaultLabel={`${index.symbol || "USDC"} index, earned over the week before`}
+          vaultLabel={`${index.symbol || "USDC"} Market Average, earned over the week before`}
           height={220}
         />
       </Section>
@@ -672,9 +674,9 @@ export default function IndexPage({ book, navigate }) {
             <dd>
               T-bills: the on-chain price of Ondo USDY, a token backed by short
               US Treasuries and bank deposits, which grows by what it pays after
-              its issuer’s fee. Aave alone and Compound alone: the same index
-              built only from that lender’s markets, to show how much of the
-              index one lender is.
+              its issuer’s fee. Aave alone: the Market Average built only from
+              Aave’s markets, to show how much of it one lender is. The hatched
+              area marks where Thesauros earned more than the Market Average.
             </dd>
           </div>
           <div>

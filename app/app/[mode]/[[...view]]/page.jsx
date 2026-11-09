@@ -23,7 +23,8 @@ const productOfVault = (id) =>
         : null;
 const VIEW_TITLES = {
   vaults: "Earn",
-  "blue-chip-index": "Blue-chip index",
+  "blue-chip-index": "Market Average",
+  "market-average": "Market Average",
   activity: "Activity",
   transparency: "Transparency",
   developers: "Developers",

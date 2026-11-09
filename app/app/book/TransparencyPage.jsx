@@ -286,7 +286,7 @@ function ResultRow({ item, sub = false, title }) {
           </small>
         )}
       </td>
-      <td className={b.num} data-label="Index, same days">
+      <td className={b.num} data-label="Market Average, same days">
         {pct(item.vsIndex?.r30)}
       </td>
       <td className={b.num} data-label="Difference">
@@ -298,7 +298,7 @@ function ResultRow({ item, sub = false, title }) {
             {pct(grown.rate)}
             <small className={b.quietBlock}>
               from {dateLabel(grown.from, false)}
-              {grownIndex != null ? `; index ${pct(grownIndex)}` : ""}
+              {grownIndex != null ? `; Market Average ${pct(grownIndex)}` : ""}
             </small>
           </>
         ) : sub || item.vaults ? (
@@ -323,7 +323,7 @@ function Results({ book, navigate }) {
         <>
           What holders received, from share prices, against the{" "}
           <button className={b.linkButton} onClick={() => navigate("index")}>
-            blue-chip index
+            Market Average
           </button>{" "}
           for the same stablecoin over the same days. Simple annual rates,
           before fees; no vault charges a fee today.
@@ -336,7 +336,7 @@ function Results({ book, navigate }) {
             <tr>
               <th>Product</th>
               <th className={b.num}>30-day rate</th>
-              <th className={b.num}>Index, same days</th>
+              <th className={b.num}>Market Average, same days</th>
               <th className={b.num}>Difference</th>
               <th className={b.num}>Since reaching 10,000 USD</th>
             </tr>
@@ -388,7 +388,7 @@ function Results({ book, navigate }) {
               <td className={b.num} data-label="30-day rate">
                 <MeasuredRate measure={all.measured.r30} />
               </td>
-              <td className={b.num} data-label="Index, same days">
+              <td className={b.num} data-label="Market Average, same days">
                 {pct(all.vsIndex?.r30)}
               </td>
               <td className={b.num} data-label="Difference">

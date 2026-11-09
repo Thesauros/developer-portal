@@ -65,7 +65,7 @@ function ProductRows({ product, navigate, showBalance, open, toggle, quiet = fal
         <td className={b.num} data-label="30-day rate">
           <MeasuredRate measure={product.measured.r30} />
         </td>
-        <td className={b.num} data-label="Against the index">
+        <td className={b.num} data-label="Against the Market Average">
           <IndexCell vs={product.vsIndex} measure={product.measured.r30} />
         </td>
         <td className={b.num} data-label="Total value">
@@ -103,7 +103,7 @@ export function Products({ book, navigate, user }) {
             <th>Vault</th>
             <th className={b.num}>Rate now</th>
             <th className={b.num}>30-day rate</th>
-            <th className={b.num}>Against the index</th>
+            <th className={b.num}>Against the Market Average</th>
             <th className={b.num}>Total value</th>
             <th>Withdraw in</th>
             {showBalance && <th className={b.num}>Your balance</th>}
@@ -279,7 +279,7 @@ function WhatIf({ book, navigate }) {
     <Section
       id="what-if"
       title="What if you had deposited"
-      lede="Worked out from each vault’s real share price, and from the index over the same days. Past results; rates change."
+      lede="Worked out from each vault’s real share price, and from the Market Average over the same days. Past results; rates change."
       aside={
         <div className={b.controls}>
           <label className={b.inlineField}>
@@ -320,7 +320,7 @@ function WhatIf({ book, navigate }) {
               <tr className={b.comparisonRow}>
                 <td data-cell="vault">
                   <button className={b.rowLink} onClick={() => navigate("index")}>
-                    USDC index
+                    USDC Market Average
                   </button>
                   <small className={b.quietBlock}>
                     the same days as the vault above
@@ -348,7 +348,7 @@ function WhatIf({ book, navigate }) {
       </div>
       <p className={b.footnote}>
         No vault charges a fee today; the planned fee is shown for comparison.
-        The index is a measure, not something you can deposit into. Network
+        The Market Average is a measure, not something you can deposit into. Network
         costs are not included.
       </p>
     </Section>
@@ -370,7 +370,7 @@ export default function VaultsPage({ book, navigate, user }) {
         <p className={b.earnLede}>
           One product per stablecoin. Each vault moves its money to the better
           rate among approved markets and shows where every dollar is, measured
-          against the market average.
+          against the Market Average.
         </p>
         {book.products[0] && (
           <div className={b.earnActions}>
@@ -383,7 +383,7 @@ export default function VaultsPage({ book, navigate, user }) {
               Deposit {book.products[0].token}
             </button>
             <button className={b.heroLink} onClick={() => navigate("index")}>
-              What the market average is
+              What the Market Average is
             </button>
           </div>
         )}
@@ -395,7 +395,7 @@ export default function VaultsPage({ book, navigate, user }) {
             {totals.measured.r30?.status === "ok" ? pct(totals.measured.r30.rate) : "—"}
           </dd>
           <small>
-            <VsIndex diff={totals.vsIndex?.r30Diff} suffix=" vs USDC index" />
+            <VsIndex diff={totals.vsIndex?.r30Diff} suffix=" vs USDC Market Average" />
           </small>
         </div>
         <div>
@@ -425,7 +425,7 @@ export default function VaultsPage({ book, navigate, user }) {
         <details className={b.disclosure}>
           <summary>
             How to read this table
-            <small>Rate now, 30-day rate, the index, stages, withdrawals</small>
+            <small>Rate now, 30-day rate, the Market Average, stages, withdrawals</small>
           </summary>
           <dl className={b.definitions}>
             <div>
@@ -437,9 +437,9 @@ export default function VaultsPage({ book, navigate, user }) {
               </dd>
             </div>
             <div>
-              <dt>Against the index</dt>
+              <dt>Against the Market Average</dt>
               <dd>
-                The 30-day rate minus the blue-chip index for the same
+                The 30-day rate minus the Market Average for the same
                 stablecoin over the same days, in percentage points. A product
                 without a 30-day rate has no gap either.
               </dd>
@@ -475,13 +475,13 @@ export default function VaultsPage({ book, navigate, user }) {
       </Section>
       <Section
         id="against-index"
-        title="Against the blue-chip index"
+        title="Against the Market Average"
         lede={
           <>
-            The market average: lending across every approved blue-chip market,
+            The Market Average: lending across every approved blue-chip market,
             weighted by size.{" "}
             <button className={b.linkButton} onClick={() => navigate("index")}>
-              How the index is built
+              How the Market Average is built
             </button>
           </>
         }

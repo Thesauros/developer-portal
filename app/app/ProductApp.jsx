@@ -46,14 +46,14 @@ const LABELS = {
   vaults: "Earn",
   activity: "Activity",
   transparency: "Transparency",
-  index: "Blue-chip index",
+  index: "Market Average",
   developers: "Developers",
   settings: "Account",
 };
 const PATHS = {
   overview: "",
   vaults: "/vaults",
-  index: "/blue-chip-index",
+  index: "/market-average",
   activity: "/activity",
   transparency: "/transparency",
   developers: "/developers",
@@ -145,7 +145,8 @@ function parseRoute(pathname, mode, known) {
     }
     return { view: "vaults" };
   }
-  if (parts[0] === "blue-chip-index") return { view: "index" };
+  // The Market Average; its old address still opens it.
+  if (parts[0] === "market-average" || parts[0] === "blue-chip-index") return { view: "index" };
   if (parts[0] === "account") return { view: "settings" };
   if (["activity", "transparency", "developers"].includes(parts[0]))
     return { view: parts[0] };
@@ -437,7 +438,7 @@ export default function ProductApp({ mode = "individual", user }) {
       aria-current={section === id ? "page" : undefined}
     >
       <Glyph id={id} />
-      <span>{compact && id === "index" ? "Index" : label(id)}</span>
+      <span>{compact && id === "index" ? "Market avg" : label(id)}</span>
     </a>
   );
   const menuItems = (

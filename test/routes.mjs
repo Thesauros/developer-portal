@@ -191,17 +191,21 @@ try {
     "the Ethereum vault has a page",
   );
   check(
+    (await request("/app/individual/market-average")).status === 200,
+    "the Market Average opens without a session",
+  );
+  check(
     (await request("/app/individual/blue-chip-index")).status === 200,
-    "the blue-chip index opens without a session",
+    "the Market Average's old address still opens",
   );
   {
     const old = await request("/app/bluechips");
     check(
       [307, 308].includes(old.status) &&
         (old.headers.get("location") || "").endsWith(
-          "/app/individual/blue-chip-index",
+          "/app/individual/market-average",
         ),
-      "the old blue-chip window leads to the index",
+      "the old blue-chip window leads to the Market Average",
     );
   }
   check(

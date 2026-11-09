@@ -61,13 +61,13 @@ const listOf = (items) =>
 const listNetworks = (rows) =>
   "On " + [...new Set(rows.map((row) => row.network))].join(", ");
 const indexName = (index) =>
-  index?.symbol ? `${index.symbol} index` : "the index";
+  index?.symbol ? `${index.symbol} Market Average` : "the Market Average";
 function indexLong(index) {
-  if (!index) return "the blue-chip index";
+  if (!index) return "the Market Average";
   const only = index.constituents?.length === 1 ? index.constituents[0] : null;
   return only
-    ? `the ${index.symbol} index (one market: ${only.name} on ${only.network.charAt(0).toUpperCase() + only.network.slice(1)})`
-    : `the ${index.symbol} blue-chip index`;
+    ? `the ${index.symbol} Market Average (one market: ${only.name} on ${only.network.charAt(0).toUpperCase() + only.network.slice(1)})`
+    : `the ${index.symbol} Market Average`;
 }
 
 function StageLine({ view }) {
@@ -273,7 +273,7 @@ function StrategyRates({ vault, index }) {
         </p>
       )}
       <MeasureNote>
-        What the money lent on one network earned, against the blue-chip index.
+        What the money lent on one network earned, against the Market Average.
         The data service has these from 29 October. It leaves out cash, so it
         is not this vault’s rate.
       </MeasureNote>
@@ -398,8 +398,8 @@ function Performance({ view, vault, index }) {
           options={[
             ...(measurable
               ? [
-                  { value: "rate", label: "Rate vs index" },
-                  { value: "earned", label: "Earned vs index" },
+                  { value: "rate", label: "Rate vs Market Average" },
+                  { value: "earned", label: "Earned vs Market Average" },
                 ]
               : []),
             { value: "price", label: "Share price" },
@@ -432,18 +432,18 @@ function Performance({ view, vault, index }) {
               {verdict && (
                 <p className={b.verdictLine}>
                   {days ? `Over ${days} days` : "Since launch"}:{" "}
-                  {view.title || "this product"} {pct(verdict.ours)}, the index{" "}
+                  {view.title || "this product"} {pct(verdict.ours)}, the Market Average{" "}
                   {pct(verdict.index)}, <VsIndex diff={verdict.gap} />.
                 </p>
               )}
               <MeasureNote>
                 {view.title || "This product"}: its vaults large enough to
-                measure, weighted by size, from share prices. Index: what its
+                measure, weighted by size, from share prices. Market Average: what its
                 markets paid, weighted by size. {referenceNote(index)} Interest
                 only, before fees.
               </MeasureNote>
               <details className={b.disclosure}>
-                <summary>Week by week against the index</summary>
+                <summary>Week by week against the Market Average</summary>
                 <GapChart points={gaps} label={view.title || "This product"} />
                 <p className={b.footnote}>
                   Each bar is that week’s part of the gap, in points; together
@@ -513,11 +513,11 @@ function Performance({ view, vault, index }) {
               market: indexRates(index, weekRates.filter((point) => point.t >= from)),
             }}
             vaultLabel={view.title || "This product"}
-            compareLabel={`${index?.symbol || "USDC"} index`}
+            compareLabel={`${index?.symbol || "USDC"} Market Average`}
           />
           <MeasureNote>
             The same measure on both sides: share prices for {view.title || "the product"},
-            each market’s interest index for the index. A week smooths single
+            each market’s interest index for the Market Average. A week smooths single
             days; quotes never enter it.
           </MeasureNote>
         </>
@@ -533,7 +533,7 @@ function Performance({ view, vault, index }) {
           />
           <MeasureNote>
             Too small to measure from its share price yet, so this is the daily
-            rate the Thesauros data service reports, against what the index
+            rate the Thesauros data service reports, against what the Market Average
             earned over the week before each day.
           </MeasureNote>
         </>
@@ -653,9 +653,9 @@ function ApprovedMarkets({ vault }) {
                     {row.inIndex === false && (
                       <small
                         className={b.outside}
-                        title="Under 1 million USD, so the blue-chip index leaves it out"
+                        title="Under 1 million USD, so the Market Average leaves it out"
                       >
-                        not in the index
+                        not in the Market Average
                       </small>
                     )}
                     {row.note && <span>{row.note}</span>}
@@ -770,7 +770,7 @@ function ApprovedMarkets({ vault }) {
             {pct(outside.reduce((sum, row) => sum + (row.share || 0), 0), 0)}
           </strong>{" "}
           of this vault but {outside.length === 1 ? "is" : "are"} under 1
-          million USD, so the blue-chip index leaves{" "}
+          million USD, so the Market Average leaves{" "}
           {outside.length === 1 ? "it" : "them"} out. The vault is{" "}
           {outside
             .map((row) => `${(row.shareOfMarket ?? 0).toFixed(1)}%`)
@@ -781,7 +781,7 @@ function ApprovedMarkets({ vault }) {
       {vault.ratesAt && (
         <MeasureNote label="Where these rates come from">
           Rates read from the market contracts at {clock(vault.ratesAt)}, the
-          same readings the blue-chip index uses. A sudden jump in a quote
+          same readings the Market Average uses. A sudden jump in a quote
           counts only once a second reading confirms it.
         </MeasureNote>
       )}
@@ -816,7 +816,7 @@ function TierSplit({ vault, index }) {
       Where a higher rate can come from: this vault lends{" "}
       <strong>{pct(ours, 0)}</strong> to core lenders (Aave, Compound) and{" "}
       <strong>{pct(100 - ours, 0)}</strong> to curated Morpho vaults. The
-      blue-chip index is <strong>{pct(theirs, 0)}</strong> core. Curated vaults
+      Market Average is <strong>{pct(theirs, 0)}</strong> core. Curated vaults
       usually pay more because they lend against a wider set of collateral.
     </p>
   );
@@ -885,7 +885,7 @@ function WhereTheMoneyIs({ vault, index }) {
           <MeasureNote label="What Core and Satellite mean">
             Core: Aave and Compound. Satellite: curated Morpho vaults. Every
             approved market of 1 million USD or more is a member of the
-            blue-chip index.
+            Market Average.
           </MeasureNote>
         </>
       ) : (

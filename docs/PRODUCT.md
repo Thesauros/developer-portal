@@ -19,9 +19,9 @@ One account in stablecoins, sold as native yield from blue-chip lending across m
 
 ## The market
 
-"The market" means one thing everywhere: the blue-chip index. Its members are every lending market a Thesauros vault is approved to use, as the vault contracts list them; each counts by how much it holds; its return comes from each market's own interest index, chained day by day. Every vault, product and the whole of Thesauros are compared with it over the same days, in percentage points. The index page shows its members, weights and method.
+"The market" means one thing everywhere: the Market Average, a TVL-weighted blue-chip index. Its members are every lending market a Thesauros vault is approved to use, as the vault contracts list them; each counts by how much it holds; its return comes from each market's own interest index, chained day by day. Every vault, product and the whole of Thesauros are compared with it over the same days, in percentage points. The index page shows its members, weights and method.
 
-The comparison chart puts Thesauros and the index side by side as what 10,000 earned since the start of the period, with three reference lines: T-bills (the on-chain price of Ondo USDY), Aave alone and Compound alone (the index built only from that lender's markets). The references give scale; the gap is always measured against the index.
+The comparison chart puts Thesauros and the Market Average side by side, as 30-day rates day by day or as what 10,000 earned, with two reference lines: T-bills (the on-chain price of Ondo USDY) and Aave alone (the Market Average built only from Aave's markets). Where Thesauros runs above the Market Average the area between them is hatched: that is the gain a year, or in money; a shortfall is not drawn. The gap is always measured against the Market Average.
 
 A quoted rate counts as read unless it jumps: each market's quote is also read at 04:00, 12:00 and 20:00 UTC, and a quote more than 1.5 points (or 30%) away from both of the two readings before it counts only once a later reading confirms it. This keeps out short spikes such as Aave on Ethereum's 40-minute jump to about 12.5% around midnight UTC. What a market earned comes from its interest index and is not affected by quotes at all.
 

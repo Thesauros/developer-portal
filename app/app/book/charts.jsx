@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { CASH_COLOR, marketColor } from "../../../lib/vault-book.mjs";
 import { earnedSeries } from "../../../lib/blue-chip-index.mjs";
 import { clock, dateLabel, money, pct } from "./parts";
@@ -499,10 +499,9 @@ export const COMPARE_COLORS = {
   thesauros: "#196aff",
   index: "#2b3445",
   aave: "#e87ba4",
-  compound: "#008300",
   tbills: "#c98500",
 };
-const COMPARE_DASH = { aave: "6 4", compound: "2 3", tbills: "10 3 2 3" };
+const COMPARE_DASH = { aave: "6 4", tbills: "10 3 2 3" };
 
 // A line over the window: its reading nearest the start, its last reading, and
 // the simple annual rate between them. The chart and the verdict under it both
@@ -532,6 +531,52 @@ export function commonStart(lines, from = -Infinity) {
   );
 }
 
+// A line's value at any moment, on the straight segment between its readings.
+function valueAt(points, at) {
+  if (at <= points[0].at) return points[0].value;
+  if (at >= points.at(-1).at) return points.at(-1).value;
+  for (let i = 1; i < points.length; i++)
+    if (at <= points[i].at) {
+      const a = points[i - 1],
+        c = points[i];
+      return a.value + ((c.value - a.value) * (at - a.at)) / Math.max(c.at - a.at, 1);
+    }
+  return points.at(-1).value;
+}
+
+// Where our line runs above the Market Average: stretches between the two
+// lines, cut where they cross. Where we are below, there is nothing.
+function aheadStretches(ours, market) {
+  if (!ours || !market || market.points.length < 2) return [];
+  const first = market.points[0].at,
+    last = market.points.at(-1).at;
+  const pts = ours.points.filter((point) => point.at >= first && point.at <= last);
+  const out = [];
+  let run = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const m = valueAt(market.points, p.at);
+    const d = p.value - m;
+    if (i > 0) {
+      const q = pts[i - 1];
+      const qd = q.value - valueAt(market.points, q.at);
+      if (qd > 0 !== d > 0 && qd !== d) {
+        const t = qd / (qd - d);
+        const at = q.at + (p.at - q.at) * t;
+        const v = q.value + (p.value - q.value) * t;
+        if (qd > 0) {
+          run.push({ at, top: v, bottom: v });
+          if (run.length > 1) out.push(run);
+          run = [];
+        } else run = [{ at, top: v, bottom: v }];
+      }
+    }
+    if (d > 0) run.push({ at: p.at, top: p.value, bottom: m });
+  }
+  if (run.length > 1) out.push(run);
+  return out;
+}
+
 // Two views of one comparison. "rate": each line's 30-day rate, day by day, so
 // the gap between them is visible and the right edge is the 30-day figure.
 // "earned": what one amount earned on each since the start of the window.
@@ -546,6 +591,7 @@ export function ComparisonChart({
 }) {
   const [hover, setHover] = useState(null);
   const [box, width] = useWidth();
+  const hatchId = "ahead" + useId().replace(/[^a-zA-Z0-9]/g, "");
   const rolling = useMemo(
     () =>
       mode === "rate"
@@ -609,7 +655,7 @@ export function ComparisonChart({
     H = height,
     left = 44,
     // On a phone the rates go in the readout below, so the plot keeps the width.
-    right = narrow ? 14 : 150,
+    right = narrow ? 14 : 178,
     top = 24,
     bottom = 26;
   const all = usable.flatMap((line) => line.points);
@@ -632,6 +678,11 @@ export function ComparisonChart({
           (index ? "L" : "M") + x(point.at).toFixed(1) + " " + y(point.value).toFixed(1),
       )
       .join("");
+  // Our gain over the Market Average, hatched: per year in the rate view, in
+  // money in the earned view. A loss is not drawn.
+  const oursLine = usable.find((line) => line.id === "thesauros");
+  const marketLine = usable.find((line) => line.id === "index");
+  const ahead = aheadStretches(oursLine, marketLine);
   const grid = [];
   for (let level = yLo; level <= yHi; level += step) grid.push(level);
   const shownMarkers = (markers || []).filter((marker) => marker.at > t0 && marker.at < t1);
@@ -717,6 +768,29 @@ export function ComparisonChart({
             </text>
           </g>
         ))}
+        <defs>
+          <pattern
+            id={hatchId}
+            patternUnits="userSpaceOnUse"
+            width="6"
+            height="6"
+            patternTransform="rotate(45)"
+          >
+            <line x1="0" y1="0" x2="0" y2="6" stroke={COMPARE_COLORS.thesauros} strokeWidth="1.6" strokeOpacity="0.45" />
+          </pattern>
+        </defs>
+        {ahead.map((run, i) => (
+          <path
+            key={"ahead" + i}
+            d={
+              run.map((point, k) => (k ? "L" : "M") + x(point.at).toFixed(1) + " " + y(point.top).toFixed(1)).join("") +
+              [...run].reverse().map((point) => "L" + x(point.at).toFixed(1) + " " + y(point.bottom).toFixed(1)).join("") +
+              "Z"
+            }
+            fill={`url(#${hatchId})`}
+            stroke="none"
+          />
+        ))}
         {[...usable].reverse().map((line) => (
           <path
             key={line.id}
@@ -790,6 +864,23 @@ export function ComparisonChart({
               ? "A year over the period"
               : `Earned by ${niceDay(shownAt)}, in ${token}`}
         </span>
+        {ahead.length > 0 && oursLine && marketLine && (
+          <span>
+            <i className={b.keyHatch} aria-hidden="true" /> Ahead of Market Average
+            {hover != null &&
+              (() => {
+                const gain =
+                  valueAt(oursLine.points, shownAt) - valueAt(marketLine.points, shownAt);
+                return gain > 0 ? (
+                  <strong>
+                    {" "}
+                    +{gain.toFixed(2)}
+                    {mode === "rate" ? " pts a year" : ` ${token}`}
+                  </strong>
+                ) : null;
+              })()}
+          </span>
+        )}
         {usable.map((line) => (
           <span key={line.id}>
             <i
@@ -825,7 +916,7 @@ export function RateChart({
   series,
   height = 240,
   vaultLabel = "This vault",
-  compareLabel = "Blue-chip index",
+  compareLabel = "Market Average",
 }) {
   const [hover, setHover] = useState(null);
   const [box, width] = useWidth();
@@ -1122,7 +1213,7 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
         height={H}
         viewBox={`0 0 ${W} ${H}`}
         role="img"
-        aria-label={`${label} against the index over each previous week, from ${dateLabel(points[0].at, false)} to ${dateLabel(points.at(-1).at, false)}`}
+        aria-label={`${label} against the Market Average over each previous week, from ${dateLabel(points[0].at, false)} to ${dateLabel(points.at(-1).at, false)}`}
         onPointerMove={move}
         onPointerLeave={() => setHover(null)}
       >

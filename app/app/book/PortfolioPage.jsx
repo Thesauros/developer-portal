@@ -29,7 +29,7 @@ function Compare({ book, navigate }) {
       lede="Choose the stablecoin and how fast you want to be able to leave. The network you deposit from is chosen inside."
       aside={
         <button className={b.linkButton} onClick={() => navigate("vaults")}>
-          Earn: the index and what-if
+          Earn: the Market Average and what-if
         </button>
       }
     >
@@ -327,7 +327,7 @@ export default function PortfolioPage({
               <dd>{pct(holdings.rateNow)}</dd>
               {book.index?.rateNow != null && holdings.rateNow != null && (
                 <small>
-                  Blue-chip index {pct(book.index.rateNow)}
+                  Market Average {pct(book.index.rateNow)}
                 </small>
               )}
             </div>
