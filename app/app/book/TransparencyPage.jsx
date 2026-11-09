@@ -457,6 +457,33 @@ function Security({ book }) {
       title="Audits and control"
       lede="Who has reviewed the code, and who can change it."
     >
+      {/* The answer first, one line per kind of review; each vault's
+          contract is a click away. */}
+      <ul className={b.plainList}>
+        {Object.entries(
+          book.products
+            .flatMap((product) => product.vaults)
+            .reduce((groups, vault) => {
+              (groups[vault.audit.label] ||= []).push(vault);
+              return groups;
+            }, {}),
+        ).map(([label, vaults]) => (
+          <li key={label}>
+            <strong>{label}</strong>:{" "}
+            {vaults
+              .map((vault) => {
+                const where = vault.place || (vault.networks || []).join(" and ");
+                return where ? `${vault.title} on ${where}` : vault.title;
+              })
+              .join(", ")}
+          </li>
+        ))}
+      </ul>
+      <details className={b.disclosure}>
+        <summary>
+          Each vault’s contract, review and control
+          <small>{book.products.flatMap((product) => product.vaults).length} vaults</small>
+        </summary>
       <div className={b.tableWrap}>
         <table className={`${b.table} ${b.stack}`}>
           <thead>
@@ -493,6 +520,7 @@ function Security({ book }) {
           </tbody>
         </table>
       </div>
+      </details>
       <p className={b.footnote}>
         {AUDITS.map((audit) => `${audit.firm}, ${audit.date}`).join("; ")}. Full
         reports and vault controls are in the{" "}

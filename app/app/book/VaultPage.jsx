@@ -28,7 +28,6 @@ import {
   PERIODS,
   referenceNote,
   viewLede,
-  VIEWS,
   windowVerdict,
 } from "./IndexPage";
 import {
@@ -292,8 +291,9 @@ function indexRates(index, series) {
     .map((point) => ({ t: point.at, v: point.rate }));
 }
 
-// A measurable product's rate over time is the comparison chart's 30-day view,
-// so its Rate tab appears only where there is no such view.
+// One row of choices: the comparison as 30-day rates or as what 10,000 earned,
+// then the share price. A product too small to compare has its daily rate
+// instead. The period sits with the chart.
 function Performance({ view, vault, index }) {
   // A product too small to compare opens on its share price, not an empty box.
   // Until the reader picks, the default follows the data as it arrives.
@@ -388,12 +388,22 @@ function Performance({ view, vault, index }) {
       aside={
         <Segmented
           label="Chart"
-          value={tab}
-          onChange={setTab}
+          value={tab === "versus" ? chartView : tab === "rate" ? "daily" : tab}
+          onChange={(next) => {
+            if (next === "rate" || next === "earned") {
+              setChartView(next);
+              setTab("versus");
+            } else setTab(next === "daily" ? "rate" : next);
+          }}
           options={[
-            { value: "versus", label: "Against the index" },
+            ...(measurable
+              ? [
+                  { value: "rate", label: "Rate vs index" },
+                  { value: "earned", label: "Earned vs index" },
+                ]
+              : []),
             { value: "price", label: "Share price" },
-            ...(measurable ? [] : [{ value: "rate", label: "Rate" }]),
+            ...(measurable ? [] : [{ value: "daily", label: "Rate" }]),
           ]}
         />
       }
@@ -408,10 +418,7 @@ function Performance({ view, vault, index }) {
                 lines[0]?.series?.find((point) => point.at >= from - DAY / 2)?.at ?? from,
               )}
             </p>
-            <div className={b.controlsRow}>
-              <Segmented label="View" value={chartView} onChange={setChartView} options={VIEWS} />
-              {periodControl}
-            </div>
+            {periodControl}
           </div>
           {measurable ? (
             <>

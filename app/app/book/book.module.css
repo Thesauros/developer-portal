@@ -3205,3 +3205,18 @@
     font-size: 15px;
   }
 }
+
+.plainList {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.plainList strong {
+  color: var(--ink);
+  font-weight: 500;
+}
