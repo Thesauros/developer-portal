@@ -55,14 +55,14 @@ declare victory on three samples.
 
 | | `synthetic` | `historical` |
 | --- | --- | --- |
-| Rates | Seeded simulation around the sandbox venues | Real daily APY from the DeFiLlama pool charts |
+| Rates | Seeded simulation around the sandbox venues | Real daily rates of the markets Thesauros vaults are approved to use, from each market's interest index as the Thesauros indexer reads it |
 | Samples | Any number of independent markets | Non-overlapping blocks of one history |
 | Reproducible | Yes, from `(seed, regime)` | Yes, but it is one fixed past |
 | A p-value means | A statement about the rate model | Indicative only — blocks are not independent draws |
 
 Neither is evidence about the future. Synthetic paths describe the behaviour
-of a model; historical paths describe rates that really happened to seven
-venues over a few months. Both carry their provenance on the response, and the
+of a model; historical paths describe rates that really happened to the
+approved markets over the indexer's history. Both carry their provenance on the response, and the
 UI prints it under the result.
 
 **Synthetic regimes** change how the simulated market behaves:
