@@ -554,7 +554,10 @@ test("vaults group into products by stablecoin and how you leave", () => {
     monad: daily(60, (i) => 1 + i * 0.0003, 6),
   };
   const index = buildBlueChipIndex(
-    lending("ethereum:aave", 1000, 0.04 / 365, 4, 70).map((row) => ({
+    [
+      ...lending("ethereum:aave", 1000, 0.04 / 365, 4, 70),
+      ...lending("arbitrum:compound", 200, 0.035 / 365, 3.5, 70),
+    ].map((row) => ({
       ...row,
       day: row.day - 30,
       at: row.at - 30 * DAY,
@@ -718,4 +721,12 @@ test("a chained line keeps two readings on one calendar day and matches the vaul
   const chained = compositeMeasure([{ id: "v", samples }], 30, samples.at(-1).at);
   assert.equal(chained.status, "ok");
   assert.ok(Math.abs(chained.rate - own.rate) < 1e-9, `${chained.rate} vs ${own.rate}`);
+});
+
+test("an index of one market is not a market average: nothing is compared with it", () => {
+  const samples = { arbitrum: daily(60) };
+  const one = buildBlueChipIndex(lending("ethereum:aave", 1000, 0.04 / 365, 4, 70));
+  const book = buildBook({ market, batch: batchFeed, samples, index: one, now });
+  assert.equal(book.byId.arbitrum.vsIndex, null);
+  assert.equal(book.byId.arbitrum.index, null);
 });

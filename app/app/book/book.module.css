@@ -146,7 +146,8 @@
   font-size: 12px;
   letter-spacing: 0.02em;
 }
-.side nav button {
+.side nav button,
+.side nav a {
   display: flex;
   align-items: center;
   gap: 11px;
@@ -160,11 +161,13 @@
   text-align: left;
   transition: background-color 150ms, color 150ms;
 }
-.side nav button:hover {
+.side nav button:hover,
+.side nav a:hover {
   background: #fff;
   color: var(--ink);
 }
-.side nav button[aria-current="page"] {
+.side nav button[aria-current="page"],
+.side nav a[aria-current="page"] {
   background: #fff;
   color: var(--blue-deep);
   font-weight: 500;
@@ -287,8 +290,10 @@
 .footer > :first-child {
   margin-right: auto;
 }
-.footer a {
+.footer a,
+.footer .linkButton {
   color: var(--ink-2);
+  font-size: 13px;
 }
 .dock {
   display: none;
@@ -1254,31 +1259,42 @@
   font-size: 15px;
 }
 .notice {
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--warn-wash);
-  color: var(--warn);
+  padding: 14px 16px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 14px;
+  background: var(--well);
+  color: var(--ink-2);
   font-size: 13px;
+  line-height: 1.5;
 }
 .notice summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
   font-weight: 500;
   cursor: pointer;
 }
+.notice summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
 .notice ul {
   display: grid;
-  gap: 3px;
-  margin: 6px 0;
+  gap: 6px;
+  margin: 10px 0 8px;
+  padding-left: 18px;
+  list-style: disc;
 }
-.notice li {
-  padding-left: 12px;
-  text-indent: -12px;
-}
-.notice li::before {
-  content: "· ";
+.notice li::marker {
+  color: var(--ink-4);
 }
 .notice a {
-  color: var(--warn);
-  text-decoration: underline;
+  color: var(--blue, #196aff);
+  text-decoration: none;
 }
 .form {
   display: grid;
@@ -1564,7 +1580,8 @@
     border-top: 1px solid var(--rule);
     z-index: 40;
   }
-  .dock button {
+  .dock button,
+  .dock a {
     display: grid;
     justify-items: center;
     gap: 2px;
@@ -1579,7 +1596,8 @@
     width: 20px;
     height: 20px;
   }
-  .dock button[aria-current="page"] {
+  .dock button[aria-current="page"],
+  .dock a[aria-current="page"] {
     color: var(--blue-deep);
     font-weight: 500;
   }
@@ -2327,6 +2345,13 @@
 .chartRead > span + span {
   margin-left: 14px;
 }
+.chartRead > span {
+  white-space: nowrap;
+}
+.markerLine {
+  stroke: var(--ink-4);
+  stroke-dasharray: 2 3;
+}
 .titleLine {
   display: inline-flex;
   flex-wrap: wrap;
@@ -2517,6 +2542,19 @@
 .networkChoice .select {
   width: 100%;
 }
+.fromRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.fromRow .select {
+  min-height: 36px;
+  color: var(--ink);
+  font-size: 14px;
+}
 .networkNote {
   display: flex;
   flex-wrap: wrap;
@@ -2552,7 +2590,8 @@
 .sideBottom nav {
   margin-bottom: 8px;
 }
-.sideBottom nav button {
+.sideBottom nav button,
+.sideBottom nav a {
   display: flex;
   align-items: center;
   gap: 11px;
@@ -2565,7 +2604,8 @@
   color: var(--ink-2);
   font-size: 14px;
 }
-.sideBottom nav button[aria-current="page"] {
+.sideBottom nav button[aria-current="page"],
+.sideBottom nav a[aria-current="page"] {
   background: #fff;
   color: var(--blue-deep);
   font-weight: 500;
@@ -2601,8 +2641,15 @@
   .indexTable td[data-cell="vault"] {
     grid-column: auto !important;
   }
+  /* Small labels above weight and rate, so the two numbers say what they are. */
   .indexTable td[data-label]::before {
-    display: none !important;
+    display: block !important;
+    content: attr(data-label);
+    margin-bottom: 2px;
+    color: var(--ink-3);
+    font-size: 11px;
+    font-weight: 400;
+    text-align: right;
   }
   .indexTable td[data-label="Weight"] {
     grid-column: auto !important;
@@ -2885,4 +2932,38 @@
   color: var(--blue-deep);
   font-weight: 500;
   white-space: nowrap;
+}
+
+/* The verdict for the period on screen, under a comparison chart */
+.verdictLine {
+  margin: 10px 0 0;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.verdictLine strong,
+.verdictLine b {
+  color: var(--ink);
+}
+
+/* Account for a guest: what signing in gives, then one button of normal size */
+.guestAccount {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  max-width: 560px;
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.guestAccount .primary,
+.guestAccount > button {
+  width: auto;
+  padding-inline: 28px;
+}
+
+.side nav a,
+.dock a,
+.sideBottom nav a {
+  color: inherit;
+  text-decoration: none;
 }

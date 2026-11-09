@@ -369,7 +369,7 @@ export function PriceChart({
   const x = (at) =>
     left + ((at - first) / Math.max(last - first, 1)) * (W - left - right);
   const y = (price) => top + (1 - (price - min) / range) * (H - top - bottom);
-  const places = range < 0.0005 ? 6 : 4;
+  const places = Math.min(6, Math.max(2, -Math.floor(Math.log10(niceStep(range / 3)))));
   let solid = "",
     silent = "";
   const gaps = [];
@@ -390,7 +390,12 @@ export function PriceChart({
   const longest = [...gaps].sort(
     (a, c) => c.to.at - c.from.at - (a.to.at - a.from.at),
   )[0];
-  const levels = [max, min + range / 2, min];
+  // Round gridlines inside the range; the exact first and last prices are in
+  // the readout under the chart.
+  const tick = niceStep(range / 3);
+  const levels = [];
+  for (let v = Math.ceil(min / tick) * tick; v <= min + range + 1e-12; v += tick) levels.push(v);
+  if (levels.length < 2) levels.splice(0, levels.length, max, min);
   function move(event) {
     const rect = event.currentTarget.getBoundingClientRect();
     const at =
@@ -487,14 +492,35 @@ export function PriceChart({
 // Thesauros against the index and a few reference lines: what one amount
 // earned on each since the start of the window. The slope is the rate; the
 // label at each end gives it a year, so the numbers match the table beside it.
+// Thesauros is the brand blue and the heaviest line; the index is ink, the
+// yardstick; the references are thin and dashed, there for scale.
 export const COMPARE_COLORS = {
   thesauros: "#196aff",
-  index: "#c98500",
+  index: "#2b3445",
   aave: "#e87ba4",
   compound: "#008300",
   tbills: "#1baf7a",
 };
 const COMPARE_DASH = { aave: "6 4", compound: "2 3", tbills: "10 3 2 3" };
+
+// A line over the window: its reading nearest the start, its last reading, and
+// the simple annual rate between them. The chart and the verdict under it both
+// use this, so they never disagree.
+export function windowOf(series, from) {
+  const list = series || [];
+  let first = list.findIndex((point) => point.at >= from);
+  if (first > 0 && from - list[first - 1].at < list[first].at - from) first -= 1;
+  const inside = first < 0 ? [] : list.slice(first);
+  if (inside.length < 2) return null;
+  const base = inside[0],
+    last = inside.at(-1);
+  return {
+    inside,
+    base,
+    last,
+    rate: ((last.level / base.level - 1) * 365 * DAY_MS * 100) / (last.at - base.at),
+  };
+}
 
 export function ComparisonChart({
   lines,
@@ -502,6 +528,7 @@ export function ComparisonChart({
   amount = 10000,
   token = "USDC",
   height = 260,
+  markers = [],
 }) {
   const [hover, setHover] = useState(null);
   const [box, width] = useWidth();
@@ -509,16 +536,10 @@ export function ComparisonChart({
     () =>
       (lines || [])
         .map((line) => {
-          const list = line.series || [];
-          let first = list.findIndex((point) => point.at >= from);
-          if (first > 0 && from - list[first - 1].at < list[first].at - from) first -= 1;
-          const inside = first < 0 ? [] : list.slice(first);
-          if (inside.length < 2) return null;
-          const base = inside[0];
-          const last = inside.at(-1);
-          const rate =
-            line.rate ??
-            ((last.level / base.level - 1) * 365 * DAY_MS * 100) / (last.at - base.at);
+          const span = windowOf(line.series, from);
+          if (!span) return null;
+          const { inside, base } = span;
+          const rate = line.rate ?? span.rate;
           return {
             ...line,
             rate,
@@ -541,16 +562,17 @@ export function ComparisonChart({
   const W = width || 720,
     H = height,
     left = 44,
-    right = narrow ? 122 : 142,
-    top = 14,
+    right = narrow ? 136 : 150,
+    top = 24,
     bottom = 26;
   const all = usable.flatMap((line) => line.points);
   const values = all.map((point) => point.value);
   const lo = Math.min(0, ...values),
     hi = Math.max(...values);
+  // The plot uses its full height; gridlines sit at round amounts inside it.
   const step = niceStep((hi - lo) / 4);
   const yLo = Math.floor(lo / step) * step,
-    yHi = Math.ceil(hi / step) * step || step;
+    yHi = Math.max(hi + (hi - yLo) * 0.06, yLo + step);
   const t0 = Math.min(...all.map((point) => point.at)),
     t1 = Math.max(...all.map((point) => point.at));
   const x = (t) => left + ((t - t0) / Math.max(t1 - t0, 1)) * (W - left - right);
@@ -563,7 +585,8 @@ export function ComparisonChart({
       )
       .join("");
   const grid = [];
-  for (let level = yLo; level <= yHi + step / 2; level += step) grid.push(level);
+  for (let level = yLo; level <= yHi; level += step) grid.push(level);
+  const shownMarkers = (markers || []).filter((marker) => marker.at > t0 && marker.at < t1);
   const nearest = (points, at) =>
     points.reduce((a, c) => (Math.abs(c.at - at) < Math.abs(a.at - at) ? c : a));
   function move(event) {
@@ -584,7 +607,7 @@ export function ComparisonChart({
   const overflow = ends.length ? ends.at(-1).y - (H - bottom) : 0;
   if (overflow > 0) for (const end of ends) end.y -= overflow;
   const shownAt = hover ?? t1;
-  const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString("en-US") : v.toFixed(step < 1 ? 1 : 0));
+  const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString("en-US") : v.toFixed(Number.isInteger(step) ? 0 : 1));
   return (
     <div ref={box} className={b.chartBox}>
       <svg
@@ -600,8 +623,31 @@ export function ComparisonChart({
           )
           .join("; ")}
         onPointerMove={move}
+        onPointerDown={move}
         onPointerLeave={() => setHover(null)}
       >
+        <text x={left - 8} y={10} textAnchor="end" className={b.axis}>
+          {token}
+        </text>
+        {shownMarkers.map((marker) => (
+          <g key={marker.at + marker.label}>
+            <line
+              x1={x(marker.at)}
+              x2={x(marker.at)}
+              y1={top - 8}
+              y2={H - bottom}
+              className={b.markerLine}
+            />
+            <text
+              x={x(marker.at) + (x(marker.at) > (W - right) * 0.6 ? -6 : 6)}
+              y={top - 1}
+              textAnchor={x(marker.at) > (W - right) * 0.6 ? "end" : "start"}
+              className={b.axis}
+            >
+              {narrow ? marker.short || marker.label : marker.label}
+            </text>
+          </g>
+        ))}
         {grid.map((level) => (
           <g key={level}>
             <line
@@ -622,7 +668,8 @@ export function ComparisonChart({
             d={path(line.points)}
             fill="none"
             stroke={line.color}
-            strokeWidth={line.strong ? 2.5 : 1.5}
+            strokeWidth={line.id === "thesauros" ? 3 : line.strong ? 2 : 1.25}
+            strokeOpacity={line.strong ? 1 : 0.9}
             strokeDasharray={line.strong ? undefined : COMPARE_DASH[line.id] || "5 4"}
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -644,7 +691,7 @@ export function ComparisonChart({
               className={line.strong ? b.endStrong : b.endLabel}
             >
               <tspan className={b.endValue}>{line.rate.toFixed(2)}%</tspan>{" "}
-              {line.short || line.name}
+              {narrow ? line.tiny || line.short || line.name : line.short || line.name}
             </text>
           </g>
         ))}
@@ -681,7 +728,9 @@ export function ComparisonChart({
         </text>
       </svg>
       <p className={b.chartRead} aria-live="polite">
-        <span>{niceDay(shownAt)}</span>
+        <span>
+          Earned by {niceDay(shownAt)}, in {token}
+        </span>
         {usable.map((line) => (
           <span key={line.id}>
             <i
@@ -703,7 +752,7 @@ function niceStep(raw) {
   if (!(raw > 0)) return 1;
   const power = 10 ** Math.floor(Math.log10(raw));
   const unit = raw / power;
-  return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 5 ? 5 : 10) * power;
+  return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 2.5 ? 2.5 : unit <= 5 ? 5 : 10) * power;
 }
 
 // The vault's rate against a named comparison, with the same grid.
@@ -748,7 +797,10 @@ export function RateChart({
           y(point.v).toFixed(1),
       )
       .join("");
-  const grid = [0, 1, 2, 3].map((step) => lo + ((hi - lo) * step) / 3);
+  // Round rates for the gridlines: 2%, 3%, 4%, not 2.1%, 5.4%.
+  const rateStep = niceStep((hi - lo) / 3);
+  const grid = [];
+  for (let v = Math.ceil(lo / rateStep) * rateStep; v <= hi + 1e-9; v += rateStep) grid.push(v);
   function move(event) {
     const rect = event.currentTarget.getBoundingClientRect();
     const t =
@@ -775,6 +827,7 @@ export function RateChart({
         role="img"
         aria-label={`${vaultLabel} rate from ${pct(vault[0].v)} to ${pct(vault.at(-1).v)}`}
         onPointerMove={move}
+        onPointerDown={move}
         onPointerLeave={() => setHover(null)}
       >
         {grid.map((level) => (
@@ -787,7 +840,7 @@ export function RateChart({
               className={b.gridLine}
             />
             <text x={W - right + 8} y={y(level) + 4} className={b.axis}>
-              {level.toFixed(1)}%
+              {level.toFixed(Number.isInteger(rateStep) ? 0 : 1)}%
             </text>
           </g>
         ))}

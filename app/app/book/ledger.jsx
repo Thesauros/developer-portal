@@ -133,8 +133,10 @@ function Row({ row, vaultName, hideVault }) {
   );
 }
 
-export function LedgerRows({ rows, vaultName, hideVault = false, byDay = false }) {
-  const grouped = groupEvents(rows);
+// `limit` counts events, after the moves of one transaction are joined: cutting
+// the rows first could split a transaction and show only part of it.
+export function LedgerRows({ rows, vaultName, hideVault = false, byDay = false, limit = Infinity }) {
+  const grouped = groupEvents(rows).slice(0, limit);
   if (!byDay)
     return (
       <ul className={b.ledger}>

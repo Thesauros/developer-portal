@@ -4,7 +4,7 @@ import { DAY } from "../../../lib/vault-metrics.mjs";
 import { chainList } from "../../../lib/chains.mjs";
 import { groupConstituents } from "../../../lib/blue-chip-index.mjs";
 import { marketColor } from "../../../lib/vault-book.mjs";
-import { COMPARE_COLORS, ComparisonChart, RateChart } from "./charts";
+import { COMPARE_COLORS, ComparisonChart, RateChart, windowOf } from "./charts";
 import {
   dateLabel,
   pct,
@@ -26,9 +26,11 @@ const PROTOCOL_LOGO = { Aave: "aave", Compound: "compound", Morpho: "morpho", Fl
 export const INDEX_DEFINITION =
   "The lending rate of every blue-chip market Thesauros vaults are approved to use and that holds at least 1 million USD, weighted by how much each market holds.";
 
-const PERIODS = [
+// The same periods on every comparison chart.
+export const PERIODS = [
   { value: 30, label: "30 days" },
   { value: 90, label: "90 days" },
+  { value: null, label: "All" },
 ];
 // The same window as every rate in the tables beside it.
 const DEFAULT_DAYS = 30;
@@ -43,7 +45,8 @@ export function compareLines(ours, index, oursName = "Thesauros", { oursRate, in
     {
       id: "thesauros",
       name: oursName,
-      short: "Thesauros",
+      short: oursName.length <= 13 ? oursName : "Thesauros",
+      tiny: "Thesauros",
       color: COMPARE_COLORS.thesauros,
       strong: true,
       series: ours || [],
@@ -66,6 +69,39 @@ export function compareLines(ours, index, oursName = "Thesauros", { oursRate, in
       series: ref.series,
     })),
   ];
+}
+
+// Where the index changed what it holds, for the large members only: a line
+// that changes basis says so where it happens.
+export function indexMarkers(index) {
+  const weight = new Map((index?.constituents || []).map((row) => [row.key, row.weight]));
+  const days = new Map();
+  for (const change of index?.changes || []) {
+    if (change.kind !== "joined" || (weight.get(change.key) || 0) < 5) continue;
+    if (!days.has(change.day)) days.set(change.day, []);
+    days.get(change.day).push(change);
+  }
+  // One mark a day: markets that joined together are named together.
+  return [...days.values()].map((list) => {
+    const networks = [...new Set(list.map((change) => NETWORK[change.network]?.name || change.network))];
+    const label =
+      list.length === 1
+        ? `${list[0].name} on ${networks[0]} joins`
+        : networks.length === 1
+          ? `${networks[0]} markets join (${list.map((change) => change.name).join(", ")})`
+          : `${list.length} markets join`;
+    const short =
+      networks.length === 1 ? `${networks[0]} joins` : `${list.length} markets join`;
+    return { at: list[0].at, label, short };
+  });
+}
+
+// The verdict for the window on screen, from the same readings as the chart.
+export function windowVerdict(lines, from) {
+  const [ours, index] = lines;
+  const a = ours && (ours.rate ?? windowOf(ours.series, from)?.rate);
+  const c = index && (index.rate ?? windowOf(index.series, from)?.rate);
+  return a != null && c != null ? { ours: a, index: c, gap: a - c } : null;
 }
 
 // What each reference line is, for the note under the chart.
@@ -100,17 +136,43 @@ export function curatedShare(vaults) {
   return total ? (curated / total) * 100 : null;
 }
 
-export function GapSplit({ local, total, curated }) {
+// The split over the period on screen: the vault against the markets where it
+// lends, and those markets against the whole index. Over 30 days it is the
+// stored split, so it matches the figures above to the cent.
+export function splitFor(local, verdict, from, days) {
+  if (!local) return null;
+  if (days === 30 || !verdict) return { ...local, total: verdict?.gap ?? null };
+  const parts = local.parts?.length ? local.parts : local.series ? [{ tvl: 1, series: local.series }] : [];
+  let weight = 0,
+    sum = 0;
+  for (const part of parts) {
+    const rate = windowOf(part.series, from)?.rate;
+    if (rate == null) return null;
+    weight += part.tvl;
+    sum += part.tvl * rate;
+  }
+  if (!weight) return null;
+  const localRate = sum / weight;
+  return {
+    ...local,
+    selection: verdict.ours - localRate,
+    place: localRate - verdict.index,
+    total: verdict.gap,
+  };
+}
+
+export function GapSplit({ local, total, curated, days = 30 }) {
   const where = local.networks.join(" and ");
   return (
     <div className={b.gapSplit}>
-      <p className={b.gapTitle}>Where the gap comes from</p>
+      <p className={b.gapTitle}>Where the gap comes from, over {days ? `${days} days` : "the whole period"}</p>
       <dl>
         <div>
           <dt>
-            The vault’s markets on {where}
+            Market choice
             <small>
-              against the blue-chip markets there, weighted by size
+              the vault’s markets against the blue-chip markets on {where},
+              weighted by size
               {curated != null && curated > 0.5
                 ? `; ${Math.round(curated)}% of it is in curated Morpho vaults, which pay more for more risk`
                 : ""}
@@ -122,9 +184,9 @@ export function GapSplit({ local, total, curated }) {
         </div>
         <div>
           <dt>
-            {where} instead of the whole market
+            Where the money sits
             <small>
-              {where}’s blue-chip markets against the whole USDC index
+              the blue-chip markets on {where} against the whole USDC index
             </small>
           </dt>
           <dd>
@@ -135,7 +197,7 @@ export function GapSplit({ local, total, curated }) {
           <div className={b.gapTotal}>
             <dt>
               Gap to the index
-              <small>over the same 30 days; parts are rounded</small>
+              <small>over the same days; parts are rounded</small>
             </dt>
             <dd>
               <VsIndex diff={total} />
@@ -151,18 +213,20 @@ export function IndexComparison({ book, compact = false }) {
   const [days, setDays] = useState(DEFAULT_DAYS);
   const index = book.index;
   const ours = book.totals.measured.r30?.series;
-  const from = (index?.series.at(-1)?.at ?? Date.now()) - days * DAY;
+  const from = days ? (index?.series.at(-1)?.at ?? Date.now()) - days * DAY : -Infinity;
   const t30 = days === 30 && book.totals.measured.r30?.status === "ok";
   const lines = useMemo(
     () =>
-      compareLines(ours, index, "Thesauros, USDC vaults", {
+      compareLines(ours, index, "Thesauros", {
         oursRate: t30 ? book.totals.measured.r30.rate : null,
         indexRate: t30 ? book.totals.vsIndex?.r30 : null,
       }),
     [ours, index, t30, book.totals],
   );
   const start = lines[0]?.series?.find((point) => point.at >= from - DAY / 2)?.at ?? from;
+  const verdict = windowVerdict(lines, from);
   const t = book.totals;
+  const split = splitFor(t.local, verdict, from, days);
   return (
     <div className={b.versus}>
       <div className={b.versusChart}>
@@ -173,8 +237,21 @@ export function IndexComparison({ book, compact = false }) {
           </span>
           <Segmented label="Period" value={days} onChange={setDays} options={PERIODS} />
         </div>
-        <ComparisonChart lines={lines} from={from} height={compact ? 240 : 280} />
+        <ComparisonChart
+          lines={lines}
+          from={from}
+          height={compact ? 240 : 280}
+          markers={indexMarkers(index)}
+        />
       </div>
+      {!compact && verdict && days !== 30 && (
+        <p className={b.verdictLine}>
+          {days ? `Over ${days} days` : "Over the whole period"}: Thesauros{" "}
+          {pct(verdict.ours)}, the index{" "}
+          {pct(verdict.index)}, <VsIndex diff={verdict.gap} />. The table is
+          over 30 days.
+        </p>
+      )}
       {!compact && (
       <table className={`${b.table} ${b.scoreTable}`}>
         <thead>
@@ -207,25 +284,27 @@ export function IndexComparison({ book, compact = false }) {
         </tbody>
       </table>
       )}
-      {t.local?.selection != null && t.local?.place != null &&
+      {split?.selection != null && split?.place != null &&
         (compact ? (
           <details className={`${b.disclosure} ${b.gapDisclosure}`}>
             <summary>
-              {t.vsIndex?.r30Diff != null
-                ? `${t.vsIndex.r30Diff >= 0 ? "+" : "−"}${Math.abs(t.vsIndex.r30Diff).toFixed(2)} pts against the USDC index over 30 days`
-                : "Against the USDC index over 30 days"}
+              {verdict
+                ? `${verdict.gap >= 0 ? "+" : "−"}${Math.abs(verdict.gap).toFixed(2)} pts against the USDC index over ${days ? days + " days" : "the whole period"}`
+                : `Against the USDC index`}
               <small>Why</small>
             </summary>
             <GapSplit
-              local={t.local}
-              total={t.vsIndex?.r30Diff}
+              local={split}
+              total={split.total}
+              days={days}
               curated={curatedShare(book.products[0]?.vaults || [])}
             />
           </details>
         ) : (
           <GapSplit
-            local={t.local}
-            total={t.vsIndex?.r30Diff}
+            local={split}
+            total={split.total}
+            days={days}
             curated={curatedShare(book.products[0]?.vaults || [])}
           />
         ))}

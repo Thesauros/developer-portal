@@ -373,7 +373,10 @@ export default function ProductApp({ mode = "individual", user }) {
   // Activity is a wallet's own history; without one, the public record is in
   // Transparency and the menu does not offer an empty page.
   const signedIn = !!user?.walletAddress;
-  const main = signedIn ? MAIN : MAIN.filter((id) => id !== "activity");
+  // A guest has no portfolio: Earn is their first page, at the app's address.
+  const main = signedIn
+    ? MAIN
+    : MAIN.filter((id) => id !== "activity" && (user || id !== "overview"));
   const dock = signedIn ? MAIN : [...main, "index"];
   const wallet = book.account.wallet;
   // The product on the page, and the vault its deposit panel works with: the one
@@ -398,6 +401,16 @@ export default function ProductApp({ mode = "individual", user }) {
       product.lead
     : null;
   const view = useMemo(() => (product ? productView(product) : null), [product]);
+  // The browser tab names the page, as the server does on a fresh load.
+  useEffect(() => {
+    const page =
+      route.view === "vault"
+        ? product?.title
+        : route.view === "overview" && institution
+          ? "Treasury"
+          : LABELS[route.view === "index" ? "index" : route.view];
+    document.title = "Thesauros · " + (page || "Earn");
+  }, [route.view, product, institution]);
   function chooseVault(id) {
     if (!product) return;
     const from = id === product.lead.id ? null : id;
@@ -410,19 +423,27 @@ export default function ProductApp({ mode = "individual", user }) {
   }
   const label = (id) =>
     id === "overview" && institution ? "Treasury" : LABELS[id];
+  // Real links: they can be opened in a new tab, copied and reloaded; a plain
+  // click stays in the app.
   const nav = (id, compact = false) => (
-    <button
+    <a
       key={id}
-      onClick={() => navigate(id)}
+      href={"/app/" + mode + PATHS[id]}
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+        event.preventDefault();
+        navigate(id);
+      }}
       aria-current={section === id ? "page" : undefined}
     >
       <Glyph id={id} />
       <span>{compact && id === "index" ? "Index" : label(id)}</span>
-    </button>
+    </a>
   );
   const menuItems = (
     <>
-      {[...TOOLS, "settings"].map((id) => (
+      {/* What the dock already shows is not repeated here. */}
+      {[...TOOLS, "settings"].filter((id) => !dock.includes(id)).map((id) => (
         <button key={id} role="menuitem" onClick={() => navigate(id)}>
           {label(id)}
         </button>
@@ -601,7 +622,14 @@ export default function ProductApp({ mode = "individual", user }) {
               <h1 tabIndex={-1}>Account</h1>
             </header>
             {!user ? (
-              <ConnectAction className={b.primary} />
+              <div className={b.guestAccount}>
+                <p>
+                  Sign in with your wallet to see the wallet you use, your
+                  balances across every network and your statements. Signing
+                  in moves no funds and grants no approvals.
+                </p>
+                <ConnectAction className={b.primary} />
+              </div>
             ) : institution ? (
               <InstitutionSettings
                 user={user}

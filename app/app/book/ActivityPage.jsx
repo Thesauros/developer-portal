@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { ledgerCsv, mineLedger, vaultNamer } from "./activity";
-import { LedgerRows } from "./ledger";
+import { groupEvents, LedgerRows } from "./ledger";
 import { money, Segmented, usePublicResource } from "./parts";
 import b from "./book.module.css";
 
@@ -39,6 +39,7 @@ export function Ledger({ book, scope, mine, account, batch, limit = 200 }) {
   const rows = source.filter(
     (row) => filter(row) && (!vaultId || row.vaultId === vaultId),
   );
+  const events = groupEvents(rows).length;
   const sum = (kind) =>
     mineRows
       .filter((row) => row.kind === kind && row.unit !== "shares")
@@ -101,13 +102,13 @@ export function Ledger({ book, scope, mine, account, batch, limit = 200 }) {
       </div>
       {rows.length ? (
         <>
-          <LedgerRows rows={rows.slice(0, all ? 200 : limit)} vaultName={name} byDay />
-          {!all && rows.length > limit && (
+          <LedgerRows rows={rows} limit={all ? 200 : limit} vaultName={name} byDay />
+          {!all && events > limit && (
             <button
               className={`${b.linkButton} ${b.moreButton}`}
               onClick={() => setAll(true)}
             >
-              Show all {Math.min(rows.length, 200)}
+              Show all {Math.min(events, 200)}
             </button>
           )}
         </>
@@ -125,8 +126,8 @@ export function Ledger({ book, scope, mine, account, batch, limit = 200 }) {
       {scope === "all" && unreadable.length > 0 && (
         <p className={b.footnote}>
           Moves between markets in the {unreadable.join(" and ")}{" "}
-          {unreadable.length === 1 ? "vault" : "vaults"} cannot be read from
-          public nodes yet, so they are missing from this list.
+          {unreadable.length === 1 ? "vault are" : "vaults are"} not listed
+          here yet; their allocation now is on each vault’s page.
         </p>
       )}
       {scope === "mine" && (

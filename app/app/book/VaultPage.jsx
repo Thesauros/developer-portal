@@ -7,7 +7,7 @@ import {
   marketColor,
 } from "../../../lib/vault-book.mjs";
 import { DAY, measuredRate, pricePoints } from "../../../lib/vault-metrics.mjs";
-import { weeklyGaps } from "../../../lib/blue-chip-index.mjs";
+import { earnedSeries, weeklyGaps } from "../../../lib/blue-chip-index.mjs";
 import { PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import ActionPanel, { RequestRow, batchClosing } from "./ActionPanel";
 import {
@@ -20,7 +20,15 @@ import {
   RateChart,
 } from "./charts";
 import { LedgerRows } from "./ledger";
-import { compareLines, curatedShare, GapSplit, referenceNote } from "./IndexPage";
+import {
+  compareLines,
+  curatedShare,
+  GapSplit,
+  indexMarkers,
+  PERIODS,
+  referenceNote,
+  windowVerdict,
+} from "./IndexPage";
 import {
   ago,
   clock,
@@ -62,11 +70,15 @@ function indexLong(index) {
 
 function StageLine({ view }) {
   if (!view.stages || view.stages.length < 2) return <Stage stage={view.stage} />;
+  // Counts, not names: which network is at which stage is in the network
+  // table further down.
+  const total = view.stages.reduce((sum, { places }) => sum + places.length, 0);
   return (
     <span className={b.stageLine}>
-      {view.stages.map(({ stage, places }) => (
+      {view.stages.map(({ stage, places }, i) => (
         <span key={stage}>
-          <Stage stage={stage} /> on {places.join(", ")}
+          <Stage stage={stage} />{" "}
+          {i === 0 ? `on ${places.length} of ${total} networks` : `on ${places.length}`}
         </span>
       ))}
     </span>
@@ -125,8 +137,13 @@ function Header({ view, index, navigate }) {
           <dt>Rate now</dt>
           <dd>{pct(view.rateNow)}</dd>
           <small>
-            a year, before fees ·{" "}
-            <VsIndex diff={view.vsIndex?.nowDiff} suffix={` vs ${indexName(index)}`} />
+            a year, before fees
+            {view.vsIndex?.nowDiff != null && (
+              <>
+                {" · "}
+                <VsIndex diff={view.vsIndex.nowDiff} suffix={` vs ${indexName(index)}`} />
+              </>
+            )}
           </small>
         </div>
         <div>
@@ -164,12 +181,8 @@ function ValuationBanner({ vault }) {
   );
 }
 
-const RANGES = [
-  { value: 7, label: "7d" },
-  { value: 30, label: "30d" },
-  { value: 90, label: "90d" },
-  { value: null, label: "All" },
-];
+// The same periods as every other comparison chart.
+const RANGES = PERIODS;
 
 // One sentence against the blue-chip index on the same days. One rule for
 // small vaults everywhere: the raw change in the share price is a fact, a
@@ -222,12 +235,19 @@ function Comparison({ vault, index }) {
 function GapBlock({ vault }) {
   const local = vault.local;
   if (local?.selection == null || local?.place == null) return null;
+  // Folded: the split names the networks, and the network is detail.
   return (
-    <GapSplit
-      local={local}
-      total={vault.vsIndex?.r30Diff}
-      curated={curatedShare(vault.members || [vault])}
-    />
+    <details className={`${b.disclosure} ${b.gapDisclosure}`}>
+      <summary>
+        Where the 30-day gap comes from
+        <small>Market choice and network</small>
+      </summary>
+      <GapSplit
+        local={local}
+        total={vault.vsIndex?.r30Diff}
+        curated={curatedShare(vault.members || [vault])}
+      />
+    </details>
   );
 }
 
@@ -289,11 +309,38 @@ function indexRates(index, series) {
 }
 
 function Performance({ view, vault, index }) {
-  const [tab, setTab] = useState("versus");
+  // A product too small to compare opens on its share price, not an empty box.
+  // Until the reader picks, the default follows the data as it arrives.
+  const [picked, setTab] = useState(null);
+  const tab = picked ?? (view.measured.r30.status === "ok" ? "versus" : "price");
   const [days, setDays] = useState(30);
   const members = view.members || [vault];
-  const [shown, setShown] = useState(vault.id);
-  const priced = members.find((item) => item.id === shown) || vault;
+  // The line chains the vaults the 30-day figure comes from, so the chart,
+  // its weekly bars and the figure agree; before any is measurable, all of them.
+  const chained = useMemo(
+    () => view.measured.r30.series || compositeMeasure(members, 30).series || [],
+    [view.measured.r30.series, members],
+  );
+  // With several networks the product comes first: its vaults chained by size.
+  // One network's own share price is a choice away.
+  const whole = useMemo(
+    () =>
+      members.length > 1 && chained.length > 1
+        ? {
+            id: "product",
+            place: "All networks",
+            token: view.token,
+            kind: view.kind,
+            sharePrice: null,
+            samples: chained.map((point) => ({ at: point.at, price: point.level, tvl: view.tvl })),
+          }
+        : null,
+    [members.length, chained, view.token, view.kind, view.tvl],
+  );
+  const [chosen, setShown] = useState(null);
+  const shown = chosen ?? (whole ? "product" : vault.id);
+  const priced =
+    (shown === "product" && whole) || members.find((item) => item.id === shown) || vault;
   // The same window as the rate above, so a period never shows two answers.
   const window = days ? measuredRate(priced.samples, days) : null;
   const points = window?.from
@@ -304,12 +351,6 @@ function Performance({ view, vault, index }) {
   const change =
     window?.change ??
     (first && last && last !== first ? (last.price / first.price - 1) * 100 : null);
-  // The line chains the vaults the 30-day figure comes from, so the chart,
-  // its weekly bars and the figure agree; before any is measurable, all of them.
-  const chained = useMemo(
-    () => view.measured.r30.series || compositeMeasure(members, 30).series || [],
-    [view.measured.r30.series, members],
-  );
   const age = chained.length ? (Date.now() - chained[0].at) / 86400000 : 0;
   // The window ends where the index ends, so the index line is the same on
   // every page.
@@ -317,6 +358,10 @@ function Performance({ view, vault, index }) {
   const from = days ? end - days * DAY : -Infinity;
   const measurable = view.measured.r30.status === "ok";
   const gaps = useMemo(() => weeklyGaps(chained, index, from), [chained, index, from]);
+  const weekRates = useMemo(
+    () => earnedSeries(chained, 7).map((point) => ({ t: point.at, v: point.rate })),
+    [chained],
+  );
   const v30 = days === 30 && view.measured.r30.status === "ok";
   const lines = useMemo(
     () =>
@@ -326,6 +371,7 @@ function Performance({ view, vault, index }) {
       }),
     [chained, index, view, v30],
   );
+  const verdict = windowVerdict(lines, from);
   const periodControl = (
     <Segmented
       label="Period"
@@ -343,7 +389,10 @@ function Performance({ view, vault, index }) {
         label="Network"
         value={priced.id}
         onChange={setShown}
-        options={members.map((item) => ({ value: item.id, label: item.place }))}
+        options={[
+          ...(whole ? [{ value: "product", label: "All networks" }] : []),
+          ...members.map((item) => ({ value: item.id, label: item.place })),
+        ]}
       />
     ) : null;
   return (
@@ -374,7 +423,19 @@ function Performance({ view, vault, index }) {
           </div>
           {measurable ? (
             <>
-              <ComparisonChart lines={lines} from={from} token={vault.token} />
+              <ComparisonChart
+                lines={lines}
+                from={from}
+                token={vault.token}
+                markers={indexMarkers(index)}
+              />
+              {verdict && (
+                <p className={b.verdictLine}>
+                  {days ? `Over ${days} days` : "Since launch"}:{" "}
+                  {view.title || "this product"} {pct(verdict.ours)}, the index{" "}
+                  {pct(verdict.index)}, <VsIndex diff={verdict.gap} />.
+                </p>
+              )}
               <p className={b.footnote}>
                 {view.title || "This product"}: its vaults large enough to
                 measure, weighted by size, from share prices. Index: what its
@@ -383,7 +444,7 @@ function Performance({ view, vault, index }) {
               </p>
               <details className={b.disclosure}>
                 <summary>Week by week against the index</summary>
-                <GapChart points={gaps} label="This product" />
+                <GapChart points={gaps} label={view.title || "This product"} />
                 <p className={b.footnote}>
                   Each bar is that week’s part of the gap, in points; together
                   they add up to the gap over the period. The first bar may
@@ -402,10 +463,17 @@ function Performance({ view, vault, index }) {
         <>
           <div className={b.priceHead}>
             <p>
-              <strong>
-                {priced.sharePrice != null ? priced.sharePrice.toFixed(6) : "—"}
-              </strong>{" "}
-              {priced.token} a share
+              {priced.id === "product" ? (
+                <strong>{view.title}, all networks</strong>
+              ) : (
+                <>
+                  <strong>
+                    {priced.sharePrice != null ? priced.sharePrice.toFixed(6) : "—"}
+                  </strong>{" "}
+                  {priced.token} a share
+                  {members.length > 1 ? ` on ${priced.place}` : ""}
+                </>
+              )}
               {change != null && (
                 <span className={b.change}>
                   {change >= 0 ? "+" : "−"}
@@ -423,12 +491,34 @@ function Performance({ view, vault, index }) {
             gapLabel={priced.kind === "batch" ? "No valuation" : "No reading"}
           />
           <p className={b.footnote}>
-            What one share is worth. It rises as the markets pay interest, so
-            holders earn without receiving anything.
-            {members.length > 1 ? " Each network’s vault has its own share price." : ""}
+            {priced.id === "product"
+              ? "The product’s vaults on every network, chained and weighted by size: how a deposit spread like its money grew. Each network’s vault has its own share price; choose one above."
+              : "What one share is worth. It rises as the markets pay interest, so holders earn without receiving anything."}
             {priced.kind === "batch"
               ? " A dashed line marks a period with no valuation."
               : " One reading a day, from the contract."}
+          </p>
+        </>
+      ) : measurable ? (
+        <>
+          <div className={b.priceHead}>
+            <p className={b.quiet}>
+              What each earned over the seven days before every reading, a year
+            </p>
+            {periodControl}
+          </div>
+          <RateChart
+            series={{
+              vault: weekRates.filter((point) => point.t >= from),
+              market: indexRates(index, weekRates.filter((point) => point.t >= from)),
+            }}
+            vaultLabel={view.title || "This product"}
+            compareLabel={`${index?.symbol || "USDC"} index`}
+          />
+          <p className={b.footnote}>
+            The same measure on both sides: share prices for {view.title || "the product"},
+            each market’s interest index for the index. A week smooths single
+            days; quotes never enter it.
           </p>
         </>
       ) : priced.rateHistory ? (
@@ -442,12 +532,13 @@ function Performance({ view, vault, index }) {
             vaultLabel={members.length > 1 ? "On " + priced.place : "This vault"}
           />
           <p className={b.footnote}>
-            The daily rate from the Thesauros data service, against what the
-            blue-chip index earned over the week before each day.
+            Too small to measure from its share price yet, so this is the daily
+            rate the Thesauros data service reports, against what the index
+            earned over the week before each day.
           </p>
         </>
       ) : (
-        <StrategyRates vault={priced} index={index} />
+        <StrategyRates vault={priced.id === "product" ? vault : priced} index={index} />
       )}
       <Comparison vault={view} index={index} />
       <GapBlock vault={view} />
@@ -691,12 +782,15 @@ function ApprovedMarkets({ vault }) {
         </p>
       )}
       {sum.length > 1 && sum.length <= 6 && vault.rateNow != null && (
-        <p className={b.sum}>
-          {sum
-            .map((row) => `${pct(row.rate)} × ${row.share.toFixed(1)}%`)
-            .join(" + ")}{" "}
-          = <strong>{pct(vault.rateNow)}</strong>
-        </p>
+        <details className={b.disclosure}>
+          <summary>How the rate adds up</summary>
+          <p className={b.sum}>
+            {sum
+              .map((row) => `${pct(row.rate)} × ${row.share.toFixed(1)}%`)
+              .join(" + ")}{" "}
+            = <strong>{pct(vault.rateNow)}</strong>
+          </p>
+        </details>
       )}
     </>
   );
@@ -737,7 +831,9 @@ function WhereTheMoneyIs({ vault, index }) {
       lede={
         vault.kind === "batch"
           ? "One deposit, lent across markets on several networks, with cash kept for withdrawals. Each market’s rate times its share adds up to the vault’s rate."
-          : "The vault lends across approved markets and moves money towards the better rate. Each market’s rate times its share adds up to the vault’s rate."
+          : vault.allocation.filter((row) => row.kind === "market").length === 1
+            ? `The vault lends to ${vault.allocation.find((row) => row.kind === "market").name}, the one market approved for it so far. With a second market it will move money towards the better rate.`
+            : "The vault lends across approved markets and moves money towards the better rate. Each market’s rate times its share adds up to the vault’s rate."
       }
     >
       {vault.allocation.length ? (
@@ -750,7 +846,7 @@ function WhereTheMoneyIs({ vault, index }) {
               <h3>How the split changed</h3>
               <AllocationHistory history={vault.allocationHistory} />
               <p className={b.footnote}>
-                One reading a day, from the contracts. Hover to see any day.
+                One reading a day, from the contracts. Hover or tap to see any day.
               </p>
             </div>
           )}
@@ -802,13 +898,26 @@ function exitList(vault) {
   const many = vault.members?.length > 1;
   const big = capacity.markets.filter((market) => market.position >= 0.01 * capacity.held);
   const rest = capacity.markets.filter((market) => market.position < 0.01 * capacity.held);
-  const parts = big.map(
-    (market) =>
-      `${market.name}${market.network && many ? " on " + market.network : ""} ${money(market.canLeave)} of ${money(market.position)}`,
+  // "All of it" where a market can pay the whole position, the two amounts
+  // only where it cannot.
+  const part = (label, canLeave, position) =>
+    canLeave >= position * 0.999
+      ? `${label} all ${money(position)}`
+      : `${label} ${money(canLeave)} of ${money(position)}`;
+  const parts = big.map((market) =>
+    part(
+      `${market.name}${market.network && many ? " on " + market.network : ""}`,
+      market.canLeave,
+      market.position,
+    ),
   );
   if (rest.length)
     parts.push(
-      `${rest.length} small positions ${money(rest.reduce((sum, market) => sum + market.canLeave, 0))} of ${money(rest.reduce((sum, market) => sum + market.position, 0))}`,
+      part(
+        `${rest.length} small positions`,
+        rest.reduce((sum, market) => sum + market.canLeave, 0),
+        rest.reduce((sum, market) => sum + market.position, 0),
+      ),
     );
   if (capacity.cash >= 0.01) parts.push(`cash in the vault ${money(capacity.cash)}`);
   return parts.join(", ");
@@ -833,11 +942,11 @@ function GettingOut({ vault, feedItems, name }) {
               </small>
             )}
             {!vault.exit.record && (
-              <small>This vault’s history cannot be read from public nodes yet.</small>
+              <small>Not measured for this vault yet.</small>
             )}
             {vault.exit.record?.partial && (
               <small>
-                Counted on the networks whose history public nodes return.
+                Counted on the networks with a full withdrawal history so far.
               </small>
             )}
           </div>
@@ -909,8 +1018,8 @@ function GettingOut({ vault, feedItems, name }) {
             <small>
               The contract also allows an instant exit of up to{" "}
               {money(Number(limits.maxInstantWithdrawal) / 1e6, 0)} USDC at a{" "}
-              {(Number(limits.instantFee) / 1e16).toFixed(2)}% fee. This app
-              does not offer it yet.
+              {(Number(limits.instantFee) / 1e16).toFixed(2)}% fee; that
+              route is not open here.
             </small>
           )}
         </div>
@@ -957,12 +1066,12 @@ function MoneyMoved({ vault, feed }) {
       {feed.loading && !feed.data ? (
         <p className={b.quiet}>Loading…</p>
       ) : items.length ? (
-        <LedgerRows rows={items.slice(0, 12)} hideVault />
+        <LedgerRows rows={items} limit={12} hideVault />
       ) : (
         <p className={b.quiet}>
           {known
             ? "Nothing has moved yet."
-            : "This vault’s history cannot be read from public nodes yet."}
+            : "Moves for this vault are not listed here yet; its allocation now is above."}
         </p>
       )}
     </Section>

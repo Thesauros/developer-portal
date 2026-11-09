@@ -22,16 +22,11 @@ import {
 } from "./parts";
 import b from "./book.module.css";
 
-// The 30-day difference when there is one, otherwise today's, and it says which.
+// One measure in the column: the 30-day gap, the same as the 30-day rate beside
+// it. A product too small to measure has neither.
 function IndexCell({ vs, measure }) {
   if (measure?.status === "ok" && vs?.r30Diff != null)
     return <VsIndex diff={vs.r30Diff} />;
-  if (vs?.nowDiff != null)
-    return (
-      <span title="Rate now against the index rate now. The 30-day figure needs a larger vault.">
-        <VsIndex diff={vs.nowDiff} /> <small className={b.quiet}>now</small>
-      </span>
-    );
   return <span className={b.quiet}>—</span>;
 }
 
@@ -49,7 +44,8 @@ function ProductRows({ product, navigate, showBalance, open, toggle }) {
   const go = () => navigate("vault", product.lead.id);
   return (
     <>
-      <tr className={b.vaultRow} onClick={many ? toggle : go}>
+      {/* The row opens the product; its networks unfold only from their own cell. */}
+      <tr className={b.vaultRow} onClick={go}>
         <td data-cell="vault">
           <div className={b.vaultCell}>
             <button
@@ -479,8 +475,8 @@ export default function VaultsPage({ book, navigate, user }) {
               <dt>Against the index</dt>
               <dd>
                 The 30-day rate minus the blue-chip index for the same
-                stablecoin over the same days, in percentage points. Where there
-                is no 30-day rate, today’s rates are compared and marked “now”.
+                stablecoin over the same days, in percentage points. A product
+                without a 30-day rate has no gap either.
               </dd>
             </div>
             <div>

@@ -567,11 +567,14 @@ function InstantForm({ vault, account, user, action, setAction, initial, navigat
 // it lives in a sheet opened from the bar at the bottom of the screen.
 // One product, several networks: the panel works with the vault on the network
 // chosen here, and says plainly what that vault is.
-function NetworkChoice({ vault, choices, onChoose, wallet }) {
+function NetworkChoice({ vault, choices, onChoose, wallet, action }) {
+  // The product is one; the network is only where the money comes from or
+  // goes back to. Each network's vault has its own rate, said in one line.
+  const warn = vault.audit?.state && vault.audit.state !== "reviewed";
   return (
     <div className={b.networkChoice}>
-      <label className={b.field}>
-        <span>Network</span>
+      <label className={b.fromRow}>
+        <span>{action === "withdraw" ? "Withdraw on" : "Deposit from"}</span>
         <select
           className={b.select}
           value={vault.id}
@@ -594,9 +597,9 @@ function NetworkChoice({ vault, choices, onChoose, wallet }) {
         </select>
       </label>
       <p className={b.networkNote}>
-        <Stage stage={vault.stage} /> {compact(vault.tvl)} {vault.token} in
-        the {vault.place} vault · {pct(vault.rateNow)} now ·{" "}
-        {vault.audit.label}
+        {pct(vault.rateNow)} now on this network
+        {vault.stage && vault.stage !== "Live" ? ` · ${String(vault.stage).toLowerCase()} stage` : ""}
+        {warn ? ` · ${vault.audit.label}` : ""}
       </p>
     </div>
   );
@@ -652,6 +655,7 @@ export default function ActionPanel({
             choices={choices}
             onChoose={onChoose}
             wallet={wallet}
+            action={action}
           />
         )}
         {user?.walletAddress && <Plate vault={vault} user={user} />}
