@@ -359,24 +359,31 @@ export default function VaultsPage({ book, navigate, user }) {
   const { totals } = book;
   return (
     <div className={b.page}>
-      <header className={b.pageHead}>
-        <div>
-          <h1 tabIndex={-1}>Earn</h1>
-          <p className={b.pageLede}>
-            Interest on stablecoins from approved lending markets. Each vault
-            moves its money to the better rate among them and shows where every
-            dollar is.
-          </p>
-        </div>
+      {/* The one brand moment on the page: what is sold, in a sentence, on
+          the brand's own texture. The figures follow on white. */}
+      <header className={b.earnHero}>
+        <p className={b.earnEyebrow}>Earn</p>
+        <h1 tabIndex={-1}>
+          Native yield on your stablecoins, from blue-chip lending on{" "}
+          {totals.networks || "several"} networks.
+        </h1>
+        <p className={b.earnLede}>
+          One product per stablecoin. Each vault moves its money to the better
+          rate among approved markets and shows where every dollar is, measured
+          against the market average.
+        </p>
         {book.products[0] && (
-          <div className={b.headActions}>
+          <div className={b.earnActions}>
             <button
-              className={b.primary}
+              className={b.heroPrimary}
               onClick={() =>
                 navigate("vault", book.products[0].id, { action: "deposit" })
               }
             >
               Deposit {book.products[0].token}
+            </button>
+            <button className={b.heroLink} onClick={() => navigate("index")}>
+              What the market average is
             </button>
           </div>
         )}

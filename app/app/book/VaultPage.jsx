@@ -19,7 +19,7 @@ import {
   PriceChart,
   RateChart,
 } from "./charts";
-import { LedgerRows } from "./ledger";
+import { groupEvents, LedgerRows } from "./ledger";
 import {
   compareLines,
   curatedShare,
@@ -1050,6 +1050,7 @@ function MoneyMoved({ vault, feed }) {
   const known =
     vault.kind === "batch" ||
     ids.some((id) => feed.data?.sources?.rebalances?.[id] ?? false);
+  const [allMoves, setAllMoves] = useState(false);
   return (
     <Section
       id="moved"
@@ -1063,7 +1064,18 @@ function MoneyMoved({ vault, feed }) {
       {feed.loading && !feed.data ? (
         <p className={b.quiet}>Loading…</p>
       ) : items.length ? (
-        <LedgerRows rows={items} limit={12} hideVault />
+        <>
+          {/* The latest few; the rest one click away. */}
+          <LedgerRows rows={items} limit={allMoves ? 40 : 4} hideVault />
+          {!allMoves && groupEvents(items).length > 4 && (
+            <button
+              className={`${b.linkButton} ${b.moreButton}`}
+              onClick={() => setAllMoves(true)}
+            >
+              Show {Math.min(groupEvents(items).length, 40) - 4} more
+            </button>
+          )}
+        </>
       ) : (
         <p className={b.quiet}>
           {known

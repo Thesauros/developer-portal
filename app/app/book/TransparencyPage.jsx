@@ -165,10 +165,27 @@ function Capital({ book, navigate }) {
 
 function Exposure({ book }) {
   const [by, setBy] = useState("market");
-  const rows = useMemo(
-    () => exposure(book.vaults, (vault) => vault.tvl, by),
-    [book.vaults, by],
-  );
+  // Slivers under 0.1% fold into one line: each would otherwise be a card of
+  // its own on a phone and say nothing.
+  const rows = useMemo(() => {
+    const all = exposure(book.vaults, (vault) => vault.tvl, by);
+    const tiny = all.filter((row) => row.share < 0.1);
+    if (tiny.length < 2) return all;
+    const amount = tiny.reduce((sum, row) => sum + (row.amount || 0), 0);
+    return [
+      ...all.filter((row) => row.share >= 0.1),
+      {
+        name: `${tiny.length} positions under 0.1% each`,
+        color: "#c3cad6",
+        amount,
+        share: tiny.reduce((sum, row) => sum + row.share, 0),
+        rate:
+          amount > 0
+            ? tiny.reduce((sum, row) => sum + (row.amount || 0) * (row.rate || 0), 0) / amount
+            : null,
+      },
+    ];
+  }, [book.vaults, by]);
   return (
     <Section
       id="exposure"
@@ -239,7 +256,7 @@ function Exposure({ book }) {
                   {compact(row.amount)}
                 </td>
                 <td className={b.num} data-label="Share">
-                  {row.share.toFixed(row.share < 0.1 ? 3 : 1)}%
+                  {row.share > 0 && row.share < 0.1 ? "under 0.1%" : row.share.toFixed(1) + "%"}
                 </td>
               </tr>
             ))}
