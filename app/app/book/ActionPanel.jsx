@@ -20,6 +20,7 @@ import {
   pct,
   Segmented,
   Stage,
+  NetworkMarks,
 } from "./parts";
 import b from "./book.module.css";
 
@@ -589,39 +590,53 @@ function NetworkChoice({ vault, choices, onChoose, wallet, action }) {
         </p>
       </div>
     );
+  // The choice as a short list: each network with its rate now and what the
+  // wallet holds there, the current one marked.
   return (
     <div className={b.networkChoice}>
-      <label className={b.fromRow}>
+      <p className={b.fromLine}>
         <span>{action === "withdraw" ? "Withdraw on" : "Deposit from"}</span>
-        <select
-          className={b.select}
-          value={vault.id}
-          onChange={(event) => {
-            onChoose(event.target.value);
-            setChanging(false);
-          }}
-        >
-          {choices.map((choice) => {
-            const funds = (wallet || []).find(
-              (row) =>
-                row.network === choice.depositNetwork &&
-                row.token === choice.token,
-            );
-            return (
-              <option key={choice.id} value={choice.id}>
-                {choice.place}
-                {choice.position.balance > 0 ? " · your balance is here" : ""}
-                {funds ? ` · ${money(funds.amount)} ${choice.token} in wallet` : ""}
-              </option>
-            );
-          })}
-        </select>
-      </label>
-      <p className={b.networkNote}>
-        {pct(vault.rateNow)} now on this network
-        {vault.stage && vault.stage !== "Live" ? ` · ${String(vault.stage).toLowerCase()} stage` : ""}
-        {warn ? ` · ${vault.audit.label}` : ""}
+        <button className={b.linkButton} onClick={() => setChanging(false)}>
+          Done
+        </button>
       </p>
+      <ul className={b.networkList} role="radiogroup" aria-label="Network">
+        {choices.map((choice) => {
+          const funds = (wallet || []).find(
+            (row) =>
+              row.network === choice.depositNetwork && row.token === choice.token,
+          );
+          const on = choice.id === vault.id;
+          return (
+            <li key={choice.id}>
+              <button
+                role="radio"
+                aria-checked={on}
+                data-on={on ? "" : undefined}
+                onClick={() => {
+                  onChoose(choice.id);
+                  setChanging(false);
+                }}
+              >
+                <NetworkMarks vault={choice} size={18} />
+                <span className={b.networkName}>
+                  {choice.place}
+                  <small>
+                    {choice.position.balance > 0
+                      ? "your balance is here"
+                      : funds
+                        ? `${money(funds.amount)} ${choice.token} in wallet`
+                        : choice.stage && choice.stage !== "Live"
+                          ? `${String(choice.stage).toLowerCase()} stage`
+                          : ""}
+                  </small>
+                </span>
+                <span className={b.networkRate}>{pct(choice.rateNow)}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

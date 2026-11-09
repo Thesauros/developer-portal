@@ -82,7 +82,7 @@ export const ENDPOINT_GROUPS = [
         description: 'All yield venues with live APY, TVL, capacity and risk tier.',
         params: [
           { name: 'asset', in: 'query', type: 'enum', required: false, options: ['USDC', 'USDT'], desc: 'Filter by asset', example: '' },
-          { name: 'chain', in: 'query', type: 'enum', required: false, options: ['base', 'arbitrum'], desc: 'Filter by chain', example: '' },
+          { name: 'network', in: 'query', type: 'enum', required: false, options: ['arbitrum', 'base', 'mainnet', 'monad', 'plasma'], desc: 'Filter to one network; mainnet is Ethereum', example: '' },
           { name: 'status', in: 'query', type: 'enum', required: false, options: ['active', 'paused'], desc: 'Filter by status', example: '' },
         ],
         returns: '200 \u2014 list of Vault',

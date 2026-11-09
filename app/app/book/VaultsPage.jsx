@@ -39,13 +39,13 @@ function NetworkCell({ networks, count }) {
   );
 }
 
-function ProductRows({ product, navigate, showBalance, open, toggle }) {
+function ProductRows({ product, navigate, showBalance, open, toggle, quiet = false }) {
   const many = product.vaults.length > 1;
   const go = () => navigate("vault", product.lead.id);
   return (
     <>
       {/* The row opens the product; its networks unfold only from their own cell. */}
-      <tr className={b.vaultRow} onClick={go}>
+      <tr className={`${b.vaultRow} ${quiet ? b.quietRow : ""}`} onClick={go}>
         <td data-cell="vault">
           <div className={b.vaultCell}>
             <button
@@ -186,15 +186,27 @@ export function Products({ book, navigate, user }) {
           </tr>
         </thead>
         <tbody>
-          {book.products.map((product) => (
-            <ProductRows
-              key={product.id}
-              product={product}
-              navigate={navigate}
-              showBalance={showBalance}
-              open={open.has(product.id)}
-              toggle={() => toggle(product.id)}
-            />
+          {book.products.map((product, i) => (
+            <Fragment key={product.id}>
+              {/* Products not yet measurable sit apart from the ones that are. */}
+              {i > 0 &&
+                product.measured.r30?.status !== "ok" &&
+                book.products[i - 1].measured.r30?.status === "ok" && (
+                  <tr className={b.groupRow}>
+                    <td colSpan={showBalance ? 8 : 7}>
+                      Newer and smaller: open, but too small to measure yet
+                    </td>
+                  </tr>
+                )}
+              <ProductRows
+                product={product}
+                navigate={navigate}
+                showBalance={showBalance}
+                open={open.has(product.id)}
+                toggle={() => toggle(product.id)}
+                quiet={product.measured.r30?.status !== "ok"}
+              />
+            </Fragment>
           ))}
         </tbody>
       </table>

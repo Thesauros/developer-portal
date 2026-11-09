@@ -46,6 +46,7 @@ import {
   NetworkMarks,
   TokenMark,
   VsIndex,
+  MeasureNote,
 } from "./parts";
 import b from "./book.module.css";
 
@@ -289,11 +290,11 @@ function StrategyRates({ vault, index }) {
             : "Loading rate history…"}
         </p>
       )}
-      <p className={b.footnote}>
+      <MeasureNote>
         What the money lent on one network earned, against the blue-chip index.
         The data service has these from 29 October. It leaves out cash, so it
         is not this vault’s rate.
-      </p>
+      </MeasureNote>
     </>
   );
 }
@@ -436,12 +437,12 @@ function Performance({ view, vault, index }) {
                   {pct(verdict.index)}, <VsIndex diff={verdict.gap} />.
                 </p>
               )}
-              <p className={b.footnote}>
+              <MeasureNote>
                 {view.title || "This product"}: its vaults large enough to
                 measure, weighted by size, from share prices. Index: what its
                 markets paid, weighted by size. {referenceNote(index)} Interest
                 only, before fees.
-              </p>
+              </MeasureNote>
               <details className={b.disclosure}>
                 <summary>Week by week against the index</summary>
                 <GapChart points={gaps} label={view.title || "This product"} />
@@ -490,14 +491,14 @@ function Performance({ view, vault, index }) {
             silenceMs={priced.kind === "batch" ? 6 * 3600000 : 3 * 86400000}
             gapLabel={priced.kind === "batch" ? "No valuation" : "No reading"}
           />
-          <p className={b.footnote}>
+          <MeasureNote>
             {priced.id === "product"
               ? "The product’s vaults on every network, chained and weighted by size: how a deposit spread like its money grew. Each network’s vault has its own share price; choose one above."
               : "What one share is worth. It rises as the markets pay interest, so holders earn without receiving anything."}
             {priced.kind === "batch"
               ? " A dashed line marks a period with no valuation."
               : " One reading a day, from the contract."}
-          </p>
+          </MeasureNote>
         </>
       ) : measurable ? (
         <>
@@ -515,11 +516,11 @@ function Performance({ view, vault, index }) {
             vaultLabel={view.title || "This product"}
             compareLabel={`${index?.symbol || "USDC"} index`}
           />
-          <p className={b.footnote}>
+          <MeasureNote>
             The same measure on both sides: share prices for {view.title || "the product"},
             each market’s interest index for the index. A week smooths single
             days; quotes never enter it.
-          </p>
+          </MeasureNote>
         </>
       ) : priced.rateHistory ? (
         <>
@@ -531,11 +532,11 @@ function Performance({ view, vault, index }) {
             }}
             vaultLabel={members.length > 1 ? "On " + priced.place : "This vault"}
           />
-          <p className={b.footnote}>
+          <MeasureNote>
             Too small to measure from its share price yet, so this is the daily
             rate the Thesauros data service reports, against what the index
             earned over the week before each day.
-          </p>
+          </MeasureNote>
         </>
       ) : (
         <StrategyRates vault={priced.id === "product" ? vault : priced} index={index} />
@@ -775,11 +776,11 @@ function ApprovedMarkets({ vault }) {
         </p>
       )}
       {vault.ratesAt && (
-        <p className={b.footnote}>
+        <MeasureNote>
           Rates read from the market contracts at {clock(vault.ratesAt)}, the
           same readings the blue-chip index uses. A sudden jump in a quote
           counts only once a second reading confirms it.
-        </p>
+        </MeasureNote>
       )}
       {sum.length > 1 && sum.length <= 6 && vault.rateNow != null && (
         <details className={b.disclosure}>
@@ -878,11 +879,11 @@ function WhereTheMoneyIs({ vault, index }) {
               but not counted as capital at work.
             </p>
           )}
-          <p className={b.footnote}>
+          <MeasureNote>
             Core: Aave and Compound. Satellite: curated Morpho vaults. Every
             approved market of 1 million USD or more is a member of the
             blue-chip index.
-          </p>
+          </MeasureNote>
         </>
       ) : (
         <p className={b.quiet}>This could not be read right now.</p>
@@ -1228,7 +1229,7 @@ function Networks({ view }) {
             </li>
           ))}
         </ul>
-        <p className={b.footnote}>
+        <MeasureNote>
           Balances, share prices and allocation are read from these contracts.
           {view.kind === "batch"
             ? " The valuation is calculated by Thesauros and published to the valuation contract."
@@ -1236,7 +1237,7 @@ function Networks({ view }) {
           {many
             ? " Each network’s vault is its own contract with its own share price; you choose which one in the deposit panel."
             : ""}
-        </p>
+        </MeasureNote>
       </details>
     </Section>
   );

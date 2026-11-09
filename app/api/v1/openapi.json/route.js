@@ -79,6 +79,10 @@ function withErrors(responses, codes) {
 const AUTH = [{ bearerAuth: [] }];
 const PUBLIC = [];
 
+// The networks the Thesauros API lists vaults on, as the live API names them
+// (`mainnet` is Ethereum).
+const NETWORKS = ['arbitrum', 'base', 'mainnet', 'monad', 'plasma'];
+
 const q = (name, description, opts = {}) => ({
   name,
   in: 'query',
@@ -239,7 +243,7 @@ function buildDoc() {
           summary: 'List vaults',
           parameters: [
             q('asset', 'Filter by asset', { enum: ['USDC', 'USDT'] }),
-            q('chain', 'Filter by chain', { enum: ['base', 'arbitrum'] }),
+            q('network', 'Filter to one network; `mainnet` is Ethereum. Omit for every network.', { enum: NETWORKS }),
             q('status', 'Filter by status', { enum: ['active', 'paused'] }),
             ...paginationParams(),
           ],
@@ -1024,7 +1028,7 @@ function buildDoc() {
             name: { type: 'string' },
             provider: { type: 'string', enum: ['aave', 'morpho', 'compound', 'dolomite', 'treasury'] },
             asset: { type: 'string', enum: ['USDC', 'USDT'] },
-            chain: { type: 'string', enum: ['base', 'arbitrum'] },
+            chain: { type: 'string', enum: NETWORKS, description: 'Network the vault runs on; `mainnet` is Ethereum.' },
             apy: { type: 'number', description: 'Decimal fraction (0.052 = 5.2%)' },
             apy_7d_avg: { type: 'number' },
             apy_30d_avg: { type: 'number' },
@@ -1092,7 +1096,7 @@ function buildDoc() {
             user_id: { type: ['string', 'null'], description: 'Owning end-user, if associated' },
             wallet: { type: 'string' },
             asset: { type: 'string', enum: ['USDC', 'USDT'] },
-            chain: { type: 'string', enum: ['base', 'arbitrum'] },
+            chain: { type: 'string', enum: NETWORKS, description: 'Network the vault runs on; `mainnet` is Ethereum.' },
             vault_id: { type: 'string' },
             strategy: { type: 'string' },
             principal: { type: 'number' },

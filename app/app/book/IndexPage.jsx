@@ -11,6 +11,7 @@ import {
   Section,
   Segmented,
   VsIndex,
+  MeasureNote,
 } from "./parts";
 import b from "./book.module.css";
 
@@ -308,11 +309,11 @@ export function IndexComparison({ book, compact = false }) {
             curated={curatedShare(book.products[0]?.vaults || [])}
           />
         ))}
-      <p className={b.footnote}>
+      <MeasureNote>
         Thesauros: the USDC vaults large enough to measure, weighted by size,
         from share prices. Index: what its markets paid, weighted by size.{" "}
         {referenceNote(index)} Interest only, before fees.
-      </p>
+      </MeasureNote>
     </div>
   );
 }

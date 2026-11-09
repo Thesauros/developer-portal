@@ -897,6 +897,8 @@ export function RateChart({
 
 // Where the money was, day by day. A stack, because the shares always add up to
 // the whole vault and what matters is how the split changed.
+// Softer fills and a 2px gap between bands, so the shares read as shares and
+// not as a patchwork.
 export function AllocationHistory({ history, height = 200 }) {
   const [hover, setHover] = useState(null);
   const [box, width] = useWidth();
@@ -958,8 +960,9 @@ export function AllocationHistory({ history, height = 200 }) {
             key={band.name}
             d={band.path}
             fill={marketColor(band.name)}
+            fillOpacity={0.78}
             stroke="#fff"
-            strokeWidth="1"
+            strokeWidth="2"
           />
         ))}
         {[0, 50, 100].map((level) => (
