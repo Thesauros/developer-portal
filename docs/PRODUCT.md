@@ -21,6 +21,10 @@ One account in stablecoins, sold as native yield from blue-chip lending across m
 
 "The market" means one thing everywhere: the blue-chip index. Its members are every lending market a Thesauros vault is approved to use, as the vault contracts list them; each counts by how much it holds; its return comes from each market's own interest index, chained day by day. Every vault, product and the whole of Thesauros are compared with it over the same days, in percentage points. The index page shows its members, weights and method.
 
+The comparison chart puts Thesauros and the index side by side as what 10,000 earned since the start of the period, with three reference lines: T-bills (the on-chain price of Ondo USDY), Aave alone and Compound alone (the index built only from that lender's markets). The references give scale; the gap is always measured against the index.
+
+A quoted rate counts as read unless it jumps: each market's quote is also read at 04:00, 12:00 and 20:00 UTC, and a quote more than 1.5 points (or 30%) away from both of the two readings before it counts only once a later reading confirms it. This keeps out short spikes such as Aave on Ethereum's 40-minute jump to about 12.5% around midnight UTC. What a market earned comes from its interest index and is not affected by quotes at all.
+
 ## Where the data comes from
 
 Only Thesauros resources: the vault and market contracts read over RPC, the Thesauros indexer and its SQLite history, and the team's own API and monitor. No outside aggregator and no Monolit service is called by the app; they may be used to check figures during analysis only.
@@ -32,7 +36,7 @@ Only Thesauros resources: the vault and market contracts read over RPC, the Thes
 3. **Bad news sits next to good news.** An audit that has not happened, a valuation that stopped, a rate below Aave: on the page, in plain words, before someone has to find it.
 4. **Say what happens next.** Before a transaction: what you will sign and what follows. After: where it is now, and that you can close the tab. Never promise a time the contracts do not.
 5. **Reading needs no wallet.** Connect only to see a balance or to act.
-6. **One comparison.** Every rate is set against the blue-chip index over the same days, and the gap is shown in points, good or bad.
+6. **One comparison.** Every rate is set against the blue-chip index over the same days, and the gap is shown in points, good or bad. Reference lines give scale, never a second gap.
 
 ## Tone
 

@@ -696,3 +696,26 @@ test("the weekly bars add up to the gap over the whole period", () => {
   const whole = indexWindowRate({ series: levels }, from, levels.at(-1).at) - indexWindowRate(index, from, levels.at(-1).at);
   assert.ok(Math.abs(sum - whole) < 0.02, `${sum} adds up to ${whole}`);
 });
+
+test("a chained line keeps two readings on one calendar day and matches the vault's own rate", async () => {
+  const { compositeMeasure } = await import("../lib/vault-book.mjs");
+  const { measuredRate } = await import("../lib/vault-metrics.mjs");
+  const H = 3600000;
+  const start = Date.UTC(2026, 9, 1);
+  // Readings just after midnight up to day 10, then just before midnight from
+  // day 10 on, so day 10 has two (00:04 and 23:57), and a last one at 01:36:
+  // the 30-day window starts at day 10's first reading, as in October.
+  const times = [];
+  for (let k = 0; k <= 10; k++) times.push(start + k * 24 * H + 4 * 60000);
+  for (let k = 10; k <= 39; k++) times.push(start + (k + 1) * 24 * H - 3 * 60000);
+  times.push(start + 40 * 24 * H + 96 * 60000);
+  let price = 1;
+  const samples = times.map((at, i) => {
+    price *= 1 + (i === 11 ? 0.0005 : 0.0001); // a strong day right at the start
+    return { at, price, tvl: 50000 };
+  });
+  const own = measuredRate(samples, 30, { now: samples.at(-1).at });
+  const chained = compositeMeasure([{ id: "v", samples }], 30, samples.at(-1).at);
+  assert.equal(chained.status, "ok");
+  assert.ok(Math.abs(chained.rate - own.rate) < 1e-9, `${chained.rate} vs ${own.rate}`);
+});

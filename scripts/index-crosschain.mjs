@@ -4,8 +4,14 @@ import {
   syncCrosschainHistory,
 } from "../lib/crosschain-history.mjs";
 import { syncVaultSamples } from "../lib/vault-samples.mjs";
-import { syncMarketSamples } from "../lib/market-index.mjs";
+import {
+  syncMarketSamples,
+  syncQuoteSamples,
+  syncReferenceSamples,
+} from "../lib/market-index.mjs";
 import { vaultClients } from "../lib/vault-rpc.mjs";
+import { chainByChainId } from "../lib/chains.mjs";
+import { crosschain } from "../lib/crosschain-config.mjs";
 
 const store = openCrosschainHistory();
 let stopped = false;
@@ -32,6 +38,18 @@ function sampleVaults() {
         log: (line) => console.error("market samples:", line),
       }),
     )
+    // Quotes three times a day, so a short jump in one never counts.
+    .then(() =>
+      syncQuoteSamples(store, {
+        log: (line) => console.error("market quotes:", line),
+      }),
+    )
+    // Reference lines for the comparison chart, on the same blocks.
+    .then(() =>
+      syncReferenceSamples(store, {
+        log: (line) => console.error("references:", line),
+      }),
+    )
     .catch((error) => console.error("vault samples:", error.message))
     .finally(() => {
       samplesRunning = false;
@@ -41,7 +59,7 @@ try {
   do {
     try {
       sampleVaults();
-      const coverage = await syncCrosschainHistory(store, vaultClients.base);
+      const coverage = await syncCrosschainHistory(store, vaultClients[chainByChainId(crosschain.chainId).id]);
       console.log(
         `crosschain history: ${coverage.indexedTo}/${coverage.headBlock}, ${coverage.complete ? "current" : "backfilling"}`,
       );

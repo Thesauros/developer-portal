@@ -13,13 +13,14 @@ import ActionPanel, { RequestRow, batchClosing } from "./ActionPanel";
 import {
   AllocationBar,
   AllocationHistory,
+  ComparisonChart,
   GapChart,
   MoneyMap,
   PriceChart,
   RateChart,
 } from "./charts";
 import { LedgerRows } from "./ledger";
-import { curatedShare, GapSplit } from "./IndexPage";
+import { compareLines, curatedShare, GapSplit, referenceNote } from "./IndexPage";
 import {
   ago,
   clock,
@@ -303,7 +304,12 @@ function Performance({ view, vault, index }) {
   const change =
     window?.change ??
     (first && last && last !== first ? (last.price / first.price - 1) * 100 : null);
-  const chained = useMemo(() => compositeMeasure(members, 30).series || [], [members]);
+  // The line chains the vaults the 30-day figure comes from, so the chart,
+  // its weekly bars and the figure agree; before any is measurable, all of them.
+  const chained = useMemo(
+    () => view.measured.r30.series || compositeMeasure(members, 30).series || [],
+    [view.measured.r30.series, members],
+  );
   const age = chained.length ? (Date.now() - chained[0].at) / 86400000 : 0;
   // The window ends where the index ends, so the index line is the same on
   // every page.
@@ -311,6 +317,15 @@ function Performance({ view, vault, index }) {
   const from = days ? end - days * DAY : -Infinity;
   const measurable = view.measured.r30.status === "ok";
   const gaps = useMemo(() => weeklyGaps(chained, index, from), [chained, index, from]);
+  const v30 = days === 30 && view.measured.r30.status === "ok";
+  const lines = useMemo(
+    () =>
+      compareLines(chained, index, view.title || "This product", {
+        oursRate: v30 ? view.measured.r30.rate : null,
+        indexRate: v30 ? view.vsIndex?.r30 : null,
+      }),
+    [chained, index, view, v30],
+  );
   const periodControl = (
     <Segmented
       label="Period"
@@ -351,20 +366,37 @@ function Performance({ view, vault, index }) {
         <>
           <div className={b.priceHead}>
             <p className={b.quiet}>
-              Each week’s part of the gap to the {index?.symbol || "USDC"}{" "}
-              index, in points; the bars add up to the total
+              What 10,000 {vault.token} earned since{" "}
+              {dateLabel(lines[0]?.series?.find((point) => point.at >= from - DAY / 2)?.at ?? from, false)},
+              and the rate it works out to a year
             </p>
             {periodControl}
           </div>
           {measurable ? (
-            <GapChart points={gaps} label="This vault" />
+            <>
+              <ComparisonChart lines={lines} from={from} token={vault.token} />
+              <p className={b.footnote}>
+                {view.title || "This product"}: its vaults large enough to
+                measure, weighted by size, from share prices. Index: what its
+                markets paid, weighted by size. {referenceNote(index)} Interest
+                only, before fees.
+              </p>
+              <details className={b.disclosure}>
+                <summary>Week by week against the index</summary>
+                <GapChart points={gaps} label="This product" />
+                <p className={b.footnote}>
+                  Each bar is that week’s part of the gap, in points; together
+                  they add up to the gap over the period. The first bar may
+                  cover fewer than seven days.
+                </p>
+              </details>
+            </>
           ) : (
             <p className={b.chartEmpty} style={{ height: 120 }}>
-              This vault holds too little for a weekly comparison to mean
-              anything yet. The share price chart shows its raw change.
+              This vault holds too little for a comparison to mean anything
+              yet. The share price chart shows its raw change.
             </p>
           )}
-          <p className={b.footnote}>The first bar may cover fewer than seven days.</p>
         </>
       ) : tab === "price" ? (
         <>
@@ -654,7 +686,8 @@ function ApprovedMarkets({ vault }) {
       {vault.ratesAt && (
         <p className={b.footnote}>
           Rates read from the market contracts at {clock(vault.ratesAt)}, the
-          same readings the blue-chip index uses.
+          same readings the blue-chip index uses. A sudden jump in a quote
+          counts only once a second reading confirms it.
         </p>
       )}
       {sum.length > 1 && sum.length <= 6 && vault.rateNow != null && (

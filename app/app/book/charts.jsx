@@ -484,32 +484,77 @@ export function PriceChart({
 
 // Growth of 100 over the same days, for two or three lines worked out the same
 // way. Labels sit at the line ends; hovering reads every line on that day.
-export function GrowthChart({ lines, height = 260, unit = "" }) {
+// Thesauros against the index and a few reference lines: what one amount
+// earned on each since the start of the window. The slope is the rate; the
+// label at each end gives it a year, so the numbers match the table beside it.
+export const COMPARE_COLORS = {
+  thesauros: "#196aff",
+  index: "#c98500",
+  aave: "#e87ba4",
+  compound: "#008300",
+  tbills: "#1baf7a",
+};
+const COMPARE_DASH = { aave: "6 4", compound: "2 3", tbills: "10 3 2 3" };
+
+export function ComparisonChart({
+  lines,
+  from = -Infinity,
+  amount = 10000,
+  token = "USDC",
+  height = 260,
+}) {
   const [hover, setHover] = useState(null);
   const [box, width] = useWidth();
-  const usable = (lines || []).filter((line) => line.points?.length >= 2);
-  if (!usable.length)
+  const usable = useMemo(
+    () =>
+      (lines || [])
+        .map((line) => {
+          const list = line.series || [];
+          let first = list.findIndex((point) => point.at >= from);
+          if (first > 0 && from - list[first - 1].at < list[first].at - from) first -= 1;
+          const inside = first < 0 ? [] : list.slice(first);
+          if (inside.length < 2) return null;
+          const base = inside[0];
+          const last = inside.at(-1);
+          const rate =
+            line.rate ??
+            ((last.level / base.level - 1) * 365 * DAY_MS * 100) / (last.at - base.at);
+          return {
+            ...line,
+            rate,
+            points: inside.map((point) => ({
+              at: point.at,
+              value: (point.level / base.level - 1) * amount,
+            })),
+          };
+        })
+        .filter(Boolean),
+    [lines, from, amount],
+  );
+  if (usable.length < 2)
     return (
       <div ref={box} className={b.chartEmpty} style={{ height: 120 }}>
         Not enough readings yet to compare.
       </div>
     );
+  const narrow = (width || 720) < 560;
   const W = width || 720,
     H = height,
-    left = 2,
-    right = 132,
-    top = 16,
-    bottom = 24;
+    left = 44,
+    right = narrow ? 122 : 142,
+    top = 14,
+    bottom = 26;
   const all = usable.flatMap((line) => line.points);
   const values = all.map((point) => point.value);
-  const lo = Math.min(...values),
+  const lo = Math.min(0, ...values),
     hi = Math.max(...values);
-  const pad = Math.max((hi - lo) * 0.08, 0.005);
+  const step = niceStep((hi - lo) / 4);
+  const yLo = Math.floor(lo / step) * step,
+    yHi = Math.ceil(hi / step) * step || step;
   const t0 = Math.min(...all.map((point) => point.at)),
     t1 = Math.max(...all.map((point) => point.at));
   const x = (t) => left + ((t - t0) / Math.max(t1 - t0, 1)) * (W - left - right);
-  const y = (v) =>
-    top + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (H - top - bottom);
+  const y = (v) => top + (1 - (v - yLo) / (yHi - yLo)) * (H - top - bottom);
   const path = (points) =>
     points
       .map(
@@ -517,7 +562,8 @@ export function GrowthChart({ lines, height = 260, unit = "" }) {
           (index ? "L" : "M") + x(point.at).toFixed(1) + " " + y(point.value).toFixed(1),
       )
       .join("");
-  const grid = [0, 1, 2].map((step) => lo - pad + ((hi - lo + 2 * pad) * step) / 2);
+  const grid = [];
+  for (let level = yLo; level <= yHi + step / 2; level += step) grid.push(level);
   const nearest = (points, at) =>
     points.reduce((a, c) => (Math.abs(c.at - at) < Math.abs(a.at - at) ? c : a));
   function move(event) {
@@ -528,13 +574,17 @@ export function GrowthChart({ lines, height = 260, unit = "" }) {
         ((W - left - right) / Math.max(t1 - t0, 1));
     setHover(Math.min(Math.max(at, t0), t1));
   }
-  // End labels may not collide: push them apart by at least 16px.
+  // End labels may not collide: push them apart, then back inside the plot.
+  const gap = narrow ? 15 : 17;
   const ends = usable
     .map((line) => ({ line, y: y(line.points.at(-1).value) }))
     .sort((a, c) => a.y - c.y);
   for (let i = 1; i < ends.length; i++)
-    if (ends[i].y - ends[i - 1].y < 16) ends[i].y = ends[i - 1].y + 16;
+    if (ends[i].y - ends[i - 1].y < gap) ends[i].y = ends[i - 1].y + gap;
+  const overflow = ends.length ? ends.at(-1).y - (H - bottom) : 0;
+  if (overflow > 0) for (const end of ends) end.y -= overflow;
   const shownAt = hover ?? t1;
+  const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString("en-US") : v.toFixed(step < 1 ? 1 : 0));
   return (
     <div ref={box} className={b.chartBox}>
       <svg
@@ -546,50 +596,54 @@ export function GrowthChart({ lines, height = 260, unit = "" }) {
         aria-label={usable
           .map(
             (line) =>
-              `${line.name}: 100 became ${line.points.at(-1).value.toFixed(2)}`,
+              `${line.name}: ${line.points.at(-1).value.toFixed(2)} ${token} earned, ${line.rate.toFixed(2)}% a year`,
           )
           .join("; ")}
         onPointerMove={move}
         onPointerLeave={() => setHover(null)}
       >
         {grid.map((level) => (
-          <line
-            key={level}
-            x1={left}
-            x2={W - right}
-            y1={y(level)}
-            y2={y(level)}
-            className={b.gridLine}
-          />
+          <g key={level}>
+            <line
+              x1={left}
+              x2={W - right}
+              y1={y(level)}
+              y2={y(level)}
+              className={level === 0 ? b.baseLine : b.gridLine}
+            />
+            <text x={left - 8} y={y(level) + 4} textAnchor="end" className={b.axis}>
+              {fmt(level)}
+            </text>
+          </g>
         ))}
-        <line
-          x1={left}
-          x2={W - right}
-          y1={y(100)}
-          y2={y(100)}
-          className={b.baseLine}
-        />
-        {usable.map((line) => (
+        {[...usable].reverse().map((line) => (
           <path
-            key={line.name}
+            key={line.id}
             d={path(line.points)}
             fill="none"
             stroke={line.color}
-            strokeWidth={line.strong ? 2.25 : 1.75}
+            strokeWidth={line.strong ? 2.5 : 1.5}
+            strokeDasharray={line.strong ? undefined : COMPARE_DASH[line.id] || "5 4"}
+            strokeLinejoin="round"
+            strokeLinecap="round"
           />
         ))}
         {ends.map(({ line, y: labelY }) => (
-          <g key={line.name}>
+          <g key={line.id}>
             <circle
               cx={x(line.points.at(-1).at)}
               cy={y(line.points.at(-1).value)}
-              r="3.5"
+              r={line.strong ? 4 : 3}
               fill={line.color}
+              stroke="#fff"
+              strokeWidth="2"
             />
-            <text x={W - right + 10} y={labelY + 4} className={b.endLabel}>
-              <tspan className={b.endValue}>
-                {line.points.at(-1).value.toFixed(2)}
-              </tspan>{" "}
+            <text
+              x={W - right + 12}
+              y={labelY + 4}
+              className={line.strong ? b.endStrong : b.endLabel}
+            >
+              <tspan className={b.endValue}>{line.rate.toFixed(2)}%</tspan>{" "}
               {line.short || line.name}
             </text>
           </g>
@@ -607,11 +661,13 @@ export function GrowthChart({ lines, height = 260, unit = "" }) {
               const point = nearest(line.points, hover);
               return (
                 <circle
-                  key={line.name}
+                  key={line.id}
                   cx={x(point.at)}
                   cy={y(point.value)}
                   r="4"
                   fill={line.color}
+                  stroke="#fff"
+                  strokeWidth="2"
                 />
               );
             })}
@@ -625,17 +681,29 @@ export function GrowthChart({ lines, height = 260, unit = "" }) {
         </text>
       </svg>
       <p className={b.chartRead} aria-live="polite">
-        {usable.map((line) => (
-          <span key={line.name}>
-            <i className={b.key} style={{ background: line.color }} /> {line.name}{" "}
-            <strong>{nearest(line.points, shownAt).value.toFixed(3)}</strong>
-          </span>
-        ))}{" "}
         <span>{niceDay(shownAt)}</span>
-        {unit && <span> {unit}</span>}
+        {usable.map((line) => (
+          <span key={line.id}>
+            <i
+              className={line.strong ? b.key : b.keyDashed}
+              style={line.strong ? { background: line.color } : { borderColor: line.color }}
+            />{" "}
+            {line.short || line.name}{" "}
+            <strong>+{nearest(line.points, shownAt).value.toFixed(2)}</strong>
+          </span>
+        ))}
       </p>
     </div>
   );
+}
+
+const DAY_MS = 86400000;
+// 1, 2 or 5 times a power of ten, so the grid reads in round amounts.
+function niceStep(raw) {
+  if (!(raw > 0)) return 1;
+  const power = 10 ** Math.floor(Math.log10(raw));
+  const unit = raw / power;
+  return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 5 ? 5 : 10) * power;
 }
 
 // The vault's rate against a named comparison, with the same grid.

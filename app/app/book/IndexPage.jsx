@@ -2,12 +2,9 @@
 import { useMemo, useState } from "react";
 import { DAY } from "../../../lib/vault-metrics.mjs";
 import { chainList } from "../../../lib/chains.mjs";
-import {
-  groupConstituents,
-  weeklyGaps,
-} from "../../../lib/blue-chip-index.mjs";
+import { groupConstituents } from "../../../lib/blue-chip-index.mjs";
 import { marketColor } from "../../../lib/vault-book.mjs";
-import { GapChart, RateChart } from "./charts";
+import { COMPARE_COLORS, ComparisonChart, RateChart } from "./charts";
 import {
   dateLabel,
   pct,
@@ -35,6 +32,58 @@ const PERIODS = [
 ];
 // The same window as every rate in the tables beside it.
 const DEFAULT_DAYS = 30;
+
+// The lines of the comparison chart: Thesauros, the index, then the references
+// the index carries (T-bills and the largest lenders on their own).
+// Over the 30 days of the figures above the chart, the line ends carry those
+// same figures, so a page never shows two rates for one period.
+export function compareLines(ours, index, oursName = "Thesauros", { oursRate, indexRate } = {}) {
+  if (!index) return [];
+  return [
+    {
+      id: "thesauros",
+      name: oursName,
+      short: "Thesauros",
+      color: COMPARE_COLORS.thesauros,
+      strong: true,
+      series: ours || [],
+      rate: oursRate ?? undefined,
+    },
+    {
+      id: "index",
+      name: `${index.symbol || "USDC"} blue-chip index`,
+      short: "Index",
+      color: COMPARE_COLORS.index,
+      strong: true,
+      series: index.series || [],
+      rate: indexRate ?? undefined,
+    },
+    ...(index.references || []).map((ref) => ({
+      id: ref.id,
+      name: ref.name,
+      short: ref.id === "tbills" ? "T-bills" : ref.name.replace(" alone", ""),
+      color: COMPARE_COLORS[ref.id] || "#8a94a6",
+      series: ref.series,
+    })),
+  ];
+}
+
+// What each reference line is, for the note under the chart.
+export function referenceNote(index) {
+  const refs = index?.references || [];
+  const lenders = refs.filter((ref) => ref.id !== "tbills");
+  const bills = refs.find((ref) => ref.id === "tbills");
+  const parts = [];
+  if (lenders.length)
+    parts.push(
+      `${lenders.map((ref) => ref.name).join(" and ")}: the index built only from that lender’s markets` +
+        (lenders.every((ref) => ref.share != null)
+          ? `, ${lenders.map((ref) => ref.share.toFixed(0) + "%").join(" and ")} of it.`
+          : "."),
+    );
+  if (bills) parts.push("T-bills: Ondo USDY, a token backed by short US Treasuries, after its issuer’s fee.");
+  return parts.join(" ") || null;
+}
 
 // The gap to the index in two parts: the choice among the markets a vault can
 // use, and how those markets' networks paid against the whole index.
@@ -103,19 +152,28 @@ export function IndexComparison({ book, compact = false }) {
   const index = book.index;
   const ours = book.totals.measured.r30?.series;
   const from = (index?.series.at(-1)?.at ?? Date.now()) - days * DAY;
-  const points = useMemo(() => weeklyGaps(ours, index, from), [ours, index, from]);
+  const t30 = days === 30 && book.totals.measured.r30?.status === "ok";
+  const lines = useMemo(
+    () =>
+      compareLines(ours, index, "Thesauros, USDC vaults", {
+        oursRate: t30 ? book.totals.measured.r30.rate : null,
+        indexRate: t30 ? book.totals.vsIndex?.r30 : null,
+      }),
+    [ours, index, t30, book.totals],
+  );
+  const start = lines[0]?.series?.find((point) => point.at >= from - DAY / 2)?.at ?? from;
   const t = book.totals;
   return (
     <div className={b.versus}>
       <div className={b.versusChart}>
         <div className={b.versusHead}>
           <span className={b.quiet}>
-            Each week’s part of the gap to the USDC index, in points; the bars
-            add up to the total
+            What 10,000 USDC earned since {dateLabel(start, false)}, and the
+            rate it works out to a year
           </span>
           <Segmented label="Period" value={days} onChange={setDays} options={PERIODS} />
         </div>
-        <GapChart points={points} height={compact ? 180 : 210} label="Thesauros" />
+        <ComparisonChart lines={lines} from={from} height={compact ? 240 : 280} />
       </div>
       {!compact && (
       <table className={`${b.table} ${b.scoreTable}`}>
@@ -172,9 +230,9 @@ export function IndexComparison({ book, compact = false }) {
           />
         ))}
       <p className={b.footnote}>
-        Thesauros: every USDC vault, weighted by size, from share prices; the
-        30-day figure comes from the vaults large enough to measure. Index: USDC
-        markets’ own interest, weighted by size. Both a year, before fees.
+        Thesauros: the USDC vaults large enough to measure, weighted by size,
+        from share prices. Index: what its markets paid, weighted by size.{" "}
+        {referenceNote(index)} Interest only, before fees.
       </p>
     </div>
   );
@@ -486,16 +544,33 @@ export default function IndexPage({ book, navigate }) {
           <div>
             <dt>Rate now</dt>
             <dd>
-              The rate each market pays lenders on the latest reading, weighted
-              the same way. A market whose rate cannot be read is left out of
-              this figure only.
+              The rate each market quotes lenders on the latest reading,
+              weighted the same way. Each quote is also read at 04:00, 12:00
+              and 20:00 UTC. A quote more than 1.5 points (or 30%) away from
+              both of the two readings before it counts only once a later
+              reading confirms it; until then the nearer earlier reading
+              stands in. This keeps out short jumps: Aave on Ethereum quoted
+              about 12.5% instead of 3.7% for some 40 minutes around midnight
+              UTC on most days from September to early November. A market whose
+              rate cannot be read is left out of this figure only.
+            </dd>
+          </div>
+          <div>
+            <dt>Reference lines</dt>
+            <dd>
+              T-bills: the on-chain price of Ondo USDY, a token backed by short
+              US Treasuries and bank deposits, which grows by what it pays after
+              its issuer’s fee. Aave alone and Compound alone: the same index
+              built only from that lender’s markets, to show how much of the
+              index one lender is.
             </dd>
           </div>
           <div>
             <dt>Source</dt>
             <dd>
               Only the contracts: each vault’s list of markets, each market’s
-              size and interest index. No outside data service.
+              size, quote and interest index, and the USDY price contract. No
+              outside data service.
             </dd>
           </div>
           <div>

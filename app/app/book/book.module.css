@@ -1851,6 +1851,22 @@
   border-radius: 2px;
   vertical-align: middle;
 }
+.keyDashed {
+  display: inline-block;
+  width: 12px;
+  height: 0;
+  margin: 0 2px 3px 0;
+  border-top: 2px dashed;
+  vertical-align: middle;
+}
+.endStrong {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.endStrong .endValue {
+  font-weight: 600;
+}
 
 /* Thesauros against the blue-chip index */
 .versus {
