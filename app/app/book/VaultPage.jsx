@@ -7,7 +7,7 @@ import {
   marketColor,
 } from "../../../lib/vault-book.mjs";
 import { DAY, measuredRate, pricePoints } from "../../../lib/vault-metrics.mjs";
-import { gapSeries } from "../../../lib/blue-chip-index.mjs";
+import { weeklyGaps } from "../../../lib/blue-chip-index.mjs";
 import { PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import ActionPanel, { RequestRow, batchClosing } from "./ActionPanel";
 import {
@@ -310,7 +310,7 @@ function Performance({ view, vault, index }) {
   const end = index?.series?.at(-1)?.at ?? chained.at(-1)?.at ?? Date.now();
   const from = days ? end - days * DAY : -Infinity;
   const measurable = view.measured.r30.status === "ok";
-  const gaps = useMemo(() => gapSeries(chained, index, from), [chained, index, from]);
+  const gaps = useMemo(() => weeklyGaps(chained, index, from), [chained, index, from]);
   const periodControl = (
     <Segmented
       label="Period"
@@ -365,8 +365,8 @@ function Performance({ view, vault, index }) {
             </p>
           )}
           <p className={b.footnote}>
-            What the vault earned over each previous week, from its share price,
-            minus what the index earned over the same week.
+            Each bar is one week: what the vault earned, from its share price,
+            minus what the index earned over the same seven days.
           </p>
         </>
       ) : tab === "price" ? (
@@ -714,7 +714,7 @@ function WhereTheMoneyIs({ vault, index }) {
         <>
           <AllocationBar rows={vault.allocation} height={10} />
           <ApprovedMarkets vault={vault} />
-          <TierSplit vault={vault} index={index} />
+          {vault.local?.selection == null && <TierSplit vault={vault} index={index} />}
           {vault.allocationHistory && (
             <div className={b.subBlock}>
               <h3>How the split changed</h3>

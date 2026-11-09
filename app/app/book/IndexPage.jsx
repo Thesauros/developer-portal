@@ -3,8 +3,8 @@ import { useMemo, useState } from "react";
 import { DAY } from "../../../lib/vault-metrics.mjs";
 import { chainList } from "../../../lib/chains.mjs";
 import {
-  gapSeries,
   groupConstituents,
+  weeklyGaps,
 } from "../../../lib/blue-chip-index.mjs";
 import { marketColor } from "../../../lib/vault-book.mjs";
 import { GapChart, RateChart } from "./charts";
@@ -103,7 +103,7 @@ export function IndexComparison({ book, compact = false }) {
   const index = book.index;
   const ours = book.totals.measured.r30?.series;
   const from = (index?.series.at(-1)?.at ?? Date.now()) - days * DAY;
-  const points = useMemo(() => gapSeries(ours, index, from), [ours, index, from]);
+  const points = useMemo(() => weeklyGaps(ours, index, from), [ours, index, from]);
   const t = book.totals;
   return (
     <div className={b.versus}>
@@ -148,13 +148,28 @@ export function IndexComparison({ book, compact = false }) {
         </tbody>
       </table>
       )}
-      {t.local?.selection != null && t.local?.place != null && (
-        <GapSplit
-          local={t.local}
-          total={t.vsIndex?.r30Diff}
-          curated={curatedShare(book.products[0]?.vaults || [])}
-        />
-      )}
+      {t.local?.selection != null && t.local?.place != null &&
+        (compact ? (
+          <details className={`${b.disclosure} ${b.gapDisclosure}`}>
+            <summary>
+              {t.vsIndex?.r30Diff != null
+                ? `${t.vsIndex.r30Diff >= 0 ? "+" : "−"}${Math.abs(t.vsIndex.r30Diff).toFixed(2)} pts against the USDC index over 30 days`
+                : "Against the USDC index over 30 days"}
+              <small>Why</small>
+            </summary>
+            <GapSplit
+              local={t.local}
+              total={t.vsIndex?.r30Diff}
+              curated={curatedShare(book.products[0]?.vaults || [])}
+            />
+          </details>
+        ) : (
+          <GapSplit
+            local={t.local}
+            total={t.vsIndex?.r30Diff}
+            curated={curatedShare(book.products[0]?.vaults || [])}
+          />
+        ))}
       <p className={b.footnote}>
         Thesauros: every USDC vault, weighted by size, from share prices; the
         30-day figure comes from the vaults large enough to measure. Index: USDC

@@ -355,6 +355,7 @@ function Results({ book, navigate }) {
 }
 
 function Operations({ book, name }) {
+  const [showGaps, setShowGaps] = useState(false);
   const feed = usePublicResource("/api/vaults/feed", { refreshMs: 120000 });
   const gaps = (feed.data?.items || []).filter((item) => item.kind === "gap");
   const batch = book.vaults.find((vault) => vault.kind === "batch");
@@ -374,7 +375,17 @@ function Operations({ book, name }) {
         </p>
       )}
       {gaps.length ? (
-        <LedgerRows rows={gaps} vaultName={name} />
+        <>
+          <LedgerRows rows={showGaps ? gaps : gaps.slice(0, 2)} vaultName={name} />
+          {!showGaps && gaps.length > 2 && (
+            <button
+              className={`${b.linkButton} ${b.moreButton}`}
+              onClick={() => setShowGaps(true)}
+            >
+              Show all {gaps.length} gaps
+            </button>
+          )}
+        </>
       ) : (
         <p className={b.quiet}>
           {feed.loading ? "Loading…" : "No gaps recorded."}

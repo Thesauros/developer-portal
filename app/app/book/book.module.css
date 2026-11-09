@@ -2828,3 +2828,22 @@
   grid-column: 1 / -1;
   max-width: none;
 }
+
+.titleSub {
+  display: inline-flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+}
+.gapDisclosure {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+.gapDisclosure .gapSplit {
+  margin-top: 4px;
+}
+/* The comparison table never runs past its column. */
+.scoreTable td:last-child,
+.scoreTable th:last-child {
+  padding-right: 4px;
+}

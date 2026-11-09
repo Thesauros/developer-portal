@@ -862,12 +862,14 @@ export function AllocationHistory({ history, height = 200 }) {
       </svg>
       <ul className={b.legend} aria-live="polite">
         <li className={b.legendDate}>{niceDay(shown.at)}</li>
-        {names.map((name, index) => (
-          <li key={name}>
-            <i style={{ background: marketColor(name) }} />
-            {name} <strong>{shown.shares[index].toFixed(1)}%</strong>
-          </li>
-        ))}
+        {names.map((name, index) =>
+          shown.shares[index] >= 0.05 ? (
+            <li key={name}>
+              <i style={{ background: marketColor(name) }} />
+              {name} <strong>{shown.shares[index].toFixed(1)}%</strong>
+            </li>
+          ) : null,
+        )}
       </ul>
     </div>
   );
@@ -904,7 +906,7 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
   const reach = Math.max(0.25, ...gaps.map(Math.abs)) * 1.15;
   const y = (v) => top + (1 - (v + reach) / (2 * reach)) * (H - top - bottom);
   const step = (W - left - right) / points.length;
-  const bar = Math.max(2, Math.min(10, step * 0.6));
+  const bar = Math.max(6, Math.min(48, step * 0.55));
   const x = (i) => left + step * (i + 0.5);
   const shown = hover ?? points.length - 1;
   const p = points[shown];
@@ -953,12 +955,11 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
             opacity={hover == null || hover === i ? 1 : 0.55}
           />
         ))}
-        <text x={left} y={H - 6} className={b.axis}>
-          {dateLabel(points[0].at, false)}
-        </text>
-        <text x={W - right} y={H - 6} textAnchor="end" className={b.axis}>
-          {dateLabel(points.at(-1).at, false)}
-        </text>
+        {points.map((point, i) => (
+          <text key={"d" + point.at} x={x(i)} y={H - 6} textAnchor="middle" className={b.axis}>
+            {dateLabel(point.at, false)}
+          </text>
+        ))}
       </svg>
       <p className={b.chartRead} aria-live="polite">
         <span>
@@ -968,7 +969,7 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
           <i className={b.key} style={{ background: "var(--ink-4)" }} /> behind
         </span>
         <span>
-          Week to {dateLabel(p.at, false)}: {label.toLowerCase()} <strong>{pct(p.ours)}</strong>,
+          Week to {dateLabel(p.at, false)}: {label} <strong>{pct(p.ours)}</strong>,
           index <strong>{pct(p.index)}</strong>,{" "}
           <strong>
             {p.gap >= 0 ? "+" : "−"}

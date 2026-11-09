@@ -155,9 +155,16 @@ export function ProductTitle({ product, size = 28, stage = true }) {
       <span>
         <strong className={b.titleLine}>
           {product.token} <span className={b.tag}>{product.tag}</span>
-          {stage && <Stage stage={product.stage} />}
         </strong>
-        <small>{product.short || product.line}</small>
+        <small className={b.titleSub}>
+          {product.short || product.line}
+          {stage && (
+            <>
+              <span aria-hidden="true"> · </span>
+              <Stage stage={product.stage} />
+            </>
+          )}
+        </small>
       </span>
     </span>
   );

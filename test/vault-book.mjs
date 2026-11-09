@@ -27,6 +27,7 @@ import {
   marketVenues,
   membersOf,
   membershipChanges,
+  weeklyGaps,
   indexTrailingRate,
   indexWindowRate,
   rebase,
@@ -674,4 +675,12 @@ test("positions read from the contracts add up to the total, cash included", () 
   assert.ok(Math.abs(sum - 50010) < 1e-9, "rows add up to the total");
   assert.ok(vault.allocation.some((row) => row.kind === "idle" && row.amount === 10));
   assert.ok(Math.abs(vault.allocation.reduce((total, row) => total + row.share, 0) - 100) < 1e-9);
+});
+test("weekly gaps are whole weeks that do not overlap", () => {
+  const levels = Array.from({ length: 31 }, (_, i) => ({ at: (970 + i) * DAY, level: (1 + 0.05 / 365) ** i }));
+  const index = buildBlueChipIndex(lending("ethereum:aave", 1000, 0.04 / 365, 4, 40));
+  const weeks = weeklyGaps(levels, index, levels.at(-1).at - 30 * DAY);
+  assert.equal(weeks.length, 4);
+  for (let i = 1; i < weeks.length; i++) assert.equal(weeks[i].from, weeks[i - 1].at);
+  assert.ok(weeks.every((week) => Math.abs(week.gap - 1) < 0.05), "about +1 pt each week");
 });

@@ -454,23 +454,8 @@ export default function VaultsPage({ book, navigate, user }) {
         </div>
       </dl>
       <Section
-        id="against-index"
-        title="Against the blue-chip index"
-        lede={
-          <>
-            The market average: lending across every approved blue-chip market,
-            weighted by size.{" "}
-            <button className={b.linkButton} onClick={() => navigate("index")}>
-              How the index is built
-            </button>
-          </>
-        }
-        className={b.firstSection}
-      >
-        <IndexComparison book={book} compact />
-      </Section>
-      <Section
         id="vaults"
+        className={b.firstSection}
         title="Vaults"
         lede="Choose the stablecoin and how fast you want to leave. The network you deposit from is chosen inside."
       >
@@ -526,6 +511,21 @@ export default function VaultsPage({ book, navigate, user }) {
             </div>
           </dl>
         </details>
+      </Section>
+      <Section
+        id="against-index"
+        title="Against the blue-chip index"
+        lede={
+          <>
+            The market average: lending across every approved blue-chip market,
+            weighted by size.{" "}
+            <button className={b.linkButton} onClick={() => navigate("index")}>
+              How the index is built
+            </button>
+          </>
+        }
+      >
+        <IndexComparison book={book} compact />
       </Section>
       <WhatIf book={book} navigate={navigate} />
     </div>
