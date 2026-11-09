@@ -33,7 +33,24 @@ const PRODUCT_COLOR = {
   "usdt0-instant": "#0b8f7b",
 };
 
+// A product's networks fold under it: the product is what is sold, each
+// network's vault is a detail one click away.
+function NetworksToggle({ product, open, onToggle, cols }) {
+  if (product.vaults.length < 2) return null;
+  return (
+    <tr className={b.toggleRow}>
+      <td colSpan={cols}>
+        <button className={b.linkButton} aria-expanded={open} onClick={onToggle}>
+          {open ? "Hide its networks" : `Each of its ${product.vaults.length} networks`}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 function Capital({ book, navigate }) {
+  const [open, setOpen] = useState({});
+  const flip = (id) => setOpen((now) => ({ ...now, [id]: !now[id] }));
   const { totals, products } = book;
   const share = (value) =>
     totals.tvl && value != null
@@ -104,7 +121,14 @@ function Capital({ book, navigate }) {
                     {share(product.tvl)}
                   </td>
                 </tr>
+                <NetworksToggle
+                  product={product}
+                  open={!!open[product.id]}
+                  onToggle={() => flip(product.id)}
+                  cols={5}
+                />
                 {product.vaults.length > 1 &&
+                  open[product.id] &&
                   product.vaults.map((vault) => (
                     <tr key={vault.id} className={b.subRow}>
                       <td data-cell="vault">
@@ -266,6 +290,8 @@ function ResultRow({ item, sub = false, title }) {
 }
 
 function Results({ book, navigate }) {
+  const [open, setOpen] = useState({});
+  const flip = (id) => setOpen((now) => ({ ...now, [id]: !now[id] }));
   const all = book.totals;
   return (
     <Section
@@ -310,7 +336,14 @@ function Results({ book, navigate }) {
                   }}
                   title={<ProductTitle product={product} size={22} />}
                 />
+                <NetworksToggle
+                  product={product}
+                  open={!!open[product.id]}
+                  onToggle={() => flip(product.id)}
+                  cols={6}
+                />
                 {product.vaults.length > 1 &&
+                  open[product.id] &&
                   product.vaults.map((vault) => (
                     <ResultRow
                       key={vault.id}

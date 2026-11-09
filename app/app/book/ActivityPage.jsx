@@ -127,7 +127,7 @@ export function Ledger({ book, scope, mine, account, batch, limit = 200 }) {
         <p className={b.footnote}>
           Moves between markets in the {unreadable.join(" and ")}{" "}
           {unreadable.length === 1 ? "vault are" : "vaults are"} not listed
-          here yet; their allocation now is on each vault’s page.
+          here yet; their allocation now is on the product’s page.
         </p>
       )}
       {scope === "mine" && (

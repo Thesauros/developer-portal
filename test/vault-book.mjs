@@ -730,3 +730,20 @@ test("an index of one market is not a market average: nothing is compared with i
   assert.equal(book.byId.arbitrum.vsIndex, null);
   assert.equal(book.byId.arbitrum.index, null);
 });
+
+test("interest paid while a quote jumped is left out of the index", () => {
+  // One market paying 3.7% a year, except one day when a midnight jump paid
+  // extra: its interest index grew as if at 3.94% that day.
+  const rows = lending("ethereum:aave", 1000, 0.037 / 365, 3.7, 10);
+  const day = 5;
+  for (let i = day; i < rows.length; i++) rows[i].idx *= 1 + (0.0024 / 365);
+  rows[day].jumped = true;
+  rows[day].quoteMean = 3.7;
+  const trimmed = buildBlueChipIndex(rows);
+  const raw = buildBlueChipIndex(rows, { trimJumps: false });
+  assert.equal(trimmed.trimmedDays, 1);
+  const level = (index) => index.series.at(-1).level;
+  assert.ok(level(raw) > level(trimmed));
+  // Trimmed, the index earns exactly 3.7% a year every day.
+  assert.ok(Math.abs(level(trimmed) - (1 + 0.037 / 365) ** 10) < 1e-12);
+});

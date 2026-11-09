@@ -617,7 +617,13 @@ export default function IndexPage({ book, navigate }) {
             <dd>
               Each market’s own interest index from one daily reading to the
               next, added up by weight and chained day to day. It is what the
-              markets paid, not what they quoted.
+              markets paid, not what they quoted, with one exception: interest
+              paid while a market’s quote jumped is left out. In an interval
+              with a jump the market earns at most the average of its settled
+              quotes.
+              {index.jumpEffect?.r30 != null && index.jumpEffect.r30 > 0.005
+                ? ` Over the last 30 days this took ${index.jumpEffect.r30.toFixed(2)} pts off the index.`
+                : ""}
             </dd>
           </div>
           <div>

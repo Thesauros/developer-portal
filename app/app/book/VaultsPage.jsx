@@ -494,7 +494,7 @@ export default function VaultsPage({ book, navigate, user }) {
                 Pilot: runs with team funds and has no external audit; outside
                 money is not part of its plan yet, and production builds keep
                 its deposits closed. A product shows its largest vault’s stage;
-                each network’s is on its page.
+                each network’s is listed on the product’s page.
               </dd>
             </div>
             <div>

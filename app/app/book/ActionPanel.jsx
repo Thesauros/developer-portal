@@ -571,6 +571,24 @@ function NetworkChoice({ vault, choices, onChoose, wallet, action }) {
   // The product is one; the network is only where the money comes from or
   // goes back to. Each network's vault has its own rate, said in one line.
   const warn = vault.audit?.state && vault.audit.state !== "reviewed";
+  const [changing, setChanging] = useState(false);
+  if (!changing)
+    return (
+      <div className={b.networkChoice}>
+        <p className={b.fromLine}>
+          <span>
+            {action === "withdraw" ? "On" : "From"} <strong>{vault.place}</strong>
+            {" · "}
+            {pct(vault.rateNow)} now
+            {vault.stage && vault.stage !== "Live" ? ` · ${String(vault.stage).toLowerCase()} stage` : ""}
+            {warn ? ` · ${vault.audit.label}` : ""}
+          </span>
+          <button className={b.linkButton} onClick={() => setChanging(true)}>
+            Change
+          </button>
+        </p>
+      </div>
+    );
   return (
     <div className={b.networkChoice}>
       <label className={b.fromRow}>
@@ -578,7 +596,10 @@ function NetworkChoice({ vault, choices, onChoose, wallet, action }) {
         <select
           className={b.select}
           value={vault.id}
-          onChange={(event) => onChoose(event.target.value)}
+          onChange={(event) => {
+            onChoose(event.target.value);
+            setChanging(false);
+          }}
         >
           {choices.map((choice) => {
             const funds = (wallet || []).find(

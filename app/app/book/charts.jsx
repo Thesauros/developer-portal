@@ -499,7 +499,7 @@ export const COMPARE_COLORS = {
   index: "#2b3445",
   aave: "#e87ba4",
   compound: "#008300",
-  tbills: "#1baf7a",
+  tbills: "#c98500",
 };
 const COMPARE_DASH = { aave: "6 4", compound: "2 3", tbills: "10 3 2 3" };
 
@@ -562,7 +562,8 @@ export function ComparisonChart({
   const W = width || 720,
     H = height,
     left = 44,
-    right = narrow ? 136 : 150,
+    // On a phone the rates go in the readout below, so the plot keeps the width.
+    right = narrow ? 14 : 150,
     top = 24,
     bottom = 26;
   const all = usable.flatMap((line) => line.points);
@@ -606,6 +607,7 @@ export function ComparisonChart({
     if (ends[i].y - ends[i - 1].y < gap) ends[i].y = ends[i - 1].y + gap;
   const overflow = ends.length ? ends.at(-1).y - (H - bottom) : 0;
   if (overflow > 0) for (const end of ends) end.y -= overflow;
+  // A finger lifting off keeps the day it chose; a mouse leaving clears it.
   const shownAt = hover ?? t1;
   const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString("en-US") : v.toFixed(Number.isInteger(step) ? 0 : 1));
   return (
@@ -624,7 +626,7 @@ export function ComparisonChart({
           .join("; ")}
         onPointerMove={move}
         onPointerDown={move}
-        onPointerLeave={() => setHover(null)}
+        onPointerLeave={(event) => event.pointerType === "mouse" && setHover(null)}
       >
         <text x={left - 8} y={10} textAnchor="end" className={b.axis}>
           {token}
@@ -675,7 +677,7 @@ export function ComparisonChart({
             strokeLinecap="round"
           />
         ))}
-        {ends.map(({ line, y: labelY }) => (
+        {(narrow ? [] : ends).map(({ line, y: labelY }) => (
           <g key={line.id}>
             <circle
               cx={x(line.points.at(-1).at)}
@@ -729,7 +731,9 @@ export function ComparisonChart({
       </svg>
       <p className={b.chartRead} aria-live="polite">
         <span>
-          Earned by {niceDay(shownAt)}, in {token}
+          {narrow && hover == null
+            ? "A year over the period"
+            : `Earned by ${niceDay(shownAt)}, in ${token}`}
         </span>
         {usable.map((line) => (
           <span key={line.id}>
@@ -737,8 +741,12 @@ export function ComparisonChart({
               className={line.strong ? b.key : b.keyDashed}
               style={line.strong ? { background: line.color } : { borderColor: line.color }}
             />{" "}
-            {line.short || line.name}{" "}
-            <strong>+{nearest(line.points, shownAt).value.toFixed(2)}</strong>
+            {narrow ? line.tiny || line.short || line.name : line.short || line.name}{" "}
+            <strong>
+              {narrow && hover == null
+                ? `${line.rate.toFixed(2)}%`
+                : `+${nearest(line.points, shownAt).value.toFixed(2)}`}
+            </strong>
           </span>
         ))}
       </p>

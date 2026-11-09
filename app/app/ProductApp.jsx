@@ -656,7 +656,11 @@ export default function ProductApp({ mode = "individual", user }) {
         </footer>
       </main>
       </div>
-      <nav className={b.dock} aria-label="Quick navigation">
+      <nav
+        className={b.dock}
+        aria-label="Quick navigation"
+        style={{ gridTemplateColumns: `repeat(${dock.length}, minmax(0, 1fr))` }}
+      >
         {dock.map((id) => nav(id, true))}
       </nav>
       {guide && (
