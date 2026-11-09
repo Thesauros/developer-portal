@@ -600,6 +600,10 @@ function NetworkChoice({ vault, choices, onChoose, wallet, action }) {
           Done
         </button>
       </p>
+      <p className={b.networkNote}>
+        One product on every network. Each network’s vault lends to that
+        network’s markets, so its rate now differs a little.
+      </p>
       <ul className={b.networkList} role="radiogroup" aria-label="Network">
         {choices.map((choice) => {
           const funds = (wallet || []).find(

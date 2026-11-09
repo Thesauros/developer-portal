@@ -522,6 +522,15 @@ export function windowOf(series, from) {
   };
 }
 
+// Lines are compared from one moment: the window's start, or, for the whole
+// history, the latest first reading among them.
+export function commonStart(lines, from = -Infinity) {
+  return Math.max(
+    from,
+    ...(lines || []).map((line) => line.series?.[0]?.at ?? -Infinity),
+  );
+}
+
 export function ComparisonChart({
   lines,
   from = -Infinity,
@@ -532,11 +541,12 @@ export function ComparisonChart({
 }) {
   const [hover, setHover] = useState(null);
   const [box, width] = useWidth();
+  const start = commonStart(lines, from);
   const usable = useMemo(
     () =>
       (lines || [])
         .map((line) => {
-          const span = windowOf(line.series, from);
+          const span = windowOf(line.series, start);
           if (!span) return null;
           const { inside, base } = span;
           const rate = line.rate ?? span.rate;
@@ -550,7 +560,7 @@ export function ComparisonChart({
           };
         })
         .filter(Boolean),
-    [lines, from, amount],
+    [lines, start, amount],
   );
   if (usable.length < 2)
     return (

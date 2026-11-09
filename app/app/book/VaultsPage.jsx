@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, useMemo, useState } from "react";
-import { DAY, measuredRate } from "../../../lib/vault-metrics.mjs";
+import { DAY, measuredRate, sinceMeasurable } from "../../../lib/vault-metrics.mjs";
 import { PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import { AllocationBar } from "./charts";
 import { IndexComparison } from "./IndexPage";
@@ -214,11 +214,15 @@ export function Products({ book, navigate, user }) {
   );
 }
 
+// The same periods as the comparison charts. "All" starts where each vault
+// first held enough to measure, as Transparency counts it: its first days of
+// dust say nothing about the strategy.
 const PERIODS = [
   { value: 30, label: "30 days" },
-  { value: 60, label: "60 days" },
-  { value: 36500, label: "Since launch" },
+  { value: 90, label: "90 days" },
+  { value: null, label: "All" },
 ];
+const ALL = null;
 
 // Growth between two moments of a chained level series, or null.
 function growthBetween(series, fromAt, toAt) {
@@ -236,6 +240,23 @@ function growthBetween(series, fromAt, toAt) {
   return a && c && c.at > a.at ? c.level / a.level - 1 : null;
 }
 
+// Since a vault first held enough to measure, in the shape measuredRate gives.
+function sinceGrown(samples) {
+  const grown = sinceMeasurable(samples);
+  if (!grown) return { status: "none" };
+  const list = (samples || []).filter((point) => point.price > 0);
+  const from = list.find((point) => point.at === grown.from);
+  const to = list.find((point) => point.at === grown.to);
+  if (!from || !to) return { status: "none" };
+  return {
+    status: "ok",
+    from,
+    to,
+    change: (to.price / from.price - 1) * 100,
+    days: grown.days,
+  };
+}
+
 // What a real amount would have done over a real period, for each vault and
 // for the blue-chip index over exactly the same days.
 function WhatIf({ book, navigate }) {
@@ -247,7 +268,10 @@ function WhatIf({ book, navigate }) {
       // The same calculation as each vault's own rate: its share price between
       // the readings nearest the period, added up by size.
       const parts = product.vaults
-        .map((vault) => ({ vault, measure: measuredRate(vault.samples, days) }))
+        .map((vault) => ({
+          vault,
+          measure: days === ALL ? sinceGrown(vault.samples) : measuredRate(vault.samples, days),
+        }))
         .filter((part) => part.measure.from && part.vault.tvl > 0);
       const measured = parts.filter((part) => part.measure.status === "ok");
       const use = measured.length ? measured : parts.slice(0, 1);
@@ -446,9 +470,7 @@ export default function VaultsPage({ book, navigate, user }) {
         <div>
           <dt>Rate now, USDC</dt>
           <dd>{pct(totals.rateNow)}</dd>
-          <small>
-            <VsIndex diff={totals.vsIndex?.nowDiff} suffix=" vs USDC index" />
-          </small>
+          <small>quoted by its markets, a year, before fees</small>
         </div>
         <div>
           <dt>In vaults</dt>

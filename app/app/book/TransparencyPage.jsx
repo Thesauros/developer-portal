@@ -52,10 +52,15 @@ function Capital({ book, navigate }) {
   const [open, setOpen] = useState({});
   const flip = (id) => setOpen((now) => ({ ...now, [id]: !now[id] }));
   const { totals, products } = book;
-  const share = (value) =>
-    totals.tvl && value != null
-      ? ((value / totals.tvl) * 100).toFixed(value / totals.tvl < 0.001 ? 3 : 1) + "%"
-      : "—";
+  // Shares that read right together: a sliver is "under 0.1%", and nothing
+  // short of the whole rounds up to 100%.
+  const share = (value) => {
+    if (!totals.tvl || value == null) return "—";
+    const p = (value / totals.tvl) * 100;
+    if (p > 0 && p < 0.1) return "under 0.1%";
+    if (p < 100 && p > 99.9) return "99.9%";
+    return p.toFixed(1) + "%";
+  };
   return (
     <Section
       id="capital"

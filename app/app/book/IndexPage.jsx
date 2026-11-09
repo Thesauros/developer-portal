@@ -4,7 +4,7 @@ import { DAY } from "../../../lib/vault-metrics.mjs";
 import { chainList } from "../../../lib/chains.mjs";
 import { groupConstituents } from "../../../lib/blue-chip-index.mjs";
 import { marketColor } from "../../../lib/vault-book.mjs";
-import { COMPARE_COLORS, ComparisonChart, RateChart, windowOf } from "./charts";
+import { commonStart, COMPARE_COLORS, ComparisonChart, RateChart, windowOf } from "./charts";
 import {
   dateLabel,
   pct,
@@ -100,8 +100,9 @@ export function indexMarkers(index) {
 // The verdict for the window on screen, from the same readings as the chart.
 export function windowVerdict(lines, from) {
   const [ours, index] = lines;
-  const a = ours && (ours.rate ?? windowOf(ours.series, from)?.rate);
-  const c = index && (index.rate ?? windowOf(index.series, from)?.rate);
+  const start = commonStart(lines, from);
+  const a = ours && (ours.rate ?? windowOf(ours.series, start)?.rate);
+  const c = index && (index.rate ?? windowOf(index.series, start)?.rate);
   return a != null && c != null ? { ours: a, index: c, gap: a - c } : null;
 }
 
@@ -227,7 +228,7 @@ export function IndexComparison({ book, compact = false }) {
   const start = lines[0]?.series?.find((point) => point.at >= from - DAY / 2)?.at ?? from;
   const verdict = windowVerdict(lines, from);
   const t = book.totals;
-  const split = splitFor(t.local, verdict, from, days);
+  const split = splitFor(t.local, verdict, commonStart(lines, from), days);
   return (
     <div className={b.versus}>
       <div className={b.versusChart}>
@@ -384,7 +385,9 @@ export default function IndexPage({ book, navigate }) {
         <div>
           <dt>Markets</dt>
           <dd>{index.constituents.length}</dd>
-          <small>on {index.networks.length} networks</small>
+          <small>
+            on {index.networks.length} network{index.networks.length === 1 ? "" : "s"}
+          </small>
         </div>
         <div>
           <dt>Money in them</dt>

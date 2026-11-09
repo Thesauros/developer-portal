@@ -70,20 +70,9 @@ function indexLong(index) {
 }
 
 function StageLine({ view }) {
-  if (!view.stages || view.stages.length < 2) return <Stage stage={view.stage} />;
-  // Counts, not names: which network is at which stage is in the network
-  // table further down.
-  const total = view.stages.reduce((sum, { places }) => sum + places.length, 0);
-  return (
-    <span className={b.stageLine}>
-      {view.stages.map(({ stage, places }, i) => (
-        <span key={stage}>
-          <Stage stage={stage} />{" "}
-          {i === 0 ? `on ${places.length} of ${total} networks` : `on ${places.length}`}
-        </span>
-      ))}
-    </span>
-  );
+  // One stage for the product: its best network's. Which network is at which
+  // stage is in "Networks and contracts".
+  return <Stage stage={view.stages?.[0]?.stage || view.stage} />;
 }
 
 function Header({ view, index, navigate }) {
@@ -137,15 +126,7 @@ function Header({ view, index, navigate }) {
         <div>
           <dt>Rate now</dt>
           <dd>{pct(view.rateNow)}</dd>
-          <small>
-            a year, before fees
-            {view.vsIndex?.nowDiff != null && (
-              <>
-                {" · "}
-                <VsIndex diff={view.vsIndex.nowDiff} suffix={` vs ${indexName(index)}`} />
-              </>
-            )}
-          </small>
+          <small>quoted by its markets, a year, before fees</small>
         </div>
         <div>
           <dt>Total value</dt>
@@ -670,7 +651,11 @@ function ApprovedMarkets({ vault }) {
                   {compact(row.amount)}
                 </td>
                 <td className={b.num} data-label="Share">
-                  {row.share == null ? "—" : row.share.toFixed(1) + "%"}
+                  {row.share == null
+                    ? "—"
+                    : row.share > 0 && row.share < 0.1
+                      ? "under 0.1%"
+                      : row.share.toFixed(1) + "%"}
                 </td>
                 <td className={b.num} data-label="Adds">
                   {row.rate != null && row.share != null
@@ -776,7 +761,7 @@ function ApprovedMarkets({ vault }) {
         </p>
       )}
       {vault.ratesAt && (
-        <MeasureNote>
+        <MeasureNote label="Where these rates come from">
           Rates read from the market contracts at {clock(vault.ratesAt)}, the
           same readings the blue-chip index uses. A sudden jump in a quote
           counts only once a second reading confirms it.
@@ -879,7 +864,7 @@ function WhereTheMoneyIs({ vault, index }) {
               but not counted as capital at work.
             </p>
           )}
-          <MeasureNote>
+          <MeasureNote label="What Core and Satellite mean">
             Core: Aave and Compound. Satellite: curated Morpho vaults. Every
             approved market of 1 million USD or more is a member of the
             blue-chip index.
@@ -1061,7 +1046,7 @@ function MoneyMoved({ vault, feed }) {
       lede={
         vault.kind === "batch"
           ? "Batches settled and moves between networks, from the contracts. It has not moved money between markets yet."
-          : "Every move between lending markets, from the vault’s contract."
+          : "Every move between lending markets, from its vaults’ contracts."
       }
     >
       {feed.loading && !feed.data ? (

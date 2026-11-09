@@ -1795,6 +1795,13 @@
   .directory td[data-cell="spark"] {
     display: none;
   }
+  /* Rows that speak for the whole table span its width on a phone too. */
+  .groupRow td,
+  .toggleRow td,
+  .directory td[colspan],
+  .stack td[colspan] {
+    grid-column: 1 / -1;
+  }
   .directory td[data-label]::before,
   .stack td[data-label]::before,
   .whatIf td[data-label]::before {
