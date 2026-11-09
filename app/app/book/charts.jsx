@@ -862,14 +862,20 @@ export function AllocationHistory({ history, height = 200 }) {
       </svg>
       <ul className={b.legend} aria-live="polite">
         <li className={b.legendDate}>{niceDay(shown.at)}</li>
-        {names.map((name, index) =>
-          shown.shares[index] >= 0.05 ? (
-            <li key={name}>
+        {names.map((name, index) => {
+          const held = shown.shares[index] >= 0.05;
+          return (
+            <li key={name} className={held ? undefined : b.legendPast}>
               <i style={{ background: marketColor(name) }} />
-              {name} <strong>{shown.shares[index].toFixed(1)}%</strong>
+              {name}{" "}
+              {held ? (
+                <strong>{shown.shares[index].toFixed(1)}%</strong>
+              ) : (
+                <span>none that day</span>
+              )}
             </li>
-          ) : null,
-        )}
+          );
+        })}
       </ul>
     </div>
   );
@@ -946,9 +952,9 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
         {points.map((point, i) => (
           <rect
             key={point.at}
-            x={x(i) - bar / 2}
+            x={x(i) - (point.partial ? bar * 0.5 : bar) / 2}
             y={Math.min(y(point.gap), y(0))}
-            width={bar}
+            width={point.partial ? bar * 0.5 : bar}
             height={Math.max(1, Math.abs(y(point.gap) - y(0)))}
             rx="1.5"
             fill={point.gap >= 0 ? "var(--blue)" : "var(--ink-4)"}
@@ -969,7 +975,10 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
           <i className={b.key} style={{ background: "var(--ink-4)" }} /> behind
         </span>
         <span>
-          Week to {dateLabel(p.at, false)}: {label} <strong>{pct(p.ours)}</strong>,
+          {p.partial
+            ? `${dateLabel(p.from, false)} to ${dateLabel(p.at, false)}`
+            : `Week to ${dateLabel(p.at, false)}`}
+          : {label} <strong>{pct(p.ours)}</strong>,
           index <strong>{pct(p.index)}</strong>,{" "}
           <strong>
             {p.gap >= 0 ? "+" : "−"}

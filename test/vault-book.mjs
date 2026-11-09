@@ -680,7 +680,10 @@ test("weekly gaps are whole weeks that do not overlap", () => {
   const levels = Array.from({ length: 31 }, (_, i) => ({ at: (970 + i) * DAY, level: (1 + 0.05 / 365) ** i }));
   const index = buildBlueChipIndex(lending("ethereum:aave", 1000, 0.04 / 365, 4, 40));
   const weeks = weeklyGaps(levels, index, levels.at(-1).at - 30 * DAY);
-  assert.equal(weeks.length, 4);
+  // Four whole weeks and the two days before them, covering all 30 days.
+  assert.equal(weeks.length, 5);
+  assert.equal(weeks[0].partial, true);
+  assert.equal(weeks[0].from, levels.at(-1).at - 30 * DAY);
   for (let i = 1; i < weeks.length; i++) assert.equal(weeks[i].from, weeks[i - 1].at);
   assert.ok(weeks.every((week) => Math.abs(week.gap - 1) < 0.05), "about +1 pt each week");
 });

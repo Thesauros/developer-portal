@@ -2847,3 +2847,26 @@
 .scoreTable th:last-child {
   padding-right: 4px;
 }
+
+.legendPast {
+  color: var(--ink-4);
+}
+.legendPast span {
+  font-size: 12px;
+}
+/* The "Why" line reads as one sentence with a link at the end. */
+.gapDisclosure > summary {
+  display: block;
+  font-weight: 500;
+}
+.gapDisclosure > summary::before {
+  display: inline-block;
+  margin: 0 10px 2px 0;
+  vertical-align: middle;
+}
+.gapDisclosure > summary small {
+  margin-left: 8px;
+  color: var(--blue-deep);
+  font-weight: 500;
+  white-space: nowrap;
+}
