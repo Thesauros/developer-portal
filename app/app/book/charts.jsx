@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { CASH_COLOR, marketColor } from "../../../lib/vault-book.mjs";
+import { earnedSeries } from "../../../lib/blue-chip-index.mjs";
 import { clock, dateLabel, money, pct } from "./parts";
 import b from "./book.module.css";
 
@@ -531,6 +532,9 @@ export function commonStart(lines, from = -Infinity) {
   );
 }
 
+// Two views of one comparison. "rate": each line's 30-day rate, day by day, so
+// the gap between them is visible and the right edge is the 30-day figure.
+// "earned": what one amount earned on each since the start of the window.
 export function ComparisonChart({
   lines,
   from = -Infinity,
@@ -538,29 +542,61 @@ export function ComparisonChart({
   token = "USDC",
   height = 260,
   markers = [],
+  mode = "rate",
 }) {
   const [hover, setHover] = useState(null);
   const [box, width] = useWidth();
-  const start = commonStart(lines, from);
+  const rolling = useMemo(
+    () =>
+      mode === "rate"
+        ? (lines || []).map((line) => ({
+            ...line,
+            rolled: earnedSeries(line.series, 30).map((point) => ({
+              at: point.at,
+              level: point.rate,
+            })),
+          }))
+        : lines,
+    [lines, mode],
+  );
+  const start =
+    mode === "rate"
+      ? commonStart(rolling.map((line) => ({ series: line.rolled })), from)
+      : commonStart(lines, from);
   const usable = useMemo(
     () =>
-      (lines || [])
-        .map((line) => {
-          const span = windowOf(line.series, start);
-          if (!span) return null;
-          const { inside, base } = span;
-          const rate = line.rate ?? span.rate;
-          return {
-            ...line,
-            rate,
-            points: inside.map((point) => ({
-              at: point.at,
-              value: (point.level / base.level - 1) * amount,
-            })),
-          };
-        })
-        .filter(Boolean),
-    [lines, start, amount],
+      mode === "rate"
+        ? rolling
+            .map((line) => {
+              const inside = line.rolled.filter((point) => point.at >= start);
+              if (inside.length < 2) return null;
+              const last = inside.at(-1).level;
+              return {
+                ...line,
+                // The right edge is the 30-day figure; where the page states it
+                // for the same days, the label uses that figure.
+                rate: line.rate ?? last,
+                points: inside.map((point) => ({ at: point.at, value: point.level })),
+              };
+            })
+            .filter(Boolean)
+        : (lines || [])
+            .map((line) => {
+              const span = windowOf(line.series, start);
+              if (!span) return null;
+              const { inside, base } = span;
+              const rate = line.rate ?? span.rate;
+              return {
+                ...line,
+                rate,
+                points: inside.map((point) => ({
+                  at: point.at,
+                  value: (point.level / base.level - 1) * amount,
+                })),
+              };
+            })
+            .filter(Boolean),
+    [lines, rolling, start, amount, mode],
   );
   if (usable.length < 2)
     return (
@@ -578,12 +614,13 @@ export function ComparisonChart({
     bottom = 26;
   const all = usable.flatMap((line) => line.points);
   const values = all.map((point) => point.value);
-  const lo = Math.min(0, ...values),
+  const lo = mode === "rate" ? Math.min(...values) : Math.min(0, ...values),
     hi = Math.max(...values);
   // The plot uses its full height; gridlines sit at round amounts inside it.
   const step = niceStep((hi - lo) / 4);
   const yLo = Math.floor(lo / step) * step,
     yHi = Math.max(hi + (hi - yLo) * 0.06, yLo + step);
+  const unit = mode === "rate" ? "% a year" : token;
   const t0 = Math.min(...all.map((point) => point.at)),
     t1 = Math.max(...all.map((point) => point.at));
   const x = (t) => left + ((t - t0) / Math.max(t1 - t0, 1)) * (W - left - right);
@@ -619,7 +656,12 @@ export function ComparisonChart({
   if (overflow > 0) for (const end of ends) end.y -= overflow;
   // A finger lifting off keeps the day it chose; a mouse leaving clears it.
   const shownAt = hover ?? t1;
-  const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString("en-US") : v.toFixed(Number.isInteger(step) ? 0 : 1));
+  const fmt = (v) =>
+    mode === "rate"
+      ? v.toFixed(step < 0.1 ? 2 : step < 1 ? 1 : 0) + "%"
+      : Math.abs(v) >= 100
+        ? Math.round(v).toLocaleString("en-US")
+        : v.toFixed(Number.isInteger(step) ? 0 : 1);
   return (
     <div ref={box} className={b.chartBox}>
       <svg
@@ -629,17 +671,18 @@ export function ComparisonChart({
         viewBox={`0 0 ${W} ${H}`}
         role="img"
         aria-label={usable
-          .map(
-            (line) =>
-              `${line.name}: ${line.points.at(-1).value.toFixed(2)} ${token} earned, ${line.rate.toFixed(2)}% a year`,
+          .map((line) =>
+            mode === "rate"
+              ? `${line.name}: ${line.rate.toFixed(2)}% a year over the last 30 days`
+              : `${line.name}: ${line.points.at(-1).value.toFixed(2)} ${token} earned, ${line.rate.toFixed(2)}% a year`,
           )
           .join("; ")}
         onPointerMove={move}
         onPointerDown={move}
         onPointerLeave={(event) => event.pointerType === "mouse" && setHover(null)}
       >
-        <text x={left - 8} y={10} textAnchor="end" className={b.axis}>
-          {token}
+        <text x={2} y={10} className={b.axis}>
+          {unit}
         </text>
         {shownMarkers.map((marker) => (
           <g key={marker.at + marker.label}>
@@ -741,9 +784,11 @@ export function ComparisonChart({
       </svg>
       <p className={b.chartRead} aria-live="polite">
         <span>
-          {narrow && hover == null
-            ? "A year over the period"
-            : `Earned by ${niceDay(shownAt)}, in ${token}`}
+          {mode === "rate"
+            ? `30-day rate on ${niceDay(shownAt)}`
+            : narrow && hover == null
+              ? "A year over the period"
+              : `Earned by ${niceDay(shownAt)}, in ${token}`}
         </span>
         {usable.map((line) => (
           <span key={line.id}>
@@ -753,9 +798,11 @@ export function ComparisonChart({
             />{" "}
             {narrow ? line.tiny || line.short || line.name : line.short || line.name}{" "}
             <strong>
-              {narrow && hover == null
-                ? `${line.rate.toFixed(2)}%`
-                : `+${nearest(line.points, shownAt).value.toFixed(2)}`}
+              {mode === "rate"
+                ? `${(hover == null ? line.rate : nearest(line.points, shownAt).value).toFixed(2)}%`
+                : narrow && hover == null
+                  ? `${line.rate.toFixed(2)}%`
+                  : `+${nearest(line.points, shownAt).value.toFixed(2)}`}
             </strong>
           </span>
         ))}

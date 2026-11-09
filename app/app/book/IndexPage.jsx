@@ -211,8 +211,19 @@ export function GapSplit({ local, total, curated, days = 30 }) {
   );
 }
 
+// The two views of the comparison chart.
+export const VIEWS = [
+  { value: "rate", label: "30-day rate" },
+  { value: "earned", label: "Earned" },
+];
+export const viewLede = (view, token, start) =>
+  view === "rate"
+    ? `Each one’s rate over the 30 days before every day, a year; the right edge is today’s 30-day figure`
+    : `What 10,000 ${token} earned since ${dateLabel(start, false)}, and the rate it works out to a year`;
+
 export function IndexComparison({ book, compact = false }) {
   const [days, setDays] = useState(DEFAULT_DAYS);
+  const [view, setView] = useState("rate");
   const index = book.index;
   const ours = book.totals.measured.r30?.series;
   const from = days ? (index?.series.at(-1)?.at ?? Date.now()) - days * DAY : -Infinity;
@@ -233,17 +244,18 @@ export function IndexComparison({ book, compact = false }) {
     <div className={b.versus}>
       <div className={b.versusChart}>
         <div className={b.versusHead}>
-          <span className={b.quiet}>
-            What 10,000 USDC earned since {dateLabel(start, false)}, and the
-            rate it works out to a year
-          </span>
-          <Segmented label="Period" value={days} onChange={setDays} options={PERIODS} />
+          <span className={b.quiet}>{viewLede(view, "USDC", start)}</span>
+          <div className={b.controlsRow}>
+            <Segmented label="View" value={view} onChange={setView} options={VIEWS} />
+            <Segmented label="Period" value={days} onChange={setDays} options={PERIODS} />
+          </div>
         </div>
         <ComparisonChart
           lines={lines}
           from={from}
           height={compact ? 240 : 280}
           markers={indexMarkers(index)}
+          mode={view}
         />
       </div>
       {!compact && verdict && days !== 30 && (

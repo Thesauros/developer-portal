@@ -27,6 +27,8 @@ import {
   indexMarkers,
   PERIODS,
   referenceNote,
+  viewLede,
+  VIEWS,
   windowVerdict,
 } from "./IndexPage";
 import {
@@ -296,6 +298,7 @@ function Performance({ view, vault, index }) {
   const [picked, setTab] = useState(null);
   const tab = picked ?? (view.measured.r30.status === "ok" ? "versus" : "price");
   const [days, setDays] = useState(30);
+  const [chartView, setChartView] = useState("rate");
   const members = view.members || [vault];
   // The line chains the vaults the 30-day figure comes from, so the chart,
   // its weekly bars and the figure agree; before any is measurable, all of them.
@@ -397,11 +400,16 @@ function Performance({ view, vault, index }) {
         <>
           <div className={b.priceHead}>
             <p className={b.quiet}>
-              What 10,000 {vault.token} earned since{" "}
-              {dateLabel(lines[0]?.series?.find((point) => point.at >= from - DAY / 2)?.at ?? from, false)},
-              and the rate it works out to a year
+              {viewLede(
+                chartView,
+                vault.token,
+                lines[0]?.series?.find((point) => point.at >= from - DAY / 2)?.at ?? from,
+              )}
             </p>
-            {periodControl}
+            <div className={b.controlsRow}>
+              <Segmented label="View" value={chartView} onChange={setChartView} options={VIEWS} />
+              {periodControl}
+            </div>
           </div>
           {measurable ? (
             <>
@@ -410,6 +418,7 @@ function Performance({ view, vault, index }) {
                 from={from}
                 token={vault.token}
                 markers={indexMarkers(index)}
+                mode={chartView}
               />
               {verdict && (
                 <p className={b.verdictLine}>
@@ -828,13 +837,13 @@ function WhereTheMoneyIs({ vault, index }) {
           <ApprovedMarkets vault={vault} />
           {vault.local?.selection == null && <TierSplit vault={vault} index={index} />}
           {vault.allocationHistory && (
-            <div className={b.subBlock}>
-              <h3>How the split changed</h3>
+            <details className={b.disclosure}>
+              <summary>
+                How the split changed
+                <small>One reading a day, from the contracts</small>
+              </summary>
               <AllocationHistory history={vault.allocationHistory} />
-              <p className={b.footnote}>
-                One reading a day, from the contracts. Hover or tap to see any day.
-              </p>
-            </div>
+            </details>
           )}
           {!vault.onlyMarket && (
             <details className={b.disclosure}>
