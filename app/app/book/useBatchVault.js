@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { createWalletClient, custom } from "viem";
-import { base } from "viem/chains";
+import { chainByChainId } from "../../../lib/chains.mjs";
 import {
   crosschain,
   assertCrosschainIdentity,
@@ -16,6 +16,13 @@ import {
 import { vaultClients } from "../../../lib/vault-rpc.mjs";
 import { receiptRequestIds } from "../../../lib/crosschain-reads.mjs";
 import { loadCrosschainFeed } from "../../../lib/crosschain-feed.mjs";
+// The network deposits and withdrawals of the batch vault are signed on.
+const HUB = (
+  crosschain.networks.find((network) => network.role === "hub") ||
+  crosschain.networks[0]
+).name;
+// The hub's chain and its read client come from the registry, not a literal.
+const HUB_CHAIN = chainByChainId(crosschain.chainId);
 
 async function read(resource) {
   const response = await fetch("/api/crosschain/" + resource, {
@@ -54,7 +61,7 @@ export default function useBatchVault(user, enabled = true) {
     crosschain.vault.toLowerCase() +
     "." +
     owner?.toLowerCase();
-  const client = vaultClients.base;
+  const client = vaultClients[HUB_CHAIN?.id];
   const refresh = () => setRevision((value) => value + 1);
 
   useEffect(() => {
@@ -171,7 +178,7 @@ export default function useBatchVault(user, enabled = true) {
         chainId: crosschain.chainId,
       });
       const wallet = createWalletClient({
-        chain: base,
+        chain: HUB_CHAIN.chain,
         transport: custom(provider),
       });
       const receipt = await executeCrosschain(
@@ -183,7 +190,7 @@ export default function useBatchVault(user, enabled = true) {
         (hash, address) => {
           const saved = JSON.parse(localStorage.getItem(key));
           savePending({ ...saved, hash, address });
-          setMessage("Submitted. Waiting for confirmation on Base…");
+          setMessage(`Submitted. Waiting for confirmation on ${HUB}…`);
         },
         (intent) => {
           savePending({ ...intent, kind, owner, chainId: crosschain.chainId });
@@ -255,7 +262,7 @@ export default function useBatchVault(user, enabled = true) {
       ) {
         trackIds(receiptRequestIds(receipt, owner));
         savePending(null);
-        setMessage("Transaction confirmed on Base.");
+        setMessage(`Transaction confirmed on ${HUB}.`);
         refresh();
         return;
       }
@@ -281,7 +288,7 @@ export default function useBatchVault(user, enabled = true) {
         verifyCrosschainReceipt(receipt, hash, owner, pending.address);
         trackIds(receiptRequestIds(receipt, owner));
         savePending(null);
-        setMessage("Transaction confirmed on Base.");
+        setMessage(`Transaction confirmed on ${HUB}.`);
       }
       refresh();
     } catch {

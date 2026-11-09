@@ -4,28 +4,40 @@ import { institutionSession, userSession } from "../../../../lib/auth.mjs";
 import WalletWorkspace from "../../wallet/WalletWorkspace";
 import InstitutionLogin from "../../InstitutionLogin";
 import InstitutionEmail from "../../InstitutionEmail";
-const VAULT_TITLES = {
-  arbitrum: "USDC on Arbitrum",
-  base: "USDC on Base",
-  monad: "USDC on Monad",
-  plasma: "USDT0 on Plasma",
-  "base-arbitrum": "USDC on Base + Arbitrum",
+import { vaults } from "../../../../lib/vault-contracts.mjs";
+import { BATCH_VAULT_ID } from "../../../../lib/vault-facts.mjs";
+// Tabs carry the product, not the network: every vault address leads to its
+// product's page.
+const PRODUCT_TITLES = {
+  "usdc-instant": "USDC Instant",
+  "usdc-multichain": "USDC Multichain",
+  "usdt0-instant": "USDT0 Instant",
 };
+const productOfVault = (id) =>
+  id === BATCH_VAULT_ID
+    ? "usdc-multichain"
+    : vaults.find((vault) => vault.id === id)?.symbol === "USDT0"
+      ? "usdt0-instant"
+      : vaults.some((vault) => vault.id === id)
+        ? "usdc-instant"
+        : null;
 const VIEW_TITLES = {
-  vaults: "Vaults",
+  vaults: "Earn",
+  "blue-chip-index": "Blue-chip index",
   activity: "Activity",
   transparency: "Transparency",
-  developers: "Developers and partners",
+  developers: "Developers",
   account: "Account",
 };
 export async function generateMetadata({ params }) {
   const { mode, view = [] } = await params;
-  const page =
-    view[0] === "vaults" && VAULT_TITLES[view[1]]
-      ? VAULT_TITLES[view[1]]
-      : VIEW_TITLES[view[0]];
+  const product =
+    view[0] === "vaults" && view[1]
+      ? PRODUCT_TITLES[view[1]] || PRODUCT_TITLES[productOfVault(view[1])]
+      : null;
+  const page = product || VIEW_TITLES[view[0]];
   return {
-    title: `Thesauros · ${page || (mode === "institution" ? "Institution workspace" : "Vaults")}`,
+    title: `Thesauros · ${page || (mode === "institution" ? "Treasury" : "Earn")}`,
     description:
       "Stablecoin vaults that show where every dollar is, what it earns and how to get it out.",
     robots: { index: false, follow: false },

@@ -7,7 +7,7 @@ import {
   crosschainAmount,
 } from "../../../lib/crosschain-transactions.mjs";
 import { crosschain } from "../../../lib/crosschain-config.mjs";
-import { getVault } from "../../../lib/vault-contracts.mjs";
+import { getVault, vaults as standardVaults } from "../../../lib/vault-contracts.mjs";
 import { requestStage, REQUEST_STEPS } from "../../../lib/crosschain-feed.mjs";
 import { sharesForAmount } from "../../../lib/vault-metrics.mjs";
 import { TransactionPanel } from "./InstantTransaction";
@@ -129,7 +129,9 @@ function WrongNetwork({ vault, wallet, navigate }) {
         onClick={() =>
           navigate(
             "vault",
-            top.network === "Base" ? "base" : top.network.toLowerCase(),
+            standardVaults.find(
+              (item) => item.name === top.network && item.symbol === top.token,
+            )?.id || vault.id,
           )
         }
       >
@@ -192,7 +194,7 @@ function GuestForm({ vault, action, setAction }) {
       />
       <p className={b.hint}>
         Connect a wallet, then sign a message to continue. Signing does not move
-        funds. {vault.depositNetwork === "Base" ? "Deposits are made on Base." : `Deposits are made on ${vault.depositNetwork}.`}
+        funds. Deposits are made on {vault.depositNetwork}.
       </p>
     </div>
   );
@@ -291,7 +293,7 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
           /^\d+$/.test(String(available ?? "")) &&
           parsed > BigInt(available)
         ? deposit
-          ? "That is more than the USDC in your wallet on Base."
+          ? `That is more than the ${vault.token} in your wallet on ${vault.depositNetwork}.`
           : "That is more than your balance in this vault."
         : deposit && minimum && parsed < BigInt(minimum)
           ? `The minimum deposit is ${money(Number(minimum) / 1e6)} USDC.`
@@ -391,7 +393,7 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
           <p className={problem ? b.hintBad : b.hint} role="status">
             {problem ||
               (deposit
-                ? `${money(Number(user?.cash ?? 0) / 1e6)} USDC in your wallet on Base.`
+                ? `${money(Number(user?.cash ?? 0) / 1e6)} ${vault.token} in your wallet on ${vault.depositNetwork}.`
                 : `${money(Number(user?.valueBid ?? 0) / 1e6)} USDC in this vault.`)}
           </p>
           {!deposit && shares != null && shares > 0n && !problem && (
@@ -478,8 +480,9 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
       )}
       {noGas && !closed && (
         <p className={b.hintBad}>
-          You have no ETH on Base. Some wallets can pay network fees in USDC;
-          otherwise add a little ETH first.
+          You have no {vault.gasToken} on {vault.depositNetwork}. Some wallets
+          can pay network fees in {vault.token}; otherwise add a little{" "}
+          {vault.gasToken} first.
         </p>
       )}
       {batch.message && !done && (

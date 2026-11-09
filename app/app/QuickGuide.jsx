@@ -2,66 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import s from "./guide.module.css";
 
-const defaultSteps = [
-  {
-    short: "Choose",
-    title: "Give your USDC an Earn balance.",
-    body: "Choose a Thesauros vault on Arbitrum, Base, Monad or Plasma. The vault puts your deposit to work through lending providers; you hold the shares that represent your position.",
-    detail:
-      "Review the allocation, variable rate and current minimum deposit. Keep ETH for network fees on the selected network.",
-    note: "One network, one vault, your position.",
-    visual: [
-      ["wallet", "Your USDC or USDT0", "On one of four networks"],
-      ["vault", "Thesauros vault", "Your Earn position"],
-      ["market", "Lending providers", "View the allocation"],
-    ],
-    action: "Explore the vaults",
-    destination: "protocol",
-  },
-  {
-    short: "Deposit",
-    title: "Review the amount. Confirm in your wallet.",
-    body: "Enter your USDC amount in Earn. If an approval is needed, first approve that amount for the vault. Then confirm a separate deposit transaction.",
-    detail:
-      "Check the network, amount and contract in each wallet request. Approval alone does not create an Earn position. Both transactions require network fees.",
-    note: "Approve USDC, then confirm the deposit.",
-    visual: [
-      ["wallet", "Enter amount", "Choose how much USDC"],
-      ["vault", "Approve USDC", "If permission is needed"],
-      ["activity", "Confirm deposit", "A separate transaction"],
-    ],
-    action: "Open Earn",
-    destination: "overview",
-  },
-  {
-    short: "Track",
-    title: "Follow the transaction into your balance.",
-    body: "A submitted transaction stays pending until the network confirms it. Earn shows its status and a link to the transaction, then refreshes your position after confirmation.",
-    detail:
-      "Your Earn balance is the current USDC value of your vault shares. The rate can change; the allocation view shows where the vault is working.",
-    note: "Wallet request. Network confirmation. Updated position.",
-    visual: [
-      ["wallet", "Submitted", "Sent from your wallet"],
-      ["activity", "Confirmed", "A verifiable receipt"],
-      ["vault", "Your position", "Updated from the contract"],
-    ],
-    action: "View Earn",
-    destination: "overview",
-  },
-  {
-    short: "Withdraw",
-    title: "Bring USDC back to your wallet.",
-    body: "Open Withdraw in Earn. Choose a USDC amount or redeem your full position, review the transaction, then confirm it in your wallet.",
-    detail:
-      "Withdrawals depend on available liquidity and the contract’s current controls. Deposit and withdrawal availability can differ. We check availability again before requesting a transaction.",
-    note: "Review, confirm, and follow the receipt.",
-    visual: [
-      ["vault", "Your position", "Choose part or all"],
-      ["activity", "Withdrawal", "Confirm in your wallet"],
-      ["wallet", "Your USDC", "On the same network"],
-    ],
-  },
-];
+import { vaultGuide as defaultSteps } from "./vault-guide";
 
 const drawings = {
   app: (
