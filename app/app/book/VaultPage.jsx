@@ -364,11 +364,7 @@ function Performance({ view, vault, index }) {
               anything yet. The share price chart shows its raw change.
             </p>
           )}
-          <p className={b.footnote}>
-            Each bar is one week, the first may be shorter: what the vault
-            earned, from its share price, minus what the index earned over the
-            same days, weighted by the week’s share of the period.
-          </p>
+          <p className={b.footnote}>The first bar may cover fewer than seven days.</p>
         </>
       ) : tab === "price" ? (
         <>
