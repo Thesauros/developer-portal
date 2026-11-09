@@ -7,19 +7,19 @@ import {
   marketColor,
 } from "../../../lib/vault-book.mjs";
 import { DAY, measuredRate, pricePoints } from "../../../lib/vault-metrics.mjs";
-import { rebase } from "../../../lib/blue-chip-index.mjs";
+import { gapSeries } from "../../../lib/blue-chip-index.mjs";
 import { PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import ActionPanel, { RequestRow, batchClosing } from "./ActionPanel";
 import {
   AllocationBar,
   AllocationHistory,
-  GrowthChart,
+  GapChart,
   MoneyMap,
   PriceChart,
   RateChart,
 } from "./charts";
 import { LedgerRows } from "./ledger";
-import { GapSplit } from "./IndexPage";
+import { curatedShare, GapSplit } from "./IndexPage";
 import {
   ago,
   clock,
@@ -111,6 +111,10 @@ function Header({ view, index, navigate }) {
                 diff={view.vsIndex.r30Diff}
                 suffix={` vs ${indexName(index)}, same days`}
               />
+            ) : view.measured.r30?.status === "small" ? (
+              "too small to measure: under 10,000 USD"
+            ) : view.measured.r30?.status === "young" ? (
+              "too new to measure"
             ) : (
               "received, from the share price"
             )}
@@ -217,7 +221,13 @@ function Comparison({ vault, index }) {
 function GapBlock({ vault }) {
   const local = vault.local;
   if (local?.selection == null || local?.place == null) return null;
-  return <GapSplit local={local} total={vault.vsIndex?.r30Diff} />;
+  return (
+    <GapSplit
+      local={local}
+      total={vault.vsIndex?.r30Diff}
+      curated={curatedShare(vault.members || [vault])}
+    />
+  );
 }
 
 function StrategyRates({ vault, index }) {
@@ -299,23 +309,8 @@ function Performance({ view, vault, index }) {
   // every page.
   const end = index?.series?.at(-1)?.at ?? chained.at(-1)?.at ?? Date.now();
   const from = days ? end - days * DAY : -Infinity;
-  const ours = rebase(chained, from);
   const measurable = view.measured.r30.status === "ok";
-  const lines = [
-    {
-      name: view.title,
-      short: view.title,
-      color: measurable ? "var(--blue)" : "var(--ink-4)",
-      strong: true,
-      points: ours,
-    },
-    {
-      name: index?.symbol ? `${index.symbol} index` : "Blue-chip index",
-      short: "Index",
-      color: "#5f7183",
-      points: rebase(index?.series, from),
-    },
-  ];
+  const gaps = useMemo(() => gapSeries(chained, index, from), [chained, index, from]);
   const periodControl = (
     <Segmented
       label="Period"
@@ -355,19 +350,23 @@ function Performance({ view, vault, index }) {
       {tab === "versus" ? (
         <>
           <div className={b.priceHead}>
-            <p className={b.quiet}>Growth of 100, same days</p>
+            <p className={b.quiet}>
+              Each week: this vault against the {index?.symbol || "USDC"} index,
+              in points
+            </p>
             {periodControl}
           </div>
-          <GrowthChart lines={lines} />
+          {measurable ? (
+            <GapChart points={gaps} label="This vault" />
+          ) : (
+            <p className={b.chartEmpty} style={{ height: 120 }}>
+              This vault holds too little for a weekly comparison to mean
+              anything yet. The share price chart shows its raw change.
+            </p>
+          )}
           <p className={b.footnote}>
-            {members.length > 1
-              ? "Every network of this vault, weighted by size, from share prices"
-              : "This vault from its share price"}
-            ; the index from its markets’ own interest. Both start at 100 on the
-            same day.
-            {measurable
-              ? ""
-              : " Drawn in grey: this vault holds too little for the gap to mean anything yet."}
+            What the vault earned over each previous week, from its share price,
+            minus what the index earned over the same week.
           </p>
         </>
       ) : tab === "price" ? (

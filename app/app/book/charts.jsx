@@ -788,10 +788,17 @@ export function AllocationHistory({ history, height = 200 }) {
       day.shares.slice(0, index).reduce((sum, value) => sum + value, 0),
     );
     const upper = days.map((day, at) => lower[at] + day.shares[index]);
-    const up = days.map((day, at) => `${x(day.at).toFixed(1)},${y(upper[at]).toFixed(1)}`);
-    const down = days
-      .map((day, at) => `${x(day.at).toFixed(1)},${y(lower[at]).toFixed(1)}`)
-      .reverse();
+    // Steps, not slopes: a split holds until the next reading changes it.
+    const stepped = (values) =>
+      days.flatMap((day, at) => {
+        const until = at + 1 < days.length ? days[at + 1].at : day.at;
+        return [
+          `${x(day.at).toFixed(1)},${y(values[at]).toFixed(1)}`,
+          `${x(until).toFixed(1)},${y(values[at]).toFixed(1)}`,
+        ];
+      });
+    const up = stepped(upper);
+    const down = stepped(lower).reverse();
     return { name, path: `M${up.join("L")}L${down.join("L")}Z` };
   });
   function move(event) {
@@ -874,4 +881,101 @@ export function EarnedSpark({ days, width = 220, height = 48 }) {
     return { at: day.t, price: sum };
   });
   return <Sparkline points={points} width={width} height={height} />;
+}
+
+// The gap to the index, week by week: above the line the vault earned more than
+// the index over the previous seven days, below it less. One bar a reading.
+export function GapChart({ points, height = 200, label = "This vault" }) {
+  const [hover, setHover] = useState(null);
+  const [box, width] = useWidth();
+  if (!points || points.length < 2)
+    return (
+      <div ref={box} className={b.chartEmpty} style={{ height: 120 }}>
+        Not enough readings yet to compare.
+      </div>
+    );
+  const W = width || 720,
+    H = height,
+    left = 2,
+    right = 56,
+    top = 12,
+    bottom = 24;
+  const gaps = points.map((point) => point.gap);
+  const reach = Math.max(0.25, ...gaps.map(Math.abs)) * 1.15;
+  const y = (v) => top + (1 - (v + reach) / (2 * reach)) * (H - top - bottom);
+  const step = (W - left - right) / points.length;
+  const bar = Math.max(2, Math.min(10, step * 0.6));
+  const x = (i) => left + step * (i + 0.5);
+  const shown = hover ?? points.length - 1;
+  const p = points[shown];
+  function move(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const at = ((event.clientX - rect.left) / rect.width) * W;
+    setHover(Math.min(points.length - 1, Math.max(0, Math.floor((at - left) / step))));
+  }
+  const ticks = [reach / 1.15, 0, -reach / 1.15].map((v) => Math.round(v * 10) / 10);
+  return (
+    <div ref={box} className={b.chartBox}>
+      <svg
+        className={b.chart}
+        width={W}
+        height={H}
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label={`${label} against the index over each previous week, from ${dateLabel(points[0].at, false)} to ${dateLabel(points.at(-1).at, false)}`}
+        onPointerMove={move}
+        onPointerLeave={() => setHover(null)}
+      >
+        {ticks.map((tick) => (
+          <g key={tick}>
+            <line
+              x1={left}
+              x2={W - right}
+              y1={y(tick)}
+              y2={y(tick)}
+              className={tick === 0 ? b.baseLine : b.gridLine}
+            />
+            <text x={W - right + 8} y={y(tick) + 4} className={b.axis}>
+              {tick > 0 ? "+" : tick < 0 ? "−" : ""}
+              {Math.abs(tick).toFixed(1)}
+            </text>
+          </g>
+        ))}
+        {points.map((point, i) => (
+          <rect
+            key={point.at}
+            x={x(i) - bar / 2}
+            y={Math.min(y(point.gap), y(0))}
+            width={bar}
+            height={Math.max(1, Math.abs(y(point.gap) - y(0)))}
+            rx="1.5"
+            fill={point.gap >= 0 ? "var(--blue)" : "var(--ink-4)"}
+            opacity={hover == null || hover === i ? 1 : 0.55}
+          />
+        ))}
+        <text x={left} y={H - 6} className={b.axis}>
+          {dateLabel(points[0].at, false)}
+        </text>
+        <text x={W - right} y={H - 6} textAnchor="end" className={b.axis}>
+          {dateLabel(points.at(-1).at, false)}
+        </text>
+      </svg>
+      <p className={b.chartRead} aria-live="polite">
+        <span>
+          <i className={b.key} style={{ background: "var(--blue)" }} /> ahead
+        </span>
+        <span>
+          <i className={b.key} style={{ background: "var(--ink-4)" }} /> behind
+        </span>
+        <span>
+          Week to {dateLabel(p.at, false)}: {label.toLowerCase()} <strong>{pct(p.ours)}</strong>,
+          index <strong>{pct(p.index)}</strong>,{" "}
+          <strong>
+            {p.gap >= 0 ? "+" : "−"}
+            {Math.abs(p.gap).toFixed(2)} pts
+          </strong>
+        </span>
+      </p>
+    </div>
+  );
 }

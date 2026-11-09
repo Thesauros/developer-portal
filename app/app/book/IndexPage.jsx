@@ -3,11 +3,11 @@ import { useMemo, useState } from "react";
 import { DAY } from "../../../lib/vault-metrics.mjs";
 import { chainList } from "../../../lib/chains.mjs";
 import {
+  gapSeries,
   groupConstituents,
-  rebase,
 } from "../../../lib/blue-chip-index.mjs";
 import { marketColor } from "../../../lib/vault-book.mjs";
-import { GrowthChart, RateChart } from "./charts";
+import { GapChart, RateChart } from "./charts";
 import {
   dateLabel,
   pct,
@@ -38,7 +38,20 @@ const DEFAULT_DAYS = 30;
 
 // The gap to the index in two parts: the choice among the markets a vault can
 // use, and how those markets' networks paid against the whole index.
-export function GapSplit({ local, total }) {
+// How much of a set of vaults sits in curated vaults rather than core lenders.
+export function curatedShare(vaults) {
+  let total = 0,
+    curated = 0;
+  for (const vault of vaults)
+    for (const row of vault.allocation || [])
+      if (row.kind === "market" && row.amount > 0) {
+        total += row.amount;
+        if (row.tier === "satellite") curated += row.amount;
+      }
+  return total ? (curated / total) * 100 : null;
+}
+
+export function GapSplit({ local, total, curated }) {
   const where = local.networks.join(" and ");
   return (
     <div className={b.gapSplit}>
@@ -46,8 +59,13 @@ export function GapSplit({ local, total }) {
       <dl>
         <div>
           <dt>
-            Choice of markets
-            <small>against blue-chip markets on {where}</small>
+            The vault’s markets on {where}
+            <small>
+              against the blue-chip markets there, weighted by size
+              {curated != null && curated > 0.5
+                ? `; ${Math.round(curated)}% of it is in curated Morpho vaults, which pay more for more risk`
+                : ""}
+            </small>
           </dt>
           <dd>
             <VsIndex diff={local.selection} />
@@ -55,8 +73,10 @@ export function GapSplit({ local, total }) {
         </div>
         <div>
           <dt>
-            Where the money works
-            <small>{where} markets against the whole index</small>
+            {where} instead of the whole market
+            <small>
+              {where}’s blue-chip markets against the whole USDC index
+            </small>
           </dt>
           <dd>
             <VsIndex diff={local.place} />
@@ -64,7 +84,10 @@ export function GapSplit({ local, total }) {
         </div>
         {total != null && (
           <div className={b.gapTotal}>
-            <dt>Gap to the index</dt>
+            <dt>
+              Gap to the index
+              <small>over the same 30 days; parts are rounded</small>
+            </dt>
             <dd>
               <VsIndex diff={total} />
             </dd>
@@ -80,34 +103,18 @@ export function IndexComparison({ book, compact = false }) {
   const index = book.index;
   const ours = book.totals.measured.r30?.series;
   const from = (index?.series.at(-1)?.at ?? Date.now()) - days * DAY;
-  const lines = useMemo(
-    () =>
-      [
-        {
-          name: "Thesauros, USDC vaults",
-          short: "Thesauros",
-          color: "var(--blue)",
-          strong: true,
-          points: rebase(ours, from),
-        },
-        {
-          name: "USDC index",
-          short: "Index",
-          color: "#5f7183",
-          points: rebase(index?.series, from),
-        },
-      ].filter((line) => line.points.length >= 2),
-    [ours, index, from],
-  );
+  const points = useMemo(() => gapSeries(ours, index, from), [ours, index, from]);
   const t = book.totals;
   return (
     <div className={b.versus}>
       <div className={b.versusChart}>
         <div className={b.versusHead}>
-          <span className={b.quiet}>Growth of 100, same days</span>
+          <span className={b.quiet}>
+            Each week: Thesauros USDC against the USDC index, in points
+          </span>
           <Segmented label="Period" value={days} onChange={setDays} options={PERIODS} />
         </div>
-        <GrowthChart lines={lines} height={compact ? 220 : 260} />
+        <GapChart points={points} height={compact ? 180 : 210} label="Thesauros" />
       </div>
       {!compact && (
       <table className={`${b.table} ${b.scoreTable}`}>
@@ -142,7 +149,11 @@ export function IndexComparison({ book, compact = false }) {
       </table>
       )}
       {t.local?.selection != null && t.local?.place != null && (
-        <GapSplit local={t.local} total={t.vsIndex?.r30Diff} />
+        <GapSplit
+          local={t.local}
+          total={t.vsIndex?.r30Diff}
+          curated={curatedShare(book.products[0]?.vaults || [])}
+        />
       )}
       <p className={b.footnote}>
         Thesauros: every USDC vault, weighted by size, from share prices; the

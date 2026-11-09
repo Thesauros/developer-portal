@@ -362,7 +362,7 @@ function Operations({ book, name }) {
     <Section
       id="operations"
       title="Operating record"
-      lede="Periods when a vault could not do its job. The full record of everything else is in Activity."
+      lede="Periods when a vault could not do its job. Every other move is in the record at the end of this page."
     >
       {batch?.gaps?.staleShare != null && (
         <p className={b.compare}>
@@ -478,9 +478,9 @@ export default function TransparencyPage({ book, navigate }) {
           ["exposure", "Exposure"],
           ["results", "Results"],
           ["operations", "Operating record"],
-          ["record", "Every move"],
           ["security", "Audits and control"],
           ["fees", "Fees"],
+          ["record", "Every move"],
         ].map(([id, label]) => (
           <a key={id} href={"#" + id}>
             {label}
@@ -491,15 +491,15 @@ export default function TransparencyPage({ book, navigate }) {
       <Exposure book={book} />
       <Results book={book} navigate={navigate} />
       <Operations book={book} name={name} />
+      <Security book={book} />
+      <Fees />
       <Section
         id="record"
         title="Every move"
         lede="Everything the vaults did, from the contracts: money moved between markets and networks, with the rates on each side, batches settled and valuation gaps. No wallet appears here."
       >
-        <Ledger book={book} scope="all" />
+        <Ledger book={book} scope="all" limit={10} />
       </Section>
-      <Security book={book} />
-      <Fees />
     </div>
   );
 }

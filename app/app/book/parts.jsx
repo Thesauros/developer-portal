@@ -234,7 +234,9 @@ export function Segmented({ label, options, value, onChange }) {
   );
 }
 
-// The 30-day figure, or the honest reason there isn't one.
+// The 30-day figure, or the honest reason there isn't one. In a column of
+// numbers the reason is a dash with the words beside it for screen readers and
+// on hover; tables say once what the dash means.
 export function measuredLabel(measure) {
   switch (measure?.status) {
     case "ok":
@@ -247,18 +249,23 @@ export function measuredLabel(measure) {
       return "—";
   }
 }
+export const MEASURE_NOTE =
+  "— under a rate: the vault held under 10,000 USD, or is too new, so a yearly rate would mean little.";
 export function MeasuredRate({ measure }) {
   const known = measure?.status === "ok";
+  if (known) return <span>{measuredLabel(measure)}</span>;
+  const why = measuredLabel(measure);
   return (
     <span
-      className={known ? undefined : b.quiet}
+      className={b.quiet}
       title={
         measure?.status === "small"
-          ? "This vault held under 10,000 USD in the period, so one cent would move this figure by whole points. The share price chart shows the raw change."
-          : undefined
+          ? "Too small to measure: under 10,000 USD in the period, so one cent would move this figure by whole points."
+          : why
       }
     >
-      {measuredLabel(measure)}
+      <span aria-hidden="true">—</span>
+      <span className={b.srOnly}>{why}</span>
     </span>
   );
 }

@@ -7,6 +7,7 @@ import { IndexComparison } from "./IndexPage";
 import {
   compact,
   dateLabel,
+  MEASURE_NOTE,
   MeasuredRate,
   money,
   NetworkMarks,
@@ -93,11 +94,13 @@ function ProductRows({ product, navigate, showBalance, open, toggle }) {
                 count={product.vaults.length}
               />
             </button>
-          ) : (
+          ) : product.lead.open.deposits ? (
             <NetworkCell
               networks={[product.lead.depositNetwork]}
               count={1}
             />
+          ) : (
+            <span className={b.quiet}>Not open</span>
           )}
         </td>
         {showBalance && (
@@ -472,6 +475,7 @@ export default function VaultsPage({ book, navigate, user }) {
         lede="Choose the stablecoin and how fast you want to leave. The network you deposit from is chosen inside."
       >
         <Products book={book} navigate={navigate} user={user} />
+        <p className={b.footnote}>{MEASURE_NOTE}</p>
         <details className={b.disclosure}>
           <summary>
             How to read this table

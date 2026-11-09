@@ -2770,3 +2770,61 @@
     padding: 36px 0;
   }
 }
+
+.closedTitle {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+/* Fewer pills: status is a dot and a word; kinds and groups are plain text. */
+.stage,
+.stage[data-stage="Live"],
+.stage[data-stage="Pilot"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: none;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.stage::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-4);
+}
+.stage[data-stage="Live"]::before {
+  background: var(--good);
+}
+.stage[data-stage="Pilot"]::before {
+  background: var(--warn);
+}
+.tag {
+  margin-left: 2px;
+  padding: 0;
+  background: none;
+  color: var(--ink-3);
+  font-size: inherit;
+  font-weight: 400;
+  vertical-align: baseline;
+}
+.tier {
+  padding: 0;
+  background: none;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.outside {
+  margin-left: 0;
+  padding: 0;
+  background: none;
+  color: var(--warn);
+  font-size: 12px;
+}
+.versus .gapSplit {
+  grid-column: 1 / -1;
+  max-width: none;
+}

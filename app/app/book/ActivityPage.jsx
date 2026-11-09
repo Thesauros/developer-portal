@@ -21,7 +21,8 @@ const TYPES = {
 
 // One record: a wallet's own history, or what every vault did. The vault-wide
 // record has no wallet in it, so anyone can read it; it lives in Transparency.
-export function Ledger({ book, scope, mine, account, batch }) {
+export function Ledger({ book, scope, mine, account, batch, limit = 200 }) {
+  const [all, setAll] = useState(false);
   const [type, setType] = useState("all");
   const [vaultId, setVaultId] = useState("");
   const publicFeed = usePublicResource("/api/vaults/feed", { refreshMs: 120000 });
@@ -99,7 +100,17 @@ export function Ledger({ book, scope, mine, account, batch }) {
         )}
       </div>
       {rows.length ? (
-        <LedgerRows rows={rows.slice(0, 200)} vaultName={name} byDay />
+        <>
+          <LedgerRows rows={rows.slice(0, all ? 200 : limit)} vaultName={name} byDay />
+          {!all && rows.length > limit && (
+            <button
+              className={`${b.linkButton} ${b.moreButton}`}
+              onClick={() => setAll(true)}
+            >
+              Show all {Math.min(rows.length, 200)}
+            </button>
+          )}
+        </>
       ) : (
         <p className={b.emptyBlock}>
           {scope === "mine"

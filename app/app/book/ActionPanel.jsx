@@ -198,6 +198,26 @@ function GuestForm({ vault, action, setAction }) {
   );
 }
 
+// A vault that takes no new money and holds none of yours: say so, and only
+// offer a way in to people who already hold shares.
+function ClosedPanel({ vault, user }) {
+  return (
+    <div className={b.form}>
+      <p className={b.closedTitle}>Not open for deposits</p>
+      <p className={b.hint}>
+        It runs with team funds while it is being prepared. Everything it does
+        is shown on this page.
+      </p>
+      {!user?.walletAddress && (
+        <p className={b.footnote}>
+          Already hold shares?{" "}
+          <ConnectAction className={b.linkButton} label="Connect to withdraw" />
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ClosedDeposits() {
   return (
     <p className={b.hintBox}>
@@ -605,6 +625,11 @@ export default function ActionPanel({
     setSheet(true);
   }
   const hasBalance = vault.position.balance > 0;
+  const closedForNew =
+    !vault.open.deposits &&
+    vault.open.closedByPolicy &&
+    !hasBalance &&
+    !(vault.position.active?.length > 0);
   return (
     <>
       <aside
@@ -628,7 +653,9 @@ export default function ActionPanel({
         )}
         {user?.walletAddress && <Plate vault={vault} user={user} />}
         {action === "deposit" && vault.open.deposits && <Notice vault={vault} />}
-        {!user ? (
+        {closedForNew ? (
+          <ClosedPanel vault={vault} user={user} />
+        ) : !user ? (
           <GuestForm vault={vault} action={action} setAction={setAction} />
         ) : !user.walletAddress ? (
           <div className={b.form}>
@@ -681,16 +708,24 @@ export default function ActionPanel({
             <strong>{pct(vault.rateNow)}</strong>
           </div>
         )}
-        <button className={b.primary} onClick={() => open("deposit")}>
-          Deposit
-        </button>
-        <button
-          className={b.secondary}
-          disabled={!hasBalance}
-          onClick={() => open("withdraw")}
-        >
-          Withdraw
-        </button>
+        {closedForNew ? (
+          <button className={b.secondary} onClick={() => open("deposit")}>
+            Not open
+          </button>
+        ) : (
+          <>
+            <button className={b.primary} onClick={() => open("deposit")}>
+              Deposit
+            </button>
+            <button
+              className={b.secondary}
+              disabled={!hasBalance}
+              onClick={() => open("withdraw")}
+            >
+              Withdraw
+            </button>
+          </>
+        )}
       </div>
       {sheet && (
         <button
