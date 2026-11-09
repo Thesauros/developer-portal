@@ -44,7 +44,7 @@ function ProductRows({ product, navigate, showBalance, open, toggle, quiet = fal
   const go = () => navigate("vault", product.lead.id);
   return (
     <>
-      {/* The row opens the product; its networks unfold only from their own cell. */}
+      {/* The row opens the product; its networks are on the product's page. */}
       <tr className={`${b.vaultRow} ${quiet ? b.quietRow : ""}`} onClick={go}>
         <td data-cell="vault">
           <div className={b.vaultCell}>
@@ -55,7 +55,7 @@ function ProductRows({ product, navigate, showBalance, open, toggle, quiet = fal
                 go();
               }}
             >
-              <ProductTitle product={product} />
+              <ProductTitle product={product} networks />
             </button>
           </div>
         </td>
@@ -75,87 +75,12 @@ function ProductRows({ product, navigate, showBalance, open, toggle, quiet = fal
           <span className={b.exit}>{product.exit.label}</span>
           <small className={b.quietBlock}>{product.exit.note}</small>
         </td>
-        <td data-label="Deposit from">
-          {many ? (
-            <button
-              className={b.expand}
-              aria-expanded={open}
-              onClick={(event) => {
-                event.stopPropagation();
-                toggle();
-              }}
-            >
-              <NetworkCell
-                networks={product.vaults.map((vault) => vault.place)}
-                count={product.vaults.length}
-              />
-            </button>
-          ) : product.lead.open.deposits ? (
-            <NetworkCell
-              networks={[product.lead.depositNetwork]}
-              count={1}
-            />
-          ) : (
-            <span className={b.quiet}>Not open</span>
-          )}
-        </td>
         {showBalance && (
           <td className={b.num} data-label="Your balance">
             {product.position.balance > 0 ? money(product.position.balance) : "—"}
           </td>
         )}
       </tr>
-      {many &&
-        open &&
-        product.vaults.map((vault) => (
-          <tr
-            key={vault.id}
-            className={b.subRow}
-            onClick={() => navigate("vault", vault.id)}
-          >
-            <td data-cell="vault">
-              <div className={b.vaultCell}>
-                <button
-                  className={b.rowLink}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    navigate("vault", vault.id);
-                  }}
-                >
-                  <span className={b.inlineMark}>
-                    <NetworkMarks vault={vault} size={18} />
-                    <span>
-                      From {vault.place}
-                      <AllocationBar rows={vault.allocation} height={4} />
-                    </span>
-                  </span>
-                </button>
-                <Stage stage={vault.stage} />
-              </div>
-            </td>
-            <td className={b.num} data-label="Rate now">
-              {pct(vault.rateNow)}
-            </td>
-            <td className={b.num} data-label="30-day rate">
-              <MeasuredRate measure={vault.measured.r30} />
-            </td>
-            <td className={b.num} data-label="Against the index">
-              <IndexCell vs={vault.vsIndex} measure={vault.measured.r30} />
-            </td>
-            <td className={b.num} data-label="Total value">
-              {compact(vault.tvl)} <small>{vault.token}</small>
-            </td>
-            <td data-label="Withdraw in">
-              <span className={b.exit}>{vault.exit.label}</span>
-            </td>
-            <td data-label="Deposit from">{vault.depositNetwork}</td>
-            {showBalance && (
-              <td className={b.num} data-label="Your balance">
-                {vault.position.balance > 0 ? money(vault.position.balance) : "—"}
-              </td>
-            )}
-          </tr>
-        ))}
     </>
   );
 }
@@ -181,7 +106,6 @@ export function Products({ book, navigate, user }) {
             <th className={b.num}>Against the index</th>
             <th className={b.num}>Total value</th>
             <th>Withdraw in</th>
-            <th>Deposit from</th>
             {showBalance && <th className={b.num}>Your balance</th>}
           </tr>
         </thead>
@@ -193,7 +117,7 @@ export function Products({ book, navigate, user }) {
                 product.measured.r30?.status !== "ok" &&
                 book.products[i - 1].measured.r30?.status === "ok" && (
                   <tr className={b.groupRow}>
-                    <td colSpan={showBalance ? 8 : 7}>
+                    <td colSpan={showBalance ? 7 : 6}>
                       Newer and smaller: open, but too small to measure yet
                     </td>
                   </tr>

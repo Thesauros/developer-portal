@@ -47,7 +47,8 @@ export function compareLines(ours, index, oursName = "Thesauros", { oursRate, in
       id: "thesauros",
       name: oursName,
       short: oursName.length <= 13 ? oursName : "Thesauros",
-      tiny: "Thesauros",
+      // One name for the line on every screen.
+      tiny: oursName.length <= 13 ? oursName : "Thesauros",
       color: COMPARE_COLORS.thesauros,
       strong: true,
       series: ours || [],
@@ -62,10 +63,17 @@ export function compareLines(ours, index, oursName = "Thesauros", { oursRate, in
       series: index.series || [],
       rate: indexRate ?? undefined,
     },
+    // References say what they are where they are drawn.
     ...(index.references || []).map((ref) => ({
       id: ref.id,
       name: ref.name,
-      short: ref.id === "tbills" ? "T-bills" : ref.name.replace(" alone", ""),
+      short:
+        ref.id === "tbills"
+          ? "T-bills (Ondo USDY)"
+          : ref.share != null
+            ? `${ref.name.replace(" alone", "")} only, ${ref.share.toFixed(0)}% of index`
+            : ref.name,
+      tiny: ref.id === "tbills" ? "T-bills" : ref.name.replace(" alone", ""),
       color: COMPARE_COLORS[ref.id] || "#8a94a6",
       series: ref.series,
     })),
@@ -103,7 +111,9 @@ export function windowVerdict(lines, from) {
   const start = commonStart(lines, from);
   const a = ours && (ours.rate ?? windowOf(ours.series, start)?.rate);
   const c = index && (index.rate ?? windowOf(index.series, start)?.rate);
-  return a != null && c != null ? { ours: a, index: c, gap: a - c } : null;
+  // The gap from the rates as shown, to the hundredth.
+  const r = (x) => Math.round(x * 100) / 100;
+  return a != null && c != null ? { ours: a, index: c, gap: r(r(a) - r(c)) } : null;
 }
 
 // What each reference line is, for the note under the chart.
@@ -154,11 +164,12 @@ export function splitFor(local, verdict, from, days) {
     sum += part.tvl * rate;
   }
   if (!weight) return null;
-  const localRate = sum / weight;
+  const r = (x) => Math.round(x * 100) / 100;
+  const localRate = r(sum / weight);
   return {
     ...local,
-    selection: verdict.ours - localRate,
-    place: localRate - verdict.index,
+    selection: r(r(verdict.ours) - localRate),
+    place: r(localRate - r(verdict.index)),
     total: verdict.gap,
   };
 }

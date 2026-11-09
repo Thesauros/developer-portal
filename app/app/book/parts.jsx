@@ -148,7 +148,7 @@ export function VaultTitle({ vault, size = 28, place = true }) {
     </span>
   );
 }
-export function ProductTitle({ product, size = 28, stage = true }) {
+export function ProductTitle({ product, size = 28, stage = true, networks = false }) {
   return (
     <span className={b.vaultTitle}>
       <TokenMark token={product.token} size={size} />
@@ -162,6 +162,14 @@ export function ProductTitle({ product, size = 28, stage = true }) {
             <>
               <span aria-hidden="true"> · </span>
               <Stage stage={product.stage} />
+            </>
+          )}
+          {networks && product.vaults?.length > 0 && (
+            <>
+              <span aria-hidden="true"> · </span>
+              {product.kind === "batch"
+                ? `lends on ${product.vaults[0].networks?.length || 2} networks`
+                : `${product.vaults.length} network${product.vaults.length === 1 ? "" : "s"}`}
             </>
           )}
         </small>

@@ -746,7 +746,7 @@ export function ComparisonChart({
               className={line.strong ? b.endStrong : b.endLabel}
             >
               <tspan className={b.endValue}>{line.rate.toFixed(2)}%</tspan>{" "}
-              {narrow ? line.tiny || line.short || line.name : line.short || line.name}
+              {line.tiny || line.short || line.name}
             </text>
           </g>
         ))}

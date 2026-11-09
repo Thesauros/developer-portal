@@ -292,6 +292,8 @@ function indexRates(index, series) {
     .map((point) => ({ t: point.at, v: point.rate }));
 }
 
+// A measurable product's rate over time is the comparison chart's 30-day view,
+// so its Rate tab appears only where there is no such view.
 function Performance({ view, vault, index }) {
   // A product too small to compare opens on its share price, not an empty box.
   // Until the reader picks, the default follows the data as it arrives.
@@ -391,7 +393,7 @@ function Performance({ view, vault, index }) {
           options={[
             { value: "versus", label: "Against the index" },
             { value: "price", label: "Share price" },
-            { value: "rate", label: "Rate" },
+            ...(measurable ? [] : [{ value: "rate", label: "Rate" }]),
           ]}
         />
       }

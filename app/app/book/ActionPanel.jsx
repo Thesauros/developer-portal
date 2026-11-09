@@ -145,6 +145,11 @@ function WrongNetwork({ vault, wallet, navigate }) {
 
 function GuestForm({ vault, action, setAction }) {
   const [amount, setAmount] = useState("");
+  // The batch vault takes at most this much in one batch.
+  const maxBatch =
+    vault.kind === "batch" && vault.limits?.maxEpochDeposits
+      ? Number(vault.limits.maxEpochDeposits) / 10 ** (vault.decimals || 6)
+      : null;
   const value = Number(amount.replace(/[^\d.]/g, "")) || 0;
   const closed = action === "deposit" && !vault.open.deposits;
   function remember(next) {
@@ -164,6 +169,14 @@ function GuestForm({ vault, action, setAction }) {
       />
       {closed ? (
         <ClosedDeposits />
+      ) : action === "withdraw" ? (
+        // A guest has nothing to withdraw yet: say what withdrawing takes.
+        <p className={b.hint}>
+          Withdrawing needs the wallet that holds your shares.{" "}
+          {vault.kind === "batch"
+            ? "A withdrawal is requested now and paid when the next batch settles."
+            : "It is paid in one transaction."}
+        </p>
       ) : (
         <label className={b.field}>
           <span>Amount</span>
@@ -179,7 +192,7 @@ function GuestForm({ vault, action, setAction }) {
           </span>
         </label>
       )}
-      {!closed && value > 0 && vault.rateNow != null && (
+      {!closed && action === "deposit" && value > 0 && vault.rateNow != null && (
         <p className={b.hint}>
           About {money((value * vault.rateNow) / 100 / 12)} {vault.token} a
           month at today’s {pct(vault.rateNow)}, before fees. Rates change.
@@ -193,9 +206,18 @@ function GuestForm({ vault, action, setAction }) {
             : "Connect wallet"
         }
       />
+      {!closed && action === "deposit" && maxBatch != null && value > maxBatch && (
+        <p className={b.hintBad}>
+          At most {money(maxBatch, 0)} {vault.token} fit in one batch; the rest
+          can go in the next one.
+        </p>
+      )}
       <p className={b.hint}>
         Connect a wallet, then sign a message to continue. Signing does not move
-        funds. Deposits are made on {vault.depositNetwork}.
+        funds.{" "}
+        {action === "withdraw"
+          ? `Withdrawals are paid on ${vault.depositNetwork}.`
+          : `Deposits are made on ${vault.depositNetwork}.`}
       </p>
     </div>
   );
@@ -602,7 +624,8 @@ function NetworkChoice({ vault, choices, onChoose, wallet, action }) {
       </p>
       <p className={b.networkNote}>
         One product on every network. Each network’s vault lends to that
-        network’s markets, so its rate now differs a little.
+        network’s markets, so the rates differ; a young vault’s rate moves
+        more with each deposit.
       </p>
       <ul className={b.networkList} role="radiogroup" aria-label="Network">
         {choices.map((choice) => {
