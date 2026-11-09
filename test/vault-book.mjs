@@ -687,3 +687,12 @@ test("weekly gaps are whole weeks that do not overlap", () => {
   for (let i = 1; i < weeks.length; i++) assert.equal(weeks[i].from, weeks[i - 1].at);
   assert.ok(weeks.every((week) => Math.abs(week.gap - 1) < 0.05), "about +1 pt each week");
 });
+test("the weekly bars add up to the gap over the whole period", () => {
+  const levels = Array.from({ length: 31 }, (_, i) => ({ at: (970 + i) * DAY, level: (1 + (i < 3 ? 0.2 : 0.03) / 365) ** i }));
+  const index = buildBlueChipIndex(lending("ethereum:aave", 1000, 0.04 / 365, 4, 40));
+  const from = levels.at(-1).at - 30 * DAY;
+  const weeks = weeklyGaps(levels, index, from);
+  const sum = weeks.reduce((total, week) => total + week.share, 0);
+  const whole = indexWindowRate({ series: levels }, from, levels.at(-1).at) - indexWindowRate(index, from, levels.at(-1).at);
+  assert.ok(Math.abs(sum - whole) < 0.02, `${sum} adds up to ${whole}`);
+});

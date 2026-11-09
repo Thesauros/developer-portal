@@ -908,8 +908,11 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
     right = 56,
     top = 12,
     bottom = 24;
-  const gaps = points.map((point) => point.gap);
-  const reach = Math.max(0.25, ...gaps.map(Math.abs)) * 1.15;
+  // Bars show each period's part of the whole gap when it is known, so they add
+  // up to the figure above the chart.
+  const value = (point) => point.share ?? point.gap;
+  const gaps = points.map(value);
+  const reach = Math.max(0.1, ...gaps.map(Math.abs)) * 1.15;
   const y = (v) => top + (1 - (v + reach) / (2 * reach)) * (H - top - bottom);
   const step = (W - left - right) / points.length;
   const bar = Math.max(6, Math.min(48, step * 0.55));
@@ -921,7 +924,7 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
     const at = ((event.clientX - rect.left) / rect.width) * W;
     setHover(Math.min(points.length - 1, Math.max(0, Math.floor((at - left) / step))));
   }
-  const ticks = [reach / 1.15, 0, -reach / 1.15].map((v) => Math.round(v * 10) / 10);
+  const ticks = [reach / 1.15, 0, -reach / 1.15].map((v) => Math.round(v * 100) / 100);
   return (
     <div ref={box} className={b.chartBox}>
       <svg
@@ -945,7 +948,7 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
             />
             <text x={W - right + 8} y={y(tick) + 4} className={b.axis}>
               {tick > 0 ? "+" : tick < 0 ? "−" : ""}
-              {Math.abs(tick).toFixed(1)}
+              {Math.abs(tick).toFixed(2)}
             </text>
           </g>
         ))}
@@ -953,11 +956,11 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
           <rect
             key={point.at}
             x={x(i) - (point.partial ? bar * 0.5 : bar) / 2}
-            y={Math.min(y(point.gap), y(0))}
+            y={Math.min(y(value(point)), y(0))}
             width={point.partial ? bar * 0.5 : bar}
-            height={Math.max(1, Math.abs(y(point.gap) - y(0)))}
+            height={Math.max(1, Math.abs(y(value(point)) - y(0)))}
             rx="1.5"
-            fill={point.gap >= 0 ? "var(--blue)" : "var(--ink-4)"}
+            fill={value(point) >= 0 ? "var(--blue)" : "var(--ink-4)"}
             opacity={hover == null || hover === i ? 1 : 0.55}
           />
         ))}
@@ -978,12 +981,26 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
           {p.partial
             ? `${dateLabel(p.from, false)} to ${dateLabel(p.at, false)}`
             : `Week to ${dateLabel(p.at, false)}`}
-          : {label} <strong>{pct(p.ours)}</strong>,
-          index <strong>{pct(p.index)}</strong>,{" "}
-          <strong>
-            {p.gap >= 0 ? "+" : "−"}
-            {Math.abs(p.gap).toFixed(2)} pts
-          </strong>
+          : {label} <strong>{pct(p.ours)}</strong>, index{" "}
+          <strong>{pct(p.index)}</strong> a year
+          {p.share != null ? (
+            <>
+              ; adds{" "}
+              <strong>
+                {p.share >= 0 ? "+" : "−"}
+                {Math.abs(p.share).toFixed(2)} pts
+              </strong>{" "}
+              to the gap
+            </>
+          ) : (
+            <>
+              ,{" "}
+              <strong>
+                {p.gap >= 0 ? "+" : "−"}
+                {Math.abs(p.gap).toFixed(2)} pts
+              </strong>
+            </>
+          )}
         </span>
       </p>
     </div>

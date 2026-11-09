@@ -351,8 +351,8 @@ function Performance({ view, vault, index }) {
         <>
           <div className={b.priceHead}>
             <p className={b.quiet}>
-              Each week: this vault against the {index?.symbol || "USDC"} index,
-              in points
+              Each week’s part of the gap to the {index?.symbol || "USDC"}{" "}
+              index, in points; the bars add up to the total
             </p>
             {periodControl}
           </div>
@@ -365,8 +365,9 @@ function Performance({ view, vault, index }) {
             </p>
           )}
           <p className={b.footnote}>
-            Each bar is one week: what the vault earned, from its share price,
-            minus what the index earned over the same seven days.
+            Each bar is one week, the first may be shorter: what the vault
+            earned, from its share price, minus what the index earned over the
+            same days, weighted by the week’s share of the period.
           </p>
         </>
       ) : tab === "price" ? (

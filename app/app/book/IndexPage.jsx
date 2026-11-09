@@ -110,7 +110,8 @@ export function IndexComparison({ book, compact = false }) {
       <div className={b.versusChart}>
         <div className={b.versusHead}>
           <span className={b.quiet}>
-            Each week: Thesauros USDC against the USDC index, in points
+            Each week’s part of the gap to the USDC index, in points; the bars
+            add up to the total
           </span>
           <Segmented label="Period" value={days} onChange={setDays} options={PERIODS} />
         </div>
