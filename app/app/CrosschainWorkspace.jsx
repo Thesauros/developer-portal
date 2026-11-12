@@ -14,7 +14,10 @@ import {
 } from "../../lib/crosschain-transactions.mjs";
 import { vaultClients } from "../../lib/vault-rpc.mjs";
 import { receiptRequestIds } from "../../lib/crosschain-reads.mjs";
-import { loadCrosschainFeed } from "../../lib/crosschain-feed.mjs";
+import {
+  loadCrosschainFeed,
+  mergeTrackedRequestIds,
+} from "../../lib/crosschain-feed.mjs";
 import { migrationKey, parseMigration } from "../../lib/migration-state.mjs";
 import { retryMigrationIntent } from "../../lib/migration-retry.mjs";
 import { migrationDestination } from "../../lib/migration-destination.mjs";
@@ -23,6 +26,7 @@ import CrosschainPanels, {
   amount as displayUnits,
 } from "./CrosschainPanels";
 import s from "./crosschain.module.css";
+import VaultTransactionRecovery from "./VaultTransactionRecovery";
 
 const short = (value) => value.slice(0, 6) + "…" + value.slice(-4);
 const units = (value) => {
@@ -45,6 +49,12 @@ export default function CrosschainWorkspace({
   view = "overview",
   navigate = () => {},
   migrationBlocked = false,
+  migrationRequestIds = [],
+  recoveryTransactions = [],
+  recoveryBusy = false,
+  recoveryLoading = false,
+  recoveryStorageError = "",
+  legacyChecking = false,
 }) {
   const owner = user.walletAddress;
   const walletAccount = useAccount();
@@ -69,6 +79,15 @@ export default function CrosschainWorkspace({
     owner?.toLowerCase();
   const client = vaultClients.base;
   const refresh = () => setRevision((value) => value + 1);
+  const trackedIds = mergeTrackedRequestIds(migrationRequestIds, requestIds);
+  const recoveryPanel = (
+    <VaultTransactionRecovery
+      transactions={recoveryTransactions}
+      busy={busy || recoveryBusy}
+      loading={recoveryLoading}
+      storageError={recoveryStorageError}
+    />
+  );
 
   useEffect(() => {
     setStorageReady(false);
@@ -89,7 +108,7 @@ export default function CrosschainWorkspace({
     let active = true;
     async function load() {
       try {
-        const value = await loadCrosschainFeed(owner, requestIds, read);
+        const value = await loadCrosschainFeed(owner, trackedIds, read);
         if (value.vault) assertCrosschainIdentity(value.vault);
         if (!active) return;
         setFeed(value);
@@ -112,7 +131,7 @@ export default function CrosschainWorkspace({
       active = false;
       clearInterval(timer);
     };
-  }, [revision, owner, requestIds.join(",")]);
+  }, [revision, owner, trackedIds.join(",")]);
 
   function trackIds(ids) {
     const combined = [...new Set([...requestIds, ...ids])].slice(-20);
@@ -423,6 +442,15 @@ export default function CrosschainWorkspace({
     migrationBlocked;
   const newRequestsBlocked =
     blocked || !!feed?.backendError || migrationBlocked;
+  const available =
+    action === "deposit" ? feed?.user?.cash : feed?.user?.shares;
+  const canSelectMax =
+    /^\d+$/.test(String(available ?? "")) && BigInt(available) > 0n;
+  const legacyCheckStatus = legacyChecking ? (
+    <p className={s.muted} role="status">
+      Checking legacy vault positions…
+    </p>
+  ) : null;
   if (view !== "earn")
     return (
       <div className={s.workspace}>
@@ -433,6 +461,8 @@ export default function CrosschainWorkspace({
           </button>
         </div>
         <CrosschainStatus feed={feed} loading={loading} />
+        {recoveryPanel}
+        {legacyCheckStatus}
         <CrosschainPanels
           view={view}
           feed={feed}
@@ -479,6 +509,8 @@ export default function CrosschainWorkspace({
         </p>
       )}
       <CrosschainStatus feed={feed} loading={loading} />
+      {recoveryPanel}
+      {legacyCheckStatus}
       <section className={s.metrics} aria-label="Cross-chain vault state">
         <article>
           <span>USDC in your Base wallet</span>
@@ -563,6 +595,13 @@ export default function CrosschainWorkspace({
               />
             </label>
             <div className={s.actions}>
+              <button
+                type="button"
+                disabled={busy || !canSelectMax}
+                onClick={() => setAmount(units(available))}
+              >
+                Max
+              </button>
               {action === "deposit" && (
                 <button
                   type="button"

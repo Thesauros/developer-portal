@@ -104,6 +104,12 @@ const icons = {
 export default function ProductApp({ mode = "individual", user }) {
   const { disconnectAsync } = useDisconnect();
   const migration = useMigrationAccount(migrationDestination);
+  const legacyPanelVisible = migration.legacyProducts.some(
+    (product) => product.positionStatus !== "loading",
+  );
+  const legacyChecking = migration.legacyProducts.some(
+    (product) => product.positionStatus === "loading",
+  );
   const [tab, setTab] = useState("overview"),
     [menu, setMenu] = useState(false);
   const [selection, setSelection] = useState(null);
@@ -372,8 +378,14 @@ export default function ProductApp({ mode = "individual", user }) {
               </button>
             </div>
           )}
-          {crosschainAccountViews.includes(current) && (
-            <MigrationPanel model={migration} />
+          {crosschainAccountViews.includes(current) && legacyPanelVisible && (
+            <MigrationPanel
+              model={{
+                ...migration,
+                products: migration.legacyProducts,
+                storageError: migration.storageError,
+              }}
+            />
           )}
           {crosschainAccountViews.includes(current) && (
             <CrosschainWorkspace
@@ -385,6 +397,14 @@ export default function ProductApp({ mode = "individual", user }) {
               view={current}
               navigate={navigate}
               migrationBlocked={migration.blocksNewRequests}
+              migrationRequestIds={migration.requestIds}
+              recoveryTransactions={migration.pendingTransactions}
+              recoveryBusy={migration.busy}
+              recoveryLoading={migration.loading}
+              recoveryStorageError={
+                legacyPanelVisible ? "" : migration.storageError
+              }
+              legacyChecking={legacyChecking}
             />
           )}
           {current === "markets" && (

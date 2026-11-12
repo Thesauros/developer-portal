@@ -43,8 +43,13 @@ new requests; claim and recovery remain independent of backend health.
 
 Connected wallet changes reset all views. Each legacy product is checked
 independently; RPC failure is an unknown position. Nonzero shares retain the old
-product. Zero shares hide its card while a continuation card retains undeployed
-proceeds or unclaimed requests.
+product. Verified zero shares hide the migration panel, including historical
+completion cards. Undeposited wallet funds can be deposited through the new
+vault's form; its Max button uses the full available balance. Existing epoch
+requests and claims continue in the new vault's request list. Verified migration
+request IDs are merged into that list while indexing catches up. An unresolved
+signing intent retains its original recovery and same-nonce retry controls in a
+compact pending-transaction section of the new vault.
 
 Wallet-scoped browser storage keeps hashes and exact signing intents, not trusted
 financial completion flags. Receipts, token transfers and request states are

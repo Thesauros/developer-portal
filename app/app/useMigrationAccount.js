@@ -29,6 +29,7 @@ import {
   migrationRecord,
   deriveMigration,
   migrationHash,
+  partitionMigrationDisplay,
 } from "../../lib/migration-state.mjs";
 
 const inFlight = new Set();
@@ -770,6 +771,11 @@ export default function useMigrationAccount(destination) {
             setAmountInput: (value) =>
               setInputs((previous) => ({ ...previous, [vault.id]: value })),
             recovery: !!pending,
+            pendingHash: pending?.hash || "",
+            pendingExplorer:
+              pending?.chainId === 42161
+                ? vault.explorer
+                : destination?.config.explorer,
             retry:
               pending && Number.isSafeInteger(pending.nonce)
                 ? () => retry(vault)
@@ -784,6 +790,18 @@ export default function useMigrationAccount(destination) {
           };
         })
         .filter((product) => product.visible);
+  const display = partitionMigrationDisplay(products);
+  // Confirmed new-vault requests remain available after the legacy card is
+  // hidden, including while the event index is catching up.
+  const verifiedIds = Object.values(state.products).flatMap((row) =>
+    row.deposits.map((deposit) => deposit.requestId),
+  );
+  const activeIds = verifiedIds.filter(
+    (id) =>
+      !["claimed", "cancelled"].includes(
+        state.base?.requests.find((request) => request.id === id)?.state,
+      ),
+  );
   return {
     owner,
     loading,
@@ -792,6 +810,10 @@ export default function useMigrationAccount(destination) {
     busy,
     refresh,
     products,
+    ...display,
+    // Settled history comes from the index. Keeping only active requests here
+    // leaves room for newly submitted ordinary requests in the 20-ID query.
+    requestIds: [...new Set(activeIds)],
     destination: destination?.config,
     blocksNewRequests:
       !!storageError ||

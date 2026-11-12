@@ -5,6 +5,7 @@ import {
   emptyMigration,
   migrationKey,
   migrationRecord,
+  partitionMigrationDisplay,
   parseMigration,
 } from "../lib/migration-state.mjs";
 
@@ -14,6 +15,156 @@ const hash = "0x" + "ab".repeat(32);
 const secondHash = "0x" + "cd".repeat(32);
 const ready = (shares = 0n) => ({ status: "ready", shares: shares.toString() });
 const withdrawn = (amount = 3000000n) => [{ hash, amount }];
+
+test("verified closed legacy products stay out of the legacy panel at every new-vault stage", () => {
+  const products = [
+    {
+      id: "base",
+      positionStatus: "ready",
+      shares: "0",
+      stage: "deposit",
+      amount: "22641",
+      withdrawn: "22641",
+    },
+    {
+      id: "base",
+      positionStatus: "ready",
+      shares: "0",
+      stage: "complete",
+      withdrawn: "1000000",
+    },
+    {
+      id: "arbitrum",
+      positionStatus: "ready",
+      shares: 0n,
+      stage: "claim",
+      requestId: "17",
+    },
+  ];
+  const partition = partitionMigrationDisplay(products);
+  assert.deepEqual(partition.legacyProducts, []);
+  assert.deepEqual(partition.closedProducts, products);
+  assert.deepEqual(partition.pendingTransactions, []);
+  assert.equal(partition.closedProducts[0], products[0]);
+});
+
+test("closed-vault pending and hashless transactions retain their original recovery handlers", () => {
+  const recover = () => {},
+    retry = () => {};
+  const products = [
+    {
+      id: "base",
+      positionStatus: "ready",
+      shares: "0",
+      stage: "recover",
+      recovery: true,
+      pendingNonce: 7,
+      recover,
+      retry,
+    },
+    {
+      id: "arbitrum",
+      positionStatus: "ready",
+      shares: "0",
+      stage: "withdraw_pending",
+      recoveryHash: hash,
+      recover,
+    },
+    {
+      id: "base",
+      positionStatus: "ready",
+      shares: "0",
+      stage: "deposit_pending",
+      pending: { hash: secondHash },
+      recover,
+    },
+  ];
+  const { legacyProducts, closedProducts, pendingTransactions } =
+    partitionMigrationDisplay(products);
+  assert.deepEqual(legacyProducts, []);
+  assert.deepEqual(closedProducts, products);
+  assert.deepEqual(pendingTransactions, products);
+  assert.equal(pendingTransactions[0], products[0]);
+  assert.equal(pendingTransactions[0].recover, recover);
+  assert.equal(pendingTransactions[0].retry, retry);
+  assert.equal(
+    pendingTransactions[0].recoveryHash,
+    undefined,
+    "a missing hash must not remove recovery",
+  );
+});
+
+test("partial balances and unknown RPC results remain in the legacy panel independently", () => {
+  const old = {
+    id: "base",
+    positionStatus: "ready",
+    shares: "260",
+    stage: "withdraw",
+  };
+  const unknown = {
+    id: "arbitrum",
+    positionStatus: "error",
+    shares: "0",
+    positionError: "RPC unavailable",
+  };
+  const closed = {
+    id: "arbitrum",
+    positionStatus: "ready",
+    shares: "0",
+    stage: "settlement",
+    requestId: "18",
+  };
+  const result = partitionMigrationDisplay([old, unknown, closed]);
+  assert.deepEqual(result.legacyProducts, [old, unknown]);
+  assert.deepEqual(result.closedProducts, [closed]);
+  assert.deepEqual(result.pendingTransactions, []);
+});
+
+test("invalid or missing shares cannot be interpreted as a closed legacy position", () => {
+  const values = [
+    undefined,
+    null,
+    "",
+    "invalid",
+    "0.0",
+    "-1",
+    -1n,
+    0,
+    Number.NaN,
+  ];
+  const products = values.map((shares) => ({
+    id: "base",
+    positionStatus: "ready",
+    shares,
+  }));
+  products.push({ id: "arbitrum", positionStatus: "loading", shares: "0" });
+  const result = partitionMigrationDisplay(products);
+  assert.deepEqual(result.legacyProducts, products);
+  assert.deepEqual(result.closedProducts, []);
+  assert.deepEqual(result.pendingTransactions, []);
+  assert.deepEqual(partitionMigrationDisplay(), {
+    legacyProducts: [],
+    closedProducts: [],
+    pendingTransactions: [],
+  });
+});
+
+test("partition preserves distinct transaction callbacks for multiple closed products", () => {
+  const callbacks = [() => "base", () => "arbitrum"];
+  const products = callbacks.map((recover, index) => ({
+    id: index ? "arbitrum" : "base",
+    positionStatus: "ready",
+    shares: "0",
+    recovery: true,
+    recover,
+  }));
+  const result = partitionMigrationDisplay(products);
+  assert.equal(result.pendingTransactions.length, 2);
+  assert.equal(result.pendingTransactions[0].recover, callbacks[0]);
+  assert.equal(result.pendingTransactions[1].recover, callbacks[1]);
+  assert.equal(result.pendingTransactions[0].recover(), "base");
+  assert.equal(result.pendingTransactions[1].recover(), "arbitrum");
+});
 
 test("a verified zero legacy position hides that legacy product", () => {
   const state = deriveMigration({ position: ready() });
