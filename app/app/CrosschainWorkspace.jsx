@@ -15,6 +15,9 @@ import {
 import { vaultClients } from "../../lib/vault-rpc.mjs";
 import { receiptRequestIds } from "../../lib/crosschain-reads.mjs";
 import { loadCrosschainFeed } from "../../lib/crosschain-feed.mjs";
+import { migrationKey, parseMigration } from "../../lib/migration-state.mjs";
+import { retryMigrationIntent } from "../../lib/migration-retry.mjs";
+import { migrationDestination } from "../../lib/migration-destination.mjs";
 import CrosschainPanels, {
   CrosschainStatus,
   amount as displayUnits,
@@ -41,6 +44,7 @@ export default function CrosschainWorkspace({
   user,
   view = "overview",
   navigate = () => {},
+  migrationBlocked = false,
 }) {
   const owner = user.walletAddress;
   const walletAccount = useAccount();
@@ -137,6 +141,44 @@ export default function CrosschainWorkspace({
     setPending(value);
   }
   async function submit(kind, input) {
+    if (!owner || !navigator.locks) {
+      setMessage(
+        "Use a current browser with Web Locks support to sign transactions safely.",
+      );
+      return;
+    }
+    await navigator.locks.request(
+      migrationKey(owner),
+      { ifAvailable: true },
+      async (lock) => {
+        if (!lock) {
+          setMessage("Another tab is preparing a wallet transaction.");
+          return;
+        }
+        try {
+          const saved = parseMigration(
+            localStorage.getItem(migrationKey(owner)),
+            owner,
+          );
+          if (Object.values(saved.products).some((record) => record.pending))
+            throw new Error(
+              "Check the unresolved migration transaction before signing another operation.",
+            );
+          if (
+            migrationBlocked &&
+            ["approve", "deposit", "redeem"].includes(kind)
+          )
+            throw new Error(
+              "Continue your migration above before preparing a new request.",
+            );
+          await submitUnlocked(kind, input);
+        } catch (failure) {
+          setMessage(failure.message);
+        }
+      },
+    );
+  }
+  async function submitUnlocked(kind, input) {
     if (locks.has(key) || pending || !storageReady) return;
     if (localStorage.getItem(key)) {
       setPending(JSON.parse(localStorage.getItem(key)));
@@ -218,9 +260,66 @@ export default function CrosschainWorkspace({
       setBusy(false);
     }
   }
+  async function retrySaved() {
+    if (!owner || busy || !pending || !navigator.locks) return;
+    await navigator.locks.request(
+      migrationKey(owner),
+      { ifAvailable: true },
+      async (lock) => {
+        if (!lock) return;
+        setBusy(true);
+        try {
+          if (!sameAddress(pending.owner, owner) || pending.chainId !== 8453)
+            throw new Error("Saved account or chain does not match.");
+          const migrations = parseMigration(
+            localStorage.getItem(migrationKey(owner)),
+            owner,
+          );
+          if (
+            Object.values(migrations.products).some((record) => record.pending)
+          )
+            throw new Error("Check the pending migration first.");
+          if (walletAccount.chainId !== 8453)
+            await switchChainAsync({ chainId: 8453 });
+          const provider = await walletAccount.connector.getProvider({
+            chainId: 8453,
+          });
+          const wallet = createWalletClient({
+            chain: base,
+            transport: custom(provider),
+          });
+          const result = await retryMigrationIntent({
+            publicClient: client,
+            walletClient: wallet,
+            owner,
+            vaultId: "base",
+            pending,
+            beforeRetry: (kind) =>
+              ["claim", "cancel"].includes(kind)
+                ? Promise.resolve()
+                : migrationDestination.check(kind),
+            onHash: (hash) => savePending({ ...pending, hash }),
+          });
+          setRecoveryHash(result.hash);
+          setMessage(
+            "The same operation was submitted with the saved nonce. Check confirmation below; it can execute only once.",
+          );
+        } catch (failure) {
+          setMessage(
+            failure.code === "NONCE_CONSUMED"
+              ? "This nonce has been used. Enter the confirmed transaction or replacement hash below."
+              : "The saved operation remains unresolved. You can retry the same wallet request or check its transaction hash.",
+          );
+        } finally {
+          setBusy(false);
+          refresh();
+        }
+      },
+    );
+  }
   async function recover() {
     if (busy || locks.has(key)) return;
-    const hash = pending?.hash || recoveryHash;
+    const hash = recoveryHash || pending?.hash;
     if (!/^0x[0-9a-f]{64}$/i.test(hash || "")) {
       setMessage("Enter the transaction hash from your wallet.");
       return;
@@ -238,18 +337,54 @@ export default function CrosschainWorkspace({
         throw new Error(
           "Saved operation does not match this wallet and stand.",
         );
-      const [receipt, transaction, chainId] = await Promise.all([
+      const transaction = await client.getTransaction({ hash });
+      let nonce = pending.nonce;
+      if (
+        pending.hash?.toLowerCase() === hash.toLowerCase() &&
+        sameAddress(transaction.from, owner) &&
+        sameAddress(transaction.to, pending.address) &&
+        transaction.input?.toLowerCase() === pending.data?.toLowerCase() &&
+        Number.isSafeInteger(transaction.nonce)
+      ) {
+        nonce = transaction.nonce;
+        savePending({ ...pending, nonce });
+      }
+      const [receipt, chainId, head] = await Promise.all([
         client.getTransactionReceipt({ hash }),
-        client.getTransaction({ hash }),
         client.getChainId(),
+        client.getBlockNumber({ cacheTime: 0 }),
       ]);
       if (
         chainId !== crosschain.chainId ||
+        transaction.hash?.toLowerCase() !== hash.toLowerCase() ||
         !sameAddress(transaction.from, owner) ||
-        !sameAddress(transaction.to, pending.address) ||
-        transaction.input?.toLowerCase() !== pending.data?.toLowerCase()
+        !sameAddress(receipt.from, owner) ||
+        (transaction.to == null
+          ? receipt.to != null
+          : !sameAddress(receipt.to, transaction.to)) ||
+        receipt.transactionHash?.toLowerCase() !== hash.toLowerCase() ||
+        !["success", "reverted"].includes(receipt.status) ||
+        receipt.blockNumber == null ||
+        transaction.blockNumber !== receipt.blockNumber ||
+        head < receipt.blockNumber ||
+        transaction.blockHash?.toLowerCase() !==
+          receipt.blockHash?.toLowerCase() ||
+        !Number.isSafeInteger(nonce) ||
+        nonce !== transaction.nonce
       )
         throw new Error("This transaction does not match the saved operation.");
+      if (
+        !sameAddress(transaction.to, pending.address) ||
+        transaction.value !== 0n ||
+        transaction.input?.toLowerCase() !== pending.data?.toLowerCase()
+      ) {
+        savePending(null);
+        setMessage(
+          "The operation was cancelled or replaced by another confirmed transaction. Balances will be read again.",
+        );
+        refresh();
+        return;
+      }
       if (receipt.status === "reverted") {
         if (
           !sameAddress(receipt.from, owner) ||
@@ -280,7 +415,8 @@ export default function CrosschainWorkspace({
   const vault = feed?.vault;
   const blocked =
     busy || !!pending || !storageReady || !feed?.vault || !feed?.user || !owner;
-  const newRequestsBlocked = blocked || !!feed?.backendError;
+  const newRequestsBlocked =
+    blocked || !!feed?.backendError || migrationBlocked;
   if (view !== "earn")
     return (
       <div className={s.workspace}>
@@ -372,6 +508,13 @@ export default function CrosschainWorkspace({
       <div className={s.columns}>
         <section className={s.card}>
           <h3>Request a deposit or withdrawal</h3>
+          {migrationBlocked && (
+            <p className={s.notice}>
+              Continue your migration above. New deposit and withdrawal requests
+              become available when the legacy positions and migration deposits
+              are complete.
+            </p>
+          )}
           <p>
             All operations are signed by your wallet on Base. Approval does not
             create a deposit.
@@ -436,7 +579,7 @@ export default function CrosschainWorkspace({
                 A submission is unresolved. New operations are locked until its
                 receipt is checked.
               </p>
-              {pending.hash ? (
+              {pending.hash && (
                 <a
                   href={crosschain.explorer + "/tx/" + pending.hash}
                   target="_blank"
@@ -444,18 +587,29 @@ export default function CrosschainWorkspace({
                 >
                   View submitted transaction ↗
                 </a>
-              ) : (
-                <label>
-                  Transaction hash from your wallet
-                  <input
-                    value={recoveryHash}
-                    onChange={(event) => setRecoveryHash(event.target.value)}
-                  />
-                </label>
               )}
+              <label>
+                Transaction hash or replacement hash from your wallet
+                <input
+                  value={recoveryHash}
+                  onChange={(event) => setRecoveryHash(event.target.value)}
+                />
+              </label>
               <button onClick={recover} disabled={busy}>
                 Check confirmation
               </button>
+              {Number.isSafeInteger(pending.nonce) && (
+                <>
+                  <p>
+                    If you reloaded while the signature prompt was open, reopen
+                    the saved request. The same nonce prevents a second
+                    execution.
+                  </p>
+                  <button onClick={retrySaved} disabled={busy}>
+                    Retry the same wallet request
+                  </button>
+                </>
+              )}
             </div>
           )}
           {message && (

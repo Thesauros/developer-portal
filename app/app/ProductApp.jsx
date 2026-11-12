@@ -9,6 +9,9 @@ import NetworkFilter from "./NetworkFilter";
 import { crosschainAccountViews } from "../../lib/crosschain-feed.mjs";
 import InstitutionSettings from "./cabinet/InstitutionSettings";
 import BrandLoading from "../ui/BrandLoading";
+import useMigrationAccount from "./useMigrationAccount";
+import MigrationPanel from "./MigrationPanel";
+import { migrationDestination } from "../../lib/migration-destination.mjs";
 import s from "./workspace.module.css";
 const loading = () => <BrandLoading />;
 const TestAccount = dynamic(() => import("./TestAccount"), { loading });
@@ -100,6 +103,7 @@ const icons = {
 };
 export default function ProductApp({ mode = "individual", user }) {
   const { disconnectAsync } = useDisconnect();
+  const migration = useMigrationAccount(migrationDestination);
   const [tab, setTab] = useState("overview"),
     [menu, setMenu] = useState(false);
   const [selection, setSelection] = useState(null);
@@ -369,10 +373,18 @@ export default function ProductApp({ mode = "individual", user }) {
             </div>
           )}
           {crosschainAccountViews.includes(current) && (
+            <MigrationPanel model={migration} />
+          )}
+          {crosschainAccountViews.includes(current) && (
             <CrosschainWorkspace
-              user={user}
+              key={migration.owner || user.walletAddress || "no-wallet"}
+              user={{
+                ...user,
+                walletAddress: migration.owner || user.walletAddress,
+              }}
               view={current}
               navigate={navigate}
+              migrationBlocked={migration.blocksNewRequests}
             />
           )}
           {current === "markets" && (
