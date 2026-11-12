@@ -205,6 +205,173 @@ test("transaction amounts keep six decimal precision and reject excess or rounde
   assert.equal(oneUnit.stage, "deposit");
 });
 
+test("a migration deposit may use the full verified wallet balance beyond legacy proceeds", () => {
+  const input = {
+    position: ready(),
+    withdrawals: withdrawn(22641n),
+    cash: 12205713n,
+    allowance: 12205713n,
+  };
+  const unchangedDefault = deriveMigration(input);
+  assert.equal(
+    unchangedDefault.selected,
+    "22641",
+    "default must not silently select all wallet funds",
+  );
+  const maximum = deriveMigration({ ...input, amountInput: "12.205713" });
+  assert.equal(maximum.stage, "deposit");
+  assert.equal(maximum.canAct, true);
+  assert.equal(maximum.amount, "22641");
+  assert.equal(maximum.selected, "12205713");
+  assert.equal(maximum.migrationCredit, "22641");
+  assert.equal(maximum.additionalFunds, "12183072");
+  const aboveCash = deriveMigration({ ...input, amountInput: "12.205714" });
+  assert.equal(aboveCash.canAct, false);
+  assert.equal(aboveCash.stage, "base");
+  assert.match(aboveCash.error, /balance on Base/);
+});
+
+test("an additional 20 USDC request only credits legacy proceeds and still requires a claim", () => {
+  const input = {
+    position: ready(),
+    withdrawals: withdrawn(22641n),
+    cash: 20000000n,
+    allowance: 20000000n,
+  };
+  const selected = deriveMigration({ ...input, amountInput: "20" });
+  assert.equal(selected.selected, "20000000");
+  assert.equal(selected.migrationCredit, "22641");
+  assert.equal(selected.additionalFunds, "19977359");
+  const request = { id: "20", state: "pending", amount: 20000000n };
+  const queued = deriveMigration({ ...input, requests: [request] });
+  assert.equal(queued.stage, "settlement");
+  assert.equal(queued.amount, "0");
+  assert.equal(queued.credited, "22641");
+  assert.equal(queued.canAct, false);
+  const claim = deriveMigration({
+    ...input,
+    requests: [{ ...request, state: "claimable" }],
+  });
+  assert.equal(claim.stage, "claim");
+  const complete = deriveMigration({
+    ...input,
+    requests: [{ ...request, state: "claimed" }],
+  });
+  assert.equal(complete.stage, "complete");
+  assert.equal(complete.credited, "22641");
+  assert.equal(complete.error, "");
+  const legacyStillOpen = deriveMigration({
+    ...input,
+    position: ready(260n),
+    requests: [{ ...request, state: "claimed" }],
+  });
+  assert.equal(legacyStillOpen.stage, "withdraw");
+  const legacyUnknown = deriveMigration({
+    ...input,
+    position: { status: "unavailable" },
+    requests: [{ ...request, state: "claimed" }],
+  });
+  assert.equal(legacyUnknown.stage, "check");
+  assert.equal(legacyUnknown.canAct, false);
+});
+
+test("partial migration credit and cancelled top-ups preserve exact outstanding proceeds", () => {
+  const input = {
+    position: ready(),
+    withdrawals: withdrawn(22641n),
+    cash: 12205713n,
+    allowance: 12205713n,
+  };
+  const partial = { id: "1", state: "claimed", amount: 10000n };
+  const cancelled = { id: "2", state: "cancelled", amount: 20000000n };
+  const outstanding = deriveMigration({
+    ...input,
+    requests: [partial, cancelled],
+  });
+  assert.equal(outstanding.credited, "10000");
+  assert.equal(outstanding.amount, "12641");
+  assert.equal(outstanding.selected, "12641");
+  const topUp = deriveMigration({
+    ...input,
+    requests: [partial, cancelled],
+    amountInput: "1",
+  });
+  assert.equal(topUp.migrationCredit, "12641");
+  assert.equal(topUp.additionalFunds, "987359");
+  const restored = deriveMigration({
+    ...input,
+    requests: [{ ...partial, state: "cancelled" }, cancelled],
+  });
+  assert.equal(restored.credited, "0");
+  assert.equal(restored.amount, "22641");
+  assert.equal(restored.stage, "deposit");
+});
+
+test("a live minimum lets a tiny legacy withdrawal be topped up without selecting all cash", () => {
+  const input = {
+    position: ready(),
+    withdrawals: withdrawn(263n),
+    cash: 12205713n,
+    allowance: 0n,
+    minDeposit: "1000000",
+  };
+  const toppedUp = deriveMigration(input);
+  assert.equal(toppedUp.stage, "approve");
+  assert.equal(toppedUp.amount, "263");
+  assert.equal(toppedUp.selected, "1000000");
+  assert.equal(toppedUp.migrationCredit, "263");
+  assert.equal(toppedUp.additionalFunds, "999737");
+  const belowMinimum = deriveMigration({ ...input, amountInput: "0.000263" });
+  assert.equal(belowMinimum.canAct, false);
+  assert.match(belowMinimum.error, /minimum deposit is 1 USDC/);
+  const insufficientCash = deriveMigration({ ...input, cash: 999999n });
+  assert.equal(insufficientCash.stage, "base");
+  assert.equal(insufficientCash.canAct, false);
+  assert.equal(insufficientCash.selected, "1000000");
+  assert.equal(
+    deriveMigration({ ...input, minDeposit: 1000000n }).selected,
+    "1000000",
+  );
+  assert.equal(
+    deriveMigration({ ...input, minDeposit: undefined }).selected,
+    "263",
+  );
+  assert.equal(deriveMigration({ ...input, minDeposit: 0n }).selected, "263");
+  const invalidMinimum = deriveMigration({
+    ...input,
+    minDeposit: "unavailable",
+  });
+  assert.equal(invalidMinimum.canAct, false);
+  assert.match(invalidMinimum.error, /minimum deposit could not be verified/);
+});
+
+test("top-up support retains pending and verification-error barriers", () => {
+  const input = {
+    position: ready(),
+    withdrawals: withdrawn(22641n),
+    cash: 12205713n,
+    allowance: 12205713n,
+    minDeposit: 1000000n,
+    amountInput: "12.205713",
+  };
+  for (const kind of ["withdraw", "deposit", "approve", "claim"]) {
+    assert.equal(
+      deriveMigration({ ...input, pending: { kind } }).canAct,
+      false,
+    );
+  }
+  const failed = deriveMigration({
+    ...input,
+    verificationError: "History RPC failed",
+  });
+  assert.equal(failed.stage, "check");
+  assert.equal(failed.canAct, false);
+  assert.equal(failed.error, "History RPC failed");
+  const missingCash = deriveMigration({ ...input, cash: null });
+  assert.equal(missingCash.canAct, false);
+  assert.match(missingCash.error, /could not be verified/);
+});
+
 test("reloaded journals are wallet-scoped recovery hints with deduplicated hashes", () => {
   const pending = {
     kind: "deposit",

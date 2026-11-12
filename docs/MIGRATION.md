@@ -52,6 +52,14 @@ rechecked from chain after reload and confirmation. Cancelled new requests resto
 the outstanding migration amount. Partial deposits leave the remainder available;
 bridge fees must be covered or the remainder stays unfinished.
 
+The migration amount and Base wallet balance are separate. Max selects the full
+verified Base USDC balance; a deposit may include additional wallet funds. The
+review shows this breakdown, and migration credit is capped at confirmed legacy
+withdrawal proceeds. A small legacy balance can be topped up to the live minimum
+deposit. Other legacy products are tracked separately and cannot reuse the same
+deposit receipt. Ordinary new-vault actions remain available independently of
+legacy balances, with shared pending-operation and wallet-lock protection.
+
 Every signing request has a persisted reserved nonce and runs under a wallet-wide
 Web Lock. A reload during signing can retry exactly the same operation with that
 nonce, after fresh checks. Confirmed same-nonce replacements/cancellations can be

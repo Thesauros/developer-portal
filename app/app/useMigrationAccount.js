@@ -237,6 +237,7 @@ export default function useMigrationAccount(destination) {
       pending: row?.record.pending,
       cash: state.base?.cash,
       allowance: state.base?.allowance,
+      minDeposit: state.base?.minDeposit,
       amountInput: inputs[vault.id] || "",
       verificationError:
         row?.verificationError ||
@@ -628,6 +629,18 @@ export default function useMigrationAccount(destination) {
       try {
         const pending = migrationRecord(journal(), vault.id).pending;
         if (!pending) return;
+        const standardKey =
+          "thesauros.crosschain." +
+          destination.config.address.toLowerCase() +
+          "." +
+          owner.toLowerCase();
+        if (localStorage.getItem(standardKey))
+          throw Object.assign(
+            new Error(
+              "Check the unresolved operation in the new product before retrying this migration.",
+            ),
+            { userFacing: true },
+          );
         const network =
           pending.chainId === vault.chainId ? vault.chain : destination.chain;
         if (connected.chainId !== network.id)
@@ -741,6 +754,7 @@ export default function useMigrationAccount(destination) {
             assets: row?.position.positionAssets?.toString() ?? null,
             positionError: row?.position.error,
             cash: state.base?.cash ?? null,
+            minDeposit: state.base?.minDeposit ?? null,
             error:
               current.error ||
               row?.position.error ||
@@ -781,6 +795,7 @@ export default function useMigrationAccount(destination) {
     destination: destination?.config,
     blocksNewRequests:
       !!storageError ||
-      products.some((product) => product.stage !== "complete"),
+      busy ||
+      Object.values(state.products).some((row) => !!row.record.pending),
   };
 }

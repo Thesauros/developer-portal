@@ -131,14 +131,16 @@ function MigrationProduct({ product, model }) {
   const error = product.error || product.positionError;
   const refreshAction = ["base", "check"].includes(product.stage);
   const selectedAmount = product.selected || product.amount;
-  const knownAmounts = [product.amount, product.cash].every(
-    (value) => value != null && /^\d+$/.test(String(value)),
-  );
-  const maximum = knownAmounts
-    ? BigInt(product.amount) < BigInt(product.cash)
-      ? product.amount
-      : product.cash
-    : null;
+  const maximum =
+    product.cash != null &&
+    /^\d+$/.test(String(product.cash)) &&
+    BigInt(product.cash) > 0n
+      ? product.cash
+      : null;
+  const includesWalletFunds =
+    product.additionalFunds != null &&
+    /^\d+$/.test(String(product.additionalFunds)) &&
+    BigInt(product.additionalFunds) > 0n;
 
   if (product.stage === "complete")
     return (
@@ -285,6 +287,12 @@ function MigrationProduct({ product, model }) {
           </div>
         )}
 
+        {editableAmount && product.minDeposit != null && (
+          <p className={s.meta}>
+            Minimum deposit: {units(product.minDeposit)} USDC.
+          </p>
+        )}
+
         {["approve", "deposit"].includes(product.stage) && (
           <p>
             <strong>
@@ -292,6 +300,14 @@ function MigrationProduct({ product, model }) {
               {product.stage === "approve" ? "approval" : "deposit"}:{" "}
               {units(selectedAmount)} USDC · Base
             </strong>
+          </p>
+        )}
+
+        {editableAmount && includesWalletFunds && (
+          <p className={s.meta}>
+            Includes {units(product.additionalFunds)} USDC from your wallet in
+            addition to {units(product.migrationCredit)} USDC of migration
+            proceeds.
           </p>
         )}
 

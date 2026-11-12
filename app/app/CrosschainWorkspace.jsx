@@ -414,7 +414,13 @@ export default function CrosschainWorkspace({
   }
   const vault = feed?.vault;
   const blocked =
-    busy || !!pending || !storageReady || !feed?.vault || !feed?.user || !owner;
+    busy ||
+    !!pending ||
+    !storageReady ||
+    !feed?.vault ||
+    !feed?.user ||
+    !owner ||
+    migrationBlocked;
   const newRequestsBlocked =
     blocked || !!feed?.backendError || migrationBlocked;
   if (view !== "earn")
@@ -510,9 +516,8 @@ export default function CrosschainWorkspace({
           <h3>Request a deposit or withdrawal</h3>
           {migrationBlocked && (
             <p className={s.notice}>
-              Continue your migration above. New deposit and withdrawal requests
-              become available when the legacy positions and migration deposits
-              are complete.
+              A wallet operation is unresolved. Check its confirmation above
+              before preparing another operation.
             </p>
           )}
           <p>
