@@ -13,70 +13,70 @@ const short = (value) =>
 
 const stageDetails = {
   check: {
-    title: "Проверяем старую позицию",
-    body: "Читаем доли и состояние контракта. До завершения проверки баланс неизвестен.",
-    action: "Повторить проверку",
+    title: "Checking your legacy position",
+    body: "Reading your shares and contract state. Your balance is unknown until the check completes.",
+    action: "Check again",
     step: 0,
   },
   withdraw: {
-    title: "Вывести средства из старого продукта",
-    body: "Подтвердите отдельную транзакцию вывода в кошельке. Полученная сумма будет определена по подтверждённой транзакции.",
-    action: "Вывести средства",
+    title: "Withdraw from the legacy product",
+    body: "Confirm a separate withdrawal transaction in your wallet. The confirmed transaction determines the amount received.",
+    action: "Withdraw funds",
     step: 0,
   },
   withdraw_pending: {
-    title: "Ожидаем подтверждение вывода",
-    body: "Проверяем транзакцию и фактическое получение USDC. Повторный вывод не требуется, пока результат этой операции неизвестен.",
+    title: "Waiting for withdrawal confirmation",
+    body: "Checking the transaction and USDC received. Wait until this operation is verified before withdrawing again.",
     step: 0,
   },
   base: {
-    title: "Подготовить USDC в сети Base",
-    body: "Если вывод выполнен в Arbitrum, самостоятельно переведите native USDC на свой кошелёк в Base. Затем обновите проверку поступления средств.",
-    action: "Проверить поступление в Base",
+    title: "Prepare your USDC on Base",
+    body: "If you withdrew on Arbitrum, transfer native USDC to your own wallet on Base, then check that the funds have arrived.",
+    action: "Check funds on Base",
     step: 1,
   },
   approve: {
-    title: "Разрешить использование USDC в Base",
-    body: "Approve разрешает новому контракту использовать выбранную сумму USDC. Для депозита потребуется отдельное подтверждение.",
-    action: "Подтвердить approve в Base",
+    title: "Approve USDC on Base",
+    body: "Approval lets the new contract use the selected USDC amount. The deposit requires a separate confirmation.",
+    action: "Approve USDC on Base",
     step: 2,
   },
   deposit: {
-    title: "Внести средства в новый контракт",
-    body: "Подтвердите заявку на депозит USDC в Base. Доли станут доступны после расчёта эпохи и отдельного получения.",
-    action: "Подтвердить депозит в Base",
+    title: "Deposit into the new contract",
+    body: "Confirm your USDC deposit request on Base. Shares become available after the epoch settles and a separate claim.",
+    action: "Confirm deposit on Base",
     step: 3,
   },
   deposit_pending: {
-    title: "Ожидаем подтверждение депозита",
-    body: "Проверяем отправленную заявку. После перезагрузки продолжайте с этой транзакции; повторять депозит не нужно.",
+    title: "Waiting for deposit confirmation",
+    body: "Checking your submitted request. After a reload, continue with this transaction without repeating the deposit.",
     step: 3,
   },
   settlement: {
-    title: "Ожидаем расчёт эпохи",
-    body: "USDC находятся в заявке нового контракта. После расчёта эпохи здесь появится возможность получить доли.",
+    title: "Waiting for epoch settlement",
+    body: "Your USDC are in the new contract's deposit request. You can claim your shares here once the epoch settles.",
     step: 4,
   },
   claim: {
-    title: "Получить доли нового продукта",
-    body: "Депозит рассчитан. Подтвердите отдельную транзакцию получения долей в Base.",
-    action: "Получить доли в Base",
+    title: "Claim your new vault shares",
+    body: "Your deposit has settled. Confirm a separate transaction to claim your shares on Base.",
+    action: "Claim shares on Base",
     step: 4,
   },
   complete: {
-    title: "Миграция завершена",
-    body: "Завершение подтверждено состоянием блокчейна. Новая позиция доступна в кроссчейн-продукте.",
+    title: "Migration complete",
+    body: "Completion is confirmed onchain. Your new position is available in the cross-chain product.",
     step: 5,
   },
   error: {
-    title: "Нужно проверить текущий шаг",
-    body: "Обновите состояние блокчейна перед продолжением. Ошибка проверки не означает отсутствие средств.",
-    action: "Продолжить миграцию",
+    title: "Check your current step",
+    body: "Refresh the onchain state before continuing. A failed check does not mean a zero balance.",
+    action: "Continue migration",
     step: null,
   },
   recover: {
-    title: "Восстановить продолжение миграции",
-    body: "Укажите транзакцию миграции для этого кошелька. Её результат будет проверен в блокчейне.",
+    title: "Resume your migration",
+    body: "Enter a migration transaction for this wallet. Its result will be verified onchain.",
     step: null,
   },
 };
@@ -84,7 +84,7 @@ const stageDetails = {
 function TransactionLinks({ transactions }) {
   if (!transactions?.length) return null;
   return (
-    <ul className={s.transactions} aria-label="Транзакции миграции">
+    <ul className={s.transactions} aria-label="Migration transactions">
       {transactions.map((transaction, index) => (
         <li key={`${transaction.hash}-${index}`}>
           <span>{transaction.label}</span>
@@ -92,7 +92,7 @@ function TransactionLinks({ transactions }) {
             href={`${transaction.explorer}/tx/${transaction.hash}`}
             target="_blank"
             rel="noreferrer"
-            aria-label={`${transaction.label}: ${transaction.hash}, открыть обозреватель`}
+            aria-label={`${transaction.label}: ${transaction.hash}, open block explorer`}
           >
             {short(transaction.hash)} ↗
           </a>
@@ -119,11 +119,11 @@ function MigrationProduct({ product, model }) {
   );
   const editableAmount = ["approve", "deposit", "base"].includes(product.stage);
   const steps = [
-    `Вывод · ${withdrawNetwork}`,
-    "Средства в Base",
+    `Withdraw · ${withdrawNetwork}`,
+    "Funds on Base",
     "Approve · Base",
-    "Депозит · Base",
-    "Расчёт и получение долей",
+    "Deposit · Base",
+    "Settle and claim shares",
   ];
   const headingId = `migration-${product.id}`;
   const amountId = `${headingId}-amount`;
@@ -144,12 +144,12 @@ function MigrationProduct({ product, model }) {
     return (
       <article className={s.product} aria-labelledby={headingId}>
         <div className={s.productHeader}>
-          <h3 id={headingId}>Миграция из {withdrawNetwork} завершена</h3>
+          <h3 id={headingId}>Migration from {withdrawNetwork} complete</h3>
           <span className={s.network}>Base · 8453</span>
         </div>
         <p className={s.meta} role="status">
-          Новая позиция подтверждена в блокчейне и доступна в
-          кроссчейн-продукте.
+          Your new position is confirmed onchain and available in the
+          cross-chain product.
         </p>
         <TransactionLinks transactions={product.txs} />
       </article>
@@ -159,10 +159,10 @@ function MigrationProduct({ product, model }) {
     <article className={s.product} aria-labelledby={headingId}>
       <div className={s.productHeader}>
         <div>
-          {!oldClosed && <span className={s.eyebrow}>Старый продукт</span>}
+          {!oldClosed && <span className={s.eyebrow}>Legacy product</span>}
           <h3 id={headingId}>
             {oldClosed
-              ? `Продолжить миграцию из ${withdrawNetwork}`
+              ? `Continue migration from ${withdrawNetwork}`
               : `USDC · ${withdrawNetwork}`}
           </h3>
         </div>
@@ -174,7 +174,7 @@ function MigrationProduct({ product, model }) {
       <dl className={s.balances}>
         {!oldClosed && (
           <div>
-            <dt>Осталось в старом продукте</dt>
+            <dt>Remaining in legacy product</dt>
             <dd>
               {ready ? units(product.assets) : "—"} <small>USDC</small>
             </dd>
@@ -182,13 +182,13 @@ function MigrationProduct({ product, model }) {
         )}
         {!oldClosed && (
           <div>
-            <dt>Доли старого продукта</dt>
+            <dt>Legacy shares</dt>
             <dd>{ready ? units(product.shares) : "—"}</dd>
           </div>
         )}
         {product.amount != null && (
           <div>
-            <dt>Осталось внести после вывода</dt>
+            <dt>Remaining to deposit after withdrawal</dt>
             <dd>
               {units(product.amount)} <small>USDC</small>
             </dd>
@@ -199,12 +199,12 @@ function MigrationProduct({ product, model }) {
       {!ready && (
         <p className={s.notice} role="status">
           {product.positionStatus === "error"
-            ? "Состояние старой позиции неизвестно: не удалось прочитать контракт."
-            : "Проверяем старую позицию в блокчейне…"}
+            ? "Your legacy position is unknown: the contract could not be read."
+            : "Checking your legacy position onchain…"}
         </p>
       )}
 
-      <ol className={s.steps} aria-label="Шаги миграции">
+      <ol className={s.steps} aria-label="Migration steps">
         {steps.map((step, index) => (
           <li
             key={step}
@@ -234,30 +234,30 @@ function MigrationProduct({ product, model }) {
         </div>
         <p role="status">
           {product.stage === "base" && product.chainId === 8453
-            ? "Проверим native USDC на вашем кошельке в Base после подтверждённого вывода."
+            ? "Checking native USDC in your Base wallet after the confirmed withdrawal."
             : details.body}
         </p>
 
         {product.stage === "base" && product.chainId !== 8453 && (
           <div className={s.transfer}>
-            <strong>Получатель — ваш кошелёк в Base</strong>
+            <strong>Recipient: your own wallet on Base</strong>
             <code>{model.owner}</code>
             <p>
-              Перевод выполняется самостоятельно. Для продолжения нужен native
-              USDC в Base, а также ETH для комиссии.
+              Transfer the funds yourself. To continue, you need native USDC on
+              Base and ETH for transaction fees.
             </p>
           </div>
         )}
 
         {product.cash != null && editableAmount && (
           <p className={s.meta}>
-            Доступно в кошельке Base: {units(product.cash)} USDC
+            Available in your Base wallet: {units(product.cash)} USDC
           </p>
         )}
 
         {editableAmount && typeof product.setAmountInput === "function" && (
           <div className={s.amountField}>
-            <label htmlFor={amountId}>Сумма депозита в Base, USDC</label>
+            <label htmlFor={amountId}>Deposit amount on Base, USDC</label>
             <div className={s.amountInput}>
               <input
                 id={amountId}
@@ -275,12 +275,12 @@ function MigrationProduct({ product, model }) {
                 disabled={Boolean(model.busy) || maximum == null}
                 onClick={() => product.setAmountInput(units(maximum))}
               >
-                Максимум
+                Max
               </button>
             </div>
             <p className={s.meta} id={`${amountId}-help`}>
-              До 6 знаков после точки. Можно внести часть средств и продолжить
-              позже.
+              Up to 6 decimal places. You can deposit part of your funds and
+              continue later.
             </p>
           </div>
         )}
@@ -288,8 +288,8 @@ function MigrationProduct({ product, model }) {
         {["approve", "deposit"].includes(product.stage) && (
           <p>
             <strong>
-              Выбрано для{" "}
-              {product.stage === "approve" ? "разрешения" : "депозита"}:{" "}
+              Selected for{" "}
+              {product.stage === "approve" ? "approval" : "deposit"}:{" "}
               {units(selectedAmount)} USDC · Base
             </strong>
           </p>
@@ -301,8 +301,8 @@ function MigrationProduct({ product, model }) {
               <div>
                 <dt>
                   {product.stage === "approve"
-                    ? "Получатель разрешения"
-                    : "Контракт депозита"}{" "}
+                    ? "Approval recipient"
+                    : "Deposit contract"}{" "}
                   · Base
                 </dt>
                 <dd>
@@ -328,7 +328,7 @@ function MigrationProduct({ product, model }) {
 
         {product.requestId != null && (
           <p className={s.meta}>
-            Заявка нового контракта: #{String(product.requestId)}
+            New vault request: #{String(product.requestId)}
           </p>
         )}
         {error && (
@@ -354,8 +354,8 @@ function MigrationProduct({ product, model }) {
         )}
         {pending && (
           <p className={s.meta}>
-            Статус обновляется по блокчейну. Хеш операции сохранён для
-            продолжения.
+            Status is checked onchain. The transaction hash is saved so you can
+            continue later.
           </p>
         )}
       </div>
@@ -365,9 +365,9 @@ function MigrationProduct({ product, model }) {
       {product.recovery && typeof product.retry === "function" && (
         <div className={s.recovery}>
           <p>
-            Если страница была перезагружена во время подписи или кошелёк не
-            вернул хеш, повторно откройте сохранённый запрос. Он использует тот
-            же nonce и сможет исполниться только один раз.
+            If you reloaded while signing or your wallet did not return a hash,
+            reopen the saved request. It uses the same nonce and can execute
+            only once.
           </p>
           <button
             type="button"
@@ -375,10 +375,10 @@ function MigrationProduct({ product, model }) {
             onClick={product.retry}
             disabled={Boolean(model.busy || model.loading)}
           >
-            Повторить запрос кошельку
+            Reopen wallet request
           </button>
           <p className={s.meta}>
-            Сеть:{" "}
+            Network:{" "}
             {product.pendingChainId === 42161
               ? "Arbitrum · 42161"
               : "Base · 8453"}{" "}
@@ -390,12 +390,12 @@ function MigrationProduct({ product, model }) {
       {(product.recovery || product.allowImport) &&
         typeof product.recover === "function" && (
           <details className={s.recovery} open={product.recovery || undefined}>
-            <summary>Продолжить по хешу транзакции</summary>
+            <summary>Continue with a transaction hash</summary>
             <p>
-              Укажите хеш операции миграции. Проверим кошелёк, контракт и
-              результат операции перед продолжением.
+              Enter a migration transaction hash. We will verify the wallet,
+              contract and transaction result before continuing.
             </p>
-            <label htmlFor={recoveryId}>Хеш транзакции миграции</label>
+            <label htmlFor={recoveryId}>Migration transaction hash</label>
             <input
               id={recoveryId}
               type="text"
@@ -414,7 +414,7 @@ function MigrationProduct({ product, model }) {
               onClick={product.recover}
               disabled={Boolean(model.busy) || !product.recoveryHash?.trim()}
             >
-              Проверить транзакцию
+              Check transaction
             </button>
           </details>
         )}
@@ -426,7 +426,7 @@ function MigrationProduct({ product, model }) {
           target="_blank"
           rel="noreferrer"
         >
-          Старый контракт: {short(product.address)} ↗
+          Legacy contract: {short(product.address)} ↗
         </a>
       )}
     </article>
@@ -443,8 +443,8 @@ export default function MigrationPanel({ model }) {
   return (
     <section
       className={s.panel}
-      aria-label="Миграция в кроссчейн-продукт"
-      lang="ru"
+      aria-label="Migrate to the cross-chain product"
+      lang="en"
       aria-busy={Boolean(model.loading)}
     >
       {!allComplete && (
@@ -453,11 +453,11 @@ export default function MigrationPanel({ model }) {
             ↗
           </div>
           <div>
-            <h2>Выполнить миграцию</h2>
+            <h2>Migrate your funds</h2>
             <p>
-              Выведите средства из старого продукта и внесите их в новый
-              кроссчейн-контракт через Base. Каждый перевод подтверждается
-              отдельно в вашем кошельке.
+              Withdraw from the legacy product and deposit into the new
+              cross-chain contract through Base. Confirm each transaction
+              separately in your wallet.
             </p>
           </div>
           <button
@@ -466,7 +466,7 @@ export default function MigrationPanel({ model }) {
             onClick={model.refresh}
             disabled={Boolean(model.loading || model.busy)}
           >
-            {model.loading ? "Проверяем…" : "Обновить статус"}
+            {model.loading ? "Checking…" : "Refresh status"}
           </button>
         </div>
       )}
@@ -482,8 +482,8 @@ export default function MigrationPanel({ model }) {
       )}
       {model.loading && !products.length && (
         <p className={s.notice} role="status">
-          Проверяем старые контракты для подключённого кошелька. Баланс пока
-          неизвестен.
+          Checking legacy contracts for your connected wallet. Your balance is
+          still unknown.
         </p>
       )}
       <div className={s.products}>

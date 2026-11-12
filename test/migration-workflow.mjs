@@ -211,14 +211,17 @@ test("adapter blocks new requests for stale/frozen valuation and backend errors;
     const f = fixture();
     Object.assign(f.state, patch);
     await withAdapter(f, async () => {
-      await assert.rejects(migrationDestination.check("deposit"), /недоступен/);
+      await assert.rejects(
+        migrationDestination.check("deposit"),
+        /unavailable/,
+      );
       await migrationDestination.check("claim");
     });
   }
   const f = fixture();
   await withAdapter(f, async () => {
     globalThis.fetch = async () => new Response("offline", { status: 503 });
-    await assert.rejects(migrationDestination.check("deposit"), /Backend/);
+    await assert.rejects(migrationDestination.check("deposit"), /backend/);
     assert.equal(f.state.writes.length, 0);
   });
 });

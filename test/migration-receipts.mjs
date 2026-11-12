@@ -146,7 +146,7 @@ test("separately confirms exact approval spender and claim call", async () => {
   });
   await assert.rejects(
     confirmMigrationOperation(approval.client, destination, owner, hash),
-    /разрешения/,
+    /approval recipient/,
   );
 });
 
@@ -317,7 +317,7 @@ test("reverted and unconfirmed receipts are distinct and RPC failure stays an er
   pending.receipt.status = "pending";
   await assert.rejects(
     confirmMigrationOperation(pending.client, destination, owner, hash),
-    /Подтверждение/,
+    /not confirmed/,
   );
   const rpc = fixture();
   const failure = new Error("RPC offline");
@@ -354,7 +354,7 @@ test("same-nonce cancellation is recoverable but another nonce cannot clear pend
       hash,
       cancelled.intent,
     ),
-    /Подтверждение/,
+    /not confirmed/,
   );
   const otherNonce = fixture();
   otherNonce.transaction.nonce = 8;
@@ -396,6 +396,6 @@ test("same-nonce cancellation is recoverable but another nonce cannot clear pend
       hash,
       unverified.intent,
     ),
-    /операции/,
+    /saved operation/,
   );
 });

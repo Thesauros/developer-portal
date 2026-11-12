@@ -75,7 +75,8 @@ export default function useMigrationAccount(destination) {
     return parseMigration(localStorage.getItem(key), owner);
   }
   function update(id, change) {
-    if (currentKey.current !== key) throw new Error("Кошелёк изменился.");
+    if (currentKey.current !== key)
+      throw new Error("Your connected wallet changed.");
     const value = journal();
     const record = migrationRecord(value, id);
     const next = {
@@ -130,7 +131,7 @@ export default function useMigrationAccount(destination) {
                 status: "error",
                 error: error.userFacing
                   ? error.message
-                  : "RPC не смог проверить старую позицию.",
+                  : "The RPC could not verify your legacy position.",
               };
             }
             const withdrawals = [],
@@ -153,12 +154,12 @@ export default function useMigrationAccount(destination) {
                   hash,
                 );
                 if (deposit.kind !== "deposit")
-                  throw new Error("Сохранённая заявка не является депозитом.");
+                  throw new Error("The saved request is not a deposit.");
                 deposits.push(deposit);
               }
             } catch {
               verificationError =
-                "Не удалось проверить историю миграции. Операции приостановлены до проверки подтверждений.";
+                "Migration history could not be verified. Operations are paused until transaction confirmations can be checked.";
             }
             return [
               vault.id,
@@ -176,7 +177,7 @@ export default function useMigrationAccount(destination) {
           base = await destination.readUser(owner, [...new Set(ids)]);
         } catch {
           baseError =
-            "Не удалось проверить новый контракт и баланс USDC в Base.";
+            "The new contract and your USDC balance on Base could not be verified.";
         }
         if (active && currentKey.current === key) {
           setStorageError("");
@@ -185,7 +186,7 @@ export default function useMigrationAccount(destination) {
       } catch {
         if (active && currentKey.current === key)
           setStorageError(
-            "Хранилище миграции недоступно или повреждено. Подпись отключена. Сохраните хеши транзакций.",
+            "Migration storage is unavailable or invalid. Signing is disabled. Keep your transaction hashes.",
           );
       } finally {
         running = false;
@@ -240,7 +241,7 @@ export default function useMigrationAccount(destination) {
       verificationError:
         row?.verificationError ||
         (missingRequest
-          ? "Не удалось проверить состояние заявки депозита."
+          ? "The deposit request status could not be verified."
           : ""),
     });
   }
@@ -267,7 +268,7 @@ export default function useMigrationAccount(destination) {
       );
     else {
       setStorageError(
-        "Для безопасной подписи нужен браузер с Web Locks API. Откройте приложение в актуальном Chrome, Safari или Firefox.",
+        "Safe signing requires a browser with Web Locks support. Open the app in an up-to-date Chrome, Safari or Firefox browser.",
       );
     }
   }
@@ -280,7 +281,7 @@ export default function useMigrationAccount(destination) {
       const tx = await client.getTransaction({ hash });
       if (pending.nonce != null && tx.nonce !== pending.nonce)
         throw new Error(
-          "Транзакция использует другой nonce и не заменяет ожидающую операцию.",
+          "This transaction uses a different nonce and does not replace the pending operation.",
         );
       if (!same(tx.input, pending.data) || !same(tx.to, pending.address)) {
         const receipt = await client.getTransactionReceipt({ hash });
@@ -300,11 +301,11 @@ export default function useMigrationAccount(destination) {
             receipt.blockNumber ||
           (await client.getChainId()) !== vault.chainId
         )
-          throw new Error("Хеш не соответствует сохранённой операции.");
+          throw new Error("The hash does not match the saved operation.");
         update(vault.id, (record) => ({ ...record, pending: null }));
         message(
           vault.id,
-          "Вывод отменён или заменён другой операцией. Баланс будет проверен заново.",
+          "The withdrawal was cancelled or replaced by another operation. Your balance will be checked again.",
         );
         return;
       }
@@ -324,7 +325,7 @@ export default function useMigrationAccount(destination) {
           update(vault.id, (record) => ({ ...record, pending: null }));
           message(
             vault.id,
-            "Вывод отклонён контрактом. Можно повторить после проверки позиции.",
+            "The withdrawal reverted. You can retry after checking your position.",
           );
           return;
         }
@@ -337,7 +338,7 @@ export default function useMigrationAccount(destination) {
       }));
       message(
         vault.id,
-        "Вывод подтверждён. Поступление USDC в ваш кошелёк проверено.",
+        "Withdrawal confirmed. Receipt of USDC in your wallet has been verified.",
       );
     } else {
       if (same(hash, pending.hash) && pending.nonce == null) {
@@ -361,7 +362,7 @@ export default function useMigrationAccount(destination) {
         pending,
       );
       if (result.kind && result.kind !== pending.kind)
-        throw new Error("Неверный вид операции.");
+        throw new Error("The operation type does not match.");
       // A request is reserved to one legacy product; the same receipt cannot
       // account for proceeds from two independent positions.
       const saved = journal();
@@ -372,7 +373,9 @@ export default function useMigrationAccount(destination) {
             id !== vault.id && row.deposits.some((value) => same(value, hash)),
         )
       )
-        throw new Error("Этот депозит уже относится к другой миграции.");
+        throw new Error(
+          "This deposit is already assigned to another migration.",
+        );
       update(vault.id, (record) => ({
         ...record,
         deposits:
@@ -394,14 +397,14 @@ export default function useMigrationAccount(destination) {
       message(
         vault.id,
         result.cancelled
-          ? "Операция заменена или отменена."
+          ? "The operation was replaced or cancelled."
           : result.reverted
-            ? "Транзакция отклонена контрактом. Проверьте данные и повторите."
+            ? "The transaction reverted. Check the details and try again."
             : result.kind === "approve"
-              ? "Approve подтверждён. Депозит требует отдельного подтверждения."
+              ? "Approval confirmed. The deposit requires a separate confirmation."
               : result.kind === "deposit"
-                ? "USDC внесены. Ожидайте расчёта эпохи, затем получите доли через claim."
-                : "Claim подтверждён. Состояние долей обновляется.",
+                ? "USDC deposited. Wait for epoch settlement, then claim your shares."
+                : "Claim confirmed. Your share balance is being updated.",
       );
     }
   }
@@ -412,7 +415,7 @@ export default function useMigrationAccount(destination) {
         const pending = migrationRecord(journal(), vault.id).pending;
         const hash = hashes[vault.id] || pending?.hash;
         if (!migrationHash(hash))
-          throw new Error("Укажите хеш транзакции из кошелька.");
+          throw new Error("Enter the transaction hash from your wallet.");
         if (pending) await settle(vault, pending, hash);
         else {
           await confirmMigrationWithdrawal(
@@ -429,7 +432,7 @@ export default function useMigrationAccount(destination) {
           }));
           message(
             vault.id,
-            "Вывод найден в блокчейне. Можно продолжить миграцию.",
+            "The withdrawal was verified on chain. You can continue your migration.",
           );
         }
       } catch (error) {
@@ -437,7 +440,7 @@ export default function useMigrationAccount(destination) {
           vault.id,
           error.userFacing
             ? error.message
-            : "Транзакция пока не подтверждена или не соответствует миграции. Проверьте кошелёк и повторите проверку.",
+            : "The transaction is not confirmed yet or does not match this migration. Check your wallet and retry the check.",
         );
       }
     });
@@ -449,7 +452,9 @@ export default function useMigrationAccount(destination) {
       try {
         const saved = journal();
         if (Object.values(saved.products).some((row) => row.pending))
-          throw new Error("Сначала проверьте незавершённую транзакцию.");
+          throw new Error(
+            "Check the unresolved transaction before continuing.",
+          );
         const current = derive(vault);
         if (!current.canAct || storageError) return;
         const kind = current.stage === "withdraw" ? "withdraw" : current.stage;
@@ -457,7 +462,8 @@ export default function useMigrationAccount(destination) {
         const network = kind === "withdraw" ? vault.chain : destination.chain;
         if (connected.chainId !== network.id)
           await switchChainAsync({ chainId: network.id });
-        if (currentKey.current !== key) throw new Error("Кошелёк изменился.");
+        if (currentKey.current !== key)
+          throw new Error("Your connected wallet changed.");
         const provider = await connected.connector.getProvider({
           chainId: network.id,
         });
@@ -474,10 +480,10 @@ export default function useMigrationAccount(destination) {
             owner.toLowerCase();
           if (localStorage.getItem(crosschainKey))
             throw new Error(
-              "В новом продукте уже есть неподтверждённая операция. Сначала проверьте её статус.",
+              "The new product already has an unconfirmed operation. Check its status first.",
             );
           if (Object.values(latest.products).some((row) => row.pending))
-            throw new Error("Операция уже ожидает подтверждения.");
+            throw new Error("An operation is already awaiting confirmation.");
           const observed = state.products[vault.id]?.record;
           const now = migrationRecord(latest, vault.id);
           if (
@@ -493,7 +499,7 @@ export default function useMigrationAccount(destination) {
             ])
           )
             throw new Error(
-              "Миграция изменилась в другой вкладке. Обновите данные.",
+              "The migration changed in another tab. Refresh your data.",
             );
           update(vault.id, (record) => ({
             ...record,
@@ -506,14 +512,17 @@ export default function useMigrationAccount(destination) {
             },
           }));
           signing = true;
-          message(vault.id, "Подтвердите отдельную транзакцию в кошельке.");
+          message(
+            vault.id,
+            "Confirm this separate transaction in your wallet.",
+          );
         };
         const saveHash = async (hash) => {
           update(vault.id, (record) => ({
             ...record,
             pending: { ...record.pending, hash },
           }));
-          message(vault.id, "Транзакция отправлена. Ожидается подтверждение.");
+          message(vault.id, "Transaction submitted. Waiting for confirmation.");
           refresh();
           try {
             const tx = await vaultClients[
@@ -564,7 +573,7 @@ export default function useMigrationAccount(destination) {
                 (await wallet.getChainId()) !== vault.chainId
               )
                 throw new Error(
-                  "Кошелёк или сеть изменились. Проверьте операцию заново.",
+                  "Your wallet or network changed. Review the operation again.",
                 );
               saveIntent({
                 address: request.address,
@@ -603,9 +612,9 @@ export default function useMigrationAccount(destination) {
         message(
           vault.id,
           rejected(error)
-            ? "Подпись отменена. Можно продолжить с текущего шага."
+            ? "Signature cancelled. You can continue from the current step."
             : signing
-              ? "Результат операции требует проверки. Используйте хеш из кошелька; повторная отправка заблокирована."
+              ? "The operation result needs verification. Use the hash from your wallet; a new submission is blocked."
               : error.userFacing
                 ? friendlyTransactionError(error)
                 : error.shortMessage || error.message,
@@ -645,7 +654,7 @@ export default function useMigrationAccount(destination) {
             }));
             message(
               vault.id,
-              "Запрос отправлен с тем же nonce. Ожидаем подтверждения единственной операции.",
+              "The request was submitted with the same nonce. Waiting for confirmation of the single operation.",
             );
           },
         });
@@ -654,12 +663,12 @@ export default function useMigrationAccount(destination) {
         message(
           vault.id,
           rejected(error)
-            ? "Повторный запрос подписи отменён. Сохранённая операция остаётся доступной для проверки или повтора."
+            ? "The retry signature was cancelled. The saved operation remains available to check or retry."
             : error.code === "NONCE_CONSUMED"
-              ? "Этот nonce уже использован. Укажите хеш подтверждённой операции или её замены для восстановления."
+              ? "This nonce has already been used. Enter the confirmed operation or replacement hash to recover it."
               : error.userFacing
                 ? error.message
-                : "Подтверждение пока недоступно. Операция сохранена; повтор с тем же nonce не создаст второй депозит или вывод.",
+                : "Confirmation is not available yet. The operation is saved; retrying with the same nonce cannot create a second deposit or withdrawal.",
         );
       }
     });
@@ -696,8 +705,8 @@ export default function useMigrationAccount(destination) {
               label: row?.withdrawals.some((withdrawal) =>
                 same(withdrawal.hash, hash),
               )
-                ? "Вывод подтверждён"
-                : "Вывод · требуется проверка",
+                ? "Withdrawal confirmed"
+                : "Withdrawal · verification needed",
               explorer: vault.explorer,
             })),
             ...(row?.record.actions || []).map((action) => ({
@@ -708,14 +717,14 @@ export default function useMigrationAccount(destination) {
             })),
             ...(row?.record.deposits || []).map((hash) => ({
               hash,
-              label: "Заявка депозита",
+              label: "Deposit request",
               explorer: destination?.config.explorer,
             })),
             ...(pending?.hash
               ? [
                   {
                     hash: pending.hash,
-                    label: "Ожидает проверки",
+                    label: "Awaiting verification",
                     explorer:
                       pending.chainId === 8453
                         ? destination?.config.explorer

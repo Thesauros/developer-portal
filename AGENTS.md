@@ -8,6 +8,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Interface language
+
+All user-facing application copy must be English, including transaction states,
+error messages, recovery instructions and accessibility labels.
+
 ## CTO Skill
 
 This project uses the CTO skill at `.cto-skill/`.
