@@ -324,7 +324,7 @@ test("wrong RPC network and changed implementation stop before simulation", asyn
       },
       1n,
     ),
-    /implementation has changed/,
+    /contract code has changed/,
   );
 });
 test("a hash alone, reverted transaction or unrelated receipt is never success", () => {

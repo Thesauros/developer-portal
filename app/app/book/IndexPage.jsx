@@ -274,7 +274,7 @@ export function IndexComparison({ book, compact = false }) {
       {!compact && verdict && days !== 30 && (
         <p className={b.verdictLine}>
           {days ? `Over ${days} days` : "Over the whole period"}: Thesauros{" "}
-          {pct(verdict.ours)}, the index{" "}
+          {pct(verdict.ours)}, the Market Average{" "}
           {pct(verdict.index)}, <VsIndex diff={verdict.gap} />. The table is
           over 30 days.
         </p>
@@ -324,7 +324,7 @@ export function IndexComparison({ book, compact = false }) {
               local={split}
               total={split.total}
               days={days}
-              curated={curatedShare(book.products[0]?.vaults || [])}
+              curated={curatedShare(book.vaults)}
             />
           </details>
         ) : (
@@ -332,12 +332,13 @@ export function IndexComparison({ book, compact = false }) {
             local={split}
             total={split.total}
             days={days}
-            curated={curatedShare(book.products[0]?.vaults || [])}
+            curated={curatedShare(book.vaults)}
           />
         ))}
       <MeasureNote>
-        Thesauros: the USDC vaults large enough to measure, weighted by size,
-        from share prices. Index: what its markets paid, weighted by size.{" "}
+        Thesauros: every Thesauros USDC vault, the current one and the ones
+        before it, chained day by day and weighted by the money each held, from
+        share prices. Market Average: what its markets paid, weighted by size.{" "}
         {referenceNote(index)} Interest only, before fees.
       </MeasureNote>
     </div>

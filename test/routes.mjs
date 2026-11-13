@@ -182,14 +182,40 @@ try {
     (await request("/api/vaults/keys")).status === 404,
     "public vault routes reject anything unlisted",
   );
+  {
+    const earn = await request("/app/individual/earn");
+    check(earn.status === 200, "Earn opens without a session");
+    check(
+      (await earn.text()).includes("<title>Thesauros · Earn</title>"),
+      "Earn names itself in the tab",
+    );
+  }
+  for (const old of ["vaults", "vaults/usdc-multichain", "vaults/arbitrum", "vaults/usdc-instant"])
+    check(
+      (await request("/app/individual/" + old)).status === 200,
+      `the old address /${old} still opens the product`,
+    );
+  {
+    const move = await request("/app/individual/move");
+    check(move.status === 200, "the move from a previous vault opens without a session");
+    check(
+      (await move.text()).includes("Move to the new vault"),
+      "the move names itself in the tab",
+    );
+  }
   check(
-    (await request("/app/individual/vaults/arbitrum")).status === 200,
-    "a vault page opens without a session",
+    (await request("/api/migration/rpc/base", { jsonrpc: "2.0", id: 1, method: "eth_chainId" }))
+      .status === 401,
+    "the read-only RPC proxy requires a session",
   );
-  check(
-    (await request("/app/individual/vaults/ethereum")).status === 200,
-    "the Ethereum vault has a page",
-  );
+  {
+    const version = await request("/api/version");
+    check(
+      [200, 503].includes(version.status) &&
+        version.headers.get("cache-control") === "no-store",
+      "the version endpoint answers and is never cached",
+    );
+  }
   check(
     (await request("/app/individual/market-average")).status === 200,
     "the Market Average opens without a session",

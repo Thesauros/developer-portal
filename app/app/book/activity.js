@@ -70,7 +70,7 @@ export function mineLedger({ mine, account, batch }) {
 export const vaultNamer = (book) => (id) => {
   const vault = book.byId[id];
   if (!vault) return "";
-  return vault.kind === "batch" ? vault.title : `${vault.title}, ${vault.place}`;
+  return vault.previous ? `${vault.title}, previous vault` : vault.title;
 };
 
 export function ledgerCsv(rows, name) {

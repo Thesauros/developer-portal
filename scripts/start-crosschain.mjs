@@ -20,7 +20,6 @@ if (!existsSync(settings)) {
       "THESAUROS_NEXT_DIST=.next-crosschain",
       "NEXT_PUBLIC_API_BASE=/api/v1",
       "NEXT_PUBLIC_DATA_SOURCE=sandbox",
-      "NEXT_PUBLIC_THESAUROS_PRODUCT=crosschain",
       "NEXT_TELEMETRY_DISABLED=1",
       "",
     ].join("\n"),

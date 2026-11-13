@@ -9,7 +9,7 @@ import {
   formatUnits,
 } from "viem";
 import {
-  vaults,
+  vaults as everyVault,
   friendlyTransactionError,
 } from "../../lib/vault-contracts.mjs";
 import { vaultClients } from "../../lib/vault-rpc.mjs";
@@ -24,6 +24,7 @@ import {
 import { confirmMigrationOperation } from "../../lib/migration-receipts.mjs";
 import { retryMigrationIntent } from "../../lib/migration-retry.mjs";
 import {
+  MIGRATION_VAULT_IDS,
   migrationKey,
   parseMigration,
   migrationRecord,
@@ -32,6 +33,10 @@ import {
   partitionMigrationDisplay,
 } from "../../lib/migration-state.mjs";
 
+// The registry lists a vault on every network; the move covers two of them.
+const vaults = everyVault.filter((vault) =>
+  MIGRATION_VAULT_IDS.includes(vault.id),
+);
 const inFlight = new Set();
 const same = (a, b) => a?.toLowerCase() === b?.toLowerCase();
 const rejected = (failure) => {
@@ -89,9 +94,11 @@ export default function useMigrationAccount(destination) {
     parseMigration(localStorage.getItem(key), owner);
     return next;
   }
-  const message = (id, value) => {
+  // What the last action did, in words. A failure is told apart from progress
+  // so a screen never shows "confirmed" in the colour of an error.
+  const message = (id, value, tone = "info") => {
     if (currentKey.current === key)
-      setMessages((previous) => ({ ...previous, [id]: value }));
+      setMessages((previous) => ({ ...previous, [id]: { text: value, tone } }));
   };
 
   useEffect(() => {
@@ -132,7 +139,7 @@ export default function useMigrationAccount(destination) {
                 status: "error",
                 error: error.userFacing
                   ? error.message
-                  : "The RPC could not verify your legacy position.",
+                  : "The network could not be read to check your position in the previous vault.",
               };
             }
             const withdrawals = [],
@@ -160,7 +167,7 @@ export default function useMigrationAccount(destination) {
               }
             } catch {
               verificationError =
-                "Migration history could not be verified. Operations are paused until transaction confirmations can be checked.";
+                "The transactions of this move could not be checked. Steps are paused until they can.";
             }
             return [
               vault.id,
@@ -178,7 +185,7 @@ export default function useMigrationAccount(destination) {
           base = await destination.readUser(owner, [...new Set(ids)]);
         } catch {
           baseError =
-            "The new contract and your USDC balance on Base could not be verified.";
+            "The vault and your USDC balance on Base could not be read.";
         }
         if (active && currentKey.current === key) {
           setStorageError("");
@@ -187,7 +194,7 @@ export default function useMigrationAccount(destination) {
       } catch {
         if (active && currentKey.current === key)
           setStorageError(
-            "Migration storage is unavailable or invalid. Signing is disabled. Keep your transaction hashes.",
+            "This browser's storage is unavailable or damaged, so signing is disabled. Keep your transaction hashes.",
           );
       } finally {
         running = false;
@@ -328,6 +335,7 @@ export default function useMigrationAccount(destination) {
           message(
             vault.id,
             "The withdrawal reverted. You can retry after checking your position.",
+            "error",
           );
           return;
         }
@@ -376,7 +384,7 @@ export default function useMigrationAccount(destination) {
         )
       )
         throw new Error(
-          "This deposit is already assigned to another migration.",
+          "This deposit already belongs to the move from another previous vault.",
         );
       update(vault.id, (record) => ({
         ...record,
@@ -403,10 +411,11 @@ export default function useMigrationAccount(destination) {
           : result.reverted
             ? "The transaction reverted. Check the details and try again."
             : result.kind === "approve"
-              ? "Approval confirmed. The deposit requires a separate confirmation."
+              ? "Approval confirmed. Requesting the deposit is a separate confirmation."
               : result.kind === "deposit"
-                ? "USDC deposited. Wait for epoch settlement, then claim your shares."
-                : "Claim confirmed. Your share balance is being updated.",
+                ? "Deposit requested. When the batch settles, collect your shares."
+                : "Shares collected. Your balance is updating.",
+        result.reverted ? "error" : "info",
       );
     }
   }
@@ -434,7 +443,7 @@ export default function useMigrationAccount(destination) {
           }));
           message(
             vault.id,
-            "The withdrawal was verified on chain. You can continue your migration.",
+            "The withdrawal was verified on chain. You can continue the move.",
           );
         }
       } catch (error) {
@@ -442,7 +451,8 @@ export default function useMigrationAccount(destination) {
           vault.id,
           error.userFacing
             ? error.message
-            : "The transaction is not confirmed yet or does not match this migration. Check your wallet and retry the check.",
+            : "The transaction is not confirmed yet or does not belong to this move. Check your wallet and try again.",
+          error.status === "pending" ? "info" : "error",
         );
       }
     });
@@ -482,7 +492,7 @@ export default function useMigrationAccount(destination) {
             owner.toLowerCase();
           if (localStorage.getItem(crosschainKey))
             throw new Error(
-              "The new product already has an unconfirmed operation. Check its status first.",
+              "The vault already has an unconfirmed transaction of yours. Check it first.",
             );
           if (Object.values(latest.products).some((row) => row.pending))
             throw new Error("An operation is already awaiting confirmation.");
@@ -501,7 +511,7 @@ export default function useMigrationAccount(destination) {
             ])
           )
             throw new Error(
-              "The migration changed in another tab. Refresh your data.",
+              "This move changed in another tab. Refresh to continue.",
             );
           update(vault.id, (record) => ({
             ...record,
@@ -620,6 +630,7 @@ export default function useMigrationAccount(destination) {
               : error.userFacing
                 ? friendlyTransactionError(error)
                 : error.shortMessage || error.message,
+          rejected(error) ? "info" : "error",
         );
       }
     });
@@ -638,7 +649,7 @@ export default function useMigrationAccount(destination) {
         if (localStorage.getItem(standardKey))
           throw Object.assign(
             new Error(
-              "Check the unresolved operation in the new product before retrying this migration.",
+              "Check the unconfirmed transaction in the vault before retrying this step.",
             ),
             { userFacing: true },
           );
@@ -683,6 +694,7 @@ export default function useMigrationAccount(destination) {
               : error.userFacing
                 ? error.message
                 : "Confirmation is not available yet. The operation is saved; retrying with the same nonce cannot create a second deposit or withdrawal.",
+          rejected(error) ? "info" : "error",
         );
       }
     });
@@ -756,11 +768,14 @@ export default function useMigrationAccount(destination) {
             positionError: row?.position.error,
             cash: state.base?.cash ?? null,
             minDeposit: state.base?.minDeposit ?? null,
+            // Something is wrong, as opposed to something happened.
             error:
               current.error ||
               row?.position.error ||
-              messages[vault.id] ||
+              (messages[vault.id]?.tone === "error" ? messages[vault.id].text : "") ||
               (current.stage === "check" ? state.baseError : ""),
+            message:
+              messages[vault.id]?.tone === "info" ? messages[vault.id].text : "",
             canAct:
               current.canAct &&
               !busy &&

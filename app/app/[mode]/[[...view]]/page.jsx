@@ -4,24 +4,9 @@ import { institutionSession, userSession } from "../../../../lib/auth.mjs";
 import WalletWorkspace from "../../wallet/WalletWorkspace";
 import InstitutionLogin from "../../InstitutionLogin";
 import InstitutionEmail from "../../InstitutionEmail";
-import { vaults } from "../../../../lib/vault-contracts.mjs";
-import { BATCH_VAULT_ID } from "../../../../lib/vault-facts.mjs";
-// Tabs carry the product, not the network: every vault address leads to its
-// product's page.
-const PRODUCT_TITLES = {
-  "usdc-instant": "USDC Instant",
-  "usdc-multichain": "USDC Multichain",
-  "usdt0-instant": "USDT0 Instant",
-};
-const productOfVault = (id) =>
-  id === BATCH_VAULT_ID
-    ? "usdc-multichain"
-    : vaults.find((vault) => vault.id === id)?.symbol === "USDT0"
-      ? "usdt0-instant"
-      : vaults.some((vault) => vault.id === id)
-        ? "usdc-instant"
-        : null;
 const VIEW_TITLES = {
+  earn: "Earn",
+  // Addresses from before there was one product open it.
   vaults: "Earn",
   "blue-chip-index": "Market Average",
   "market-average": "Market Average",
@@ -29,18 +14,15 @@ const VIEW_TITLES = {
   transparency: "Transparency",
   developers: "Developers",
   account: "Account",
+  move: "Move to the new vault",
 };
 export async function generateMetadata({ params }) {
   const { mode, view = [] } = await params;
-  const product =
-    view[0] === "vaults" && view[1]
-      ? PRODUCT_TITLES[view[1]] || PRODUCT_TITLES[productOfVault(view[1])]
-      : null;
-  const page = product || VIEW_TITLES[view[0]];
+  const page = VIEW_TITLES[view[0]];
   return {
     title: `Thesauros · ${page || (mode === "institution" ? "Treasury" : "Earn")}`,
     description:
-      "Stablecoin vaults that show where every dollar is, what it earns and how to get it out.",
+      "One USDC vault that lends across networks and shows where every dollar is, what it earns and how to get it out.",
     robots: { index: false, follow: false },
   };
 }

@@ -8,19 +8,20 @@ import useEarnAccount from "./useEarnAccount";
 import useInsights from "./book/useInsights";
 import InstitutionSettings from "./book/InstitutionSettings";
 import BrandLoading from "../ui/BrandLoading";
-import { buildBook, PRODUCT_IDS, productView } from "../../lib/vault-book.mjs";
-import { vaults as standardVaults } from "../../lib/vault-contracts.mjs";
-import { BATCH_VAULT_ID } from "../../lib/vault-facts.mjs";
+import { buildBook, PRODUCT } from "../../lib/vault-book.mjs";
 import { crosschain } from "../../lib/crosschain-config.mjs";
+import { migrationDestination } from "../../lib/migration-destination.mjs";
 import useBatchVault from "./book/useBatchVault";
+import useMigrationAccount from "./useMigrationAccount";
 import { usePublicResource } from "./book/parts";
 import { ConnectAction } from "./wallet/WalletAccess";
 import PortfolioPage from "./book/PortfolioPage";
-import VaultsPage from "./book/VaultsPage";
 import VaultPage from "./book/VaultPage";
 import ActivityPage from "./book/ActivityPage";
 import TransparencyPage from "./book/TransparencyPage";
 import IndexPage from "./book/IndexPage";
+import MoveNotice, { moveSummary } from "./move/MoveNotice";
+import { useFinished } from "./move/finished";
 import { vaultGuide } from "./vault-guide";
 import shell from "./workspace.module.css";
 import b from "./book/book.module.css";
@@ -30,40 +31,42 @@ const AccountSettings = dynamic(() => import("./AccountSettings"), { loading });
 const QuickGuide = dynamic(() => import("./QuickGuide"));
 const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
 
-// A build can leave the batch vault out altogether.
-const batchVaultAvailable =
-  process.env.NEXT_PUBLIC_THESAUROS_PRODUCT !== "standard";
-// Deposits into the batch vault stay closed until its contracts are ready for
-// outside money. Withdrawing, collecting and cancelling always work.
-const batchDepositsOpen =
-  process.env.NEXT_PUBLIC_THESAUROS_BATCH_DEPOSITS === "open";
+const MoveApp = dynamic(() => import("./move/MoveApp"), { loading });
+
+// Deposits follow the contract: open unless it is paused. A deployment can
+// still close them here, for example while the contracts are being changed.
+// Withdrawing, collecting and cancelling always work.
+const depositsOpen = process.env.NEXT_PUBLIC_THESAUROS_DEPOSITS !== "closed";
 
 // The sidebar on a desktop, the dock on a phone. Same sections, same order.
-const MAIN = ["overview", "vaults", "activity", "transparency"];
+const MAIN = ["overview", "earn", "activity", "transparency"];
 const TOOLS = ["index", "developers"];
 const LABELS = {
   overview: "Portfolio",
-  vaults: "Earn",
+  earn: "Earn",
   activity: "Activity",
   transparency: "Transparency",
   index: "Market Average",
   developers: "Developers",
   settings: "Account",
+  move: "Move to the new vault",
 };
 const PATHS = {
   overview: "",
-  vaults: "/vaults",
+  earn: "/earn",
   index: "/market-average",
   activity: "/activity",
   transparency: "/transparency",
   developers: "/developers",
   settings: "/account",
+  move: "/move",
 };
 // Where an old link or a section name leads now.
 const LEGACY = {
-  earn: "vaults",
-  single: "vaults",
-  crosschain: "vaults",
+  vaults: "earn",
+  vault: "earn",
+  single: "earn",
+  crosschain: "earn",
   markets: "index",
   bluechips: "index",
 };
@@ -76,7 +79,7 @@ const ICONS = {
       <rect x="14" y="12" width="7" height="9" rx="1.5" />
     </>
   ),
-  vaults: (
+  earn: (
     <>
       <rect x="3" y="4" width="18" height="16" rx="3" />
       <circle cx="12" cy="12" r="4" />
@@ -127,32 +130,25 @@ const Glyph = ({ id }) => (
     {ICONS[id]}
   </svg>
 );
-function parseRoute(pathname, mode, known) {
+function parseRoute(pathname, mode) {
   const prefix = "/app/" + mode;
   const parts = pathname.startsWith(prefix)
     ? pathname.slice(prefix.length).split("/").filter(Boolean)
     : [];
   if (!parts.length) return { view: "overview" };
+  if (parts[0] === "earn") return { view: "earn" };
+  // Addresses from before there was one product: each opens it.
   if (parts[0] === "vaults") {
     if (parts[1] === "markets") return { view: "index" };
-    if (parts[1] && known.has(parts[1])) {
-      const from = new URLSearchParams(location.search).get("from");
-      return {
-        view: "vault",
-        id: parts[1],
-        from: from && known.has(from) ? from : null,
-      };
-    }
-    return { view: "vaults" };
+    return { view: "earn", stale: true };
   }
   // The Market Average; its old address still opens it.
   if (parts[0] === "market-average" || parts[0] === "blue-chip-index") return { view: "index" };
   if (parts[0] === "account") return { view: "settings" };
-  if (["activity", "transparency", "developers"].includes(parts[0]))
+  if (["activity", "transparency", "developers", "move"].includes(parts[0]))
     return { view: parts[0] };
   return { view: "overview" };
 }
-const STANDARD_IDS = standardVaults.map((vault) => vault.id);
 
 function AccountMenu({ label, items, icon = false }) {
   const [open, setOpen] = useState(false);
@@ -205,26 +201,18 @@ function AccountMenu({ label, items, icon = false }) {
 
 export default function ProductApp({ mode = "individual", user }) {
   const institution = user?.kind === "institution";
-  const includeBatch = batchVaultAvailable;
-  const known = useMemo(
-    () =>
-      new Set([
-        ...STANDARD_IDS,
-        ...PRODUCT_IDS.filter((id) => includeBatch || id !== "usdc-multichain"),
-        ...(includeBatch ? [BATCH_VAULT_ID] : []),
-      ]),
-    [includeBatch],
-  );
   const { disconnectAsync } = useDisconnect();
   const owner = user?.walletAddress;
   const account = useEarnAccount(owner);
-  const batch = useBatchVault(user, includeBatch);
+  // The move from a previous vault reads and signs with the signed-in wallet.
+  const migration = useMigrationAccount(owner ? migrationDestination : null);
+  const batch = useBatchVault(user, true, migration);
   const market = useInsights("market", "30d", true);
   const mine = useInsights("account", "", !!owner);
   const history = usePublicResource("/api/vaults/history", {
     refreshMs: 300000,
   });
-  const [route, setRoute] = useState({ view: user ? "overview" : "vaults" });
+  const [route, setRoute] = useState({ view: user ? "overview" : "earn" });
   const [intent, setIntent] = useState(null);
   const [guide, setGuide] = useState(false);
   const guideOpener = useRef(null);
@@ -263,38 +251,27 @@ export default function ProductApp({ mode = "individual", user }) {
         indexes: history.data?.indexes || null,
         markets: history.data?.markets || null,
         networkIndexes: history.data?.networkIndexes || null,
-        includeBatch,
-        depositsOpen: batchDepositsOpen,
+        depositsOpen,
       }),
-    [
-      market.data,
-      account.vaults,
-      mine.data,
-      history.data,
-      batch.feed,
-      includeBatch,
-    ],
+    [market.data, account.vaults, mine.data, history.data, batch.feed],
+  );
+  const finished = useFinished(owner);
+  const move = useMemo(
+    () => moveSummary(migration, book.account.previous, finished),
+    [migration, book.account.previous, finished],
   );
 
   function navigate(view, id, options) {
     const target = LEGACY[view] || view;
-    let next = { view: target };
-    let path = PATHS[target];
-    if (target === "vault") {
-      if (!known.has(id)) return;
-      // A vault opens its product's page with that network chosen to deposit from.
-      const product =
-        book.products.find((item) => item.id === id) || book.productOf[id];
-      const productId = product?.id || id;
-      const from =
-        product && product.id !== id && product.vaults.length > 1 ? id : null;
-      next = { view: "vault", id: productId, from };
-      path = "/vaults/" + productId + (from ? "?from=" + from : "");
-      setIntent(options?.action ? { action: options.action, at: Date.now() } : null);
-    }
+    const path = PATHS[target];
     if (path === undefined) return;
+    setIntent(
+      target === "earn" && options?.action
+        ? { action: options.action, at: Date.now() }
+        : null,
+    );
     history_push("/app/" + mode + path);
-    setRoute(next);
+    setRoute({ view: target });
     window.scrollTo({ top: 0, behavior: "instant" });
     requestAnimationFrame(() =>
       mainRef.current?.querySelector("h1")?.focus({ preventScroll: true }),
@@ -326,10 +303,15 @@ export default function ProductApp({ mode = "individual", user }) {
           );
         }
       }
-      const parsed = parseRoute(location.pathname, mode, known);
-      setRoute(!user && parsed.view === "overview" && location.pathname === "/app/" + mode
-        ? { view: "vaults" }
-        : parsed);
+      const parsed = parseRoute(location.pathname, mode);
+      // An old vault address becomes the product's own.
+      if (parsed.stale)
+        window.history.replaceState(null, "", "/app/" + mode + PATHS.earn);
+      setRoute(
+        !user && parsed.view === "overview" && location.pathname === "/app/" + mode
+          ? { view: "earn" }
+          : { view: parsed.view },
+      );
     };
     sync();
     window.addEventListener("popstate", sync);
@@ -338,7 +320,7 @@ export default function ProductApp({ mode = "individual", user }) {
       window.removeEventListener("popstate", sync);
       window.removeEventListener("hashchange", sync);
     };
-  }, [mode, known, user]);
+  }, [mode, user]);
 
   const displayName = institution
     ? user.company || user.email
@@ -370,7 +352,7 @@ export default function ProductApp({ mode = "individual", user }) {
     guideOpener.current = event?.currentTarget || document.activeElement;
     setGuide(true);
   }
-  const section = route.view === "vault" ? "vaults" : route.view;
+  const section = route.view;
   // Activity is a wallet's own history; without one, the public record is in
   // Transparency and the menu does not offer an empty page.
   const signedIn = !!user?.walletAddress;
@@ -380,48 +362,16 @@ export default function ProductApp({ mode = "individual", user }) {
     : MAIN.filter((id) => id !== "activity" && (user || id !== "overview"));
   const dock = signedIn ? MAIN : [...main, "index"];
   const wallet = book.account.wallet;
-  // The product on the page, and the vault its deposit panel works with: the one
-  // asked for, else the one holding the person's money, else the one their
-  // wallet can fund, else the largest.
-  const product =
-    route.view === "vault"
-      ? book.products.find((item) => item.id === route.id) ||
-        book.productOf[route.id] ||
-        null
-      : null;
-  const pickedId = route.from || (book.byId[route.id] ? route.id : null);
-  const vault = product
-    ? (pickedId && product.vaults.find((item) => item.id === pickedId)) ||
-      product.vaults.find((item) => item.position.balance > 0) ||
-      product.vaults.find((item) =>
-        wallet.some(
-          (row) =>
-            row.network === item.depositNetwork && row.token === item.token,
-        ),
-      ) ||
-      product.lead
-    : null;
-  const view = useMemo(() => (product ? productView(product) : null), [product]);
   // The browser tab names the page, as the server does on a fresh load.
   useEffect(() => {
     const page =
-      route.view === "vault"
-        ? product?.title
-        : route.view === "overview" && institution
-          ? "Treasury"
-          : LABELS[route.view === "index" ? "index" : route.view];
+      route.view === "overview" && institution
+        ? "Treasury"
+        : route.view === "overview" && !user
+          ? "Earn"
+          : LABELS[route.view];
     document.title = "Thesauros · " + (page || "Earn");
-  }, [route.view, product, institution]);
-  function chooseVault(id) {
-    if (!product) return;
-    const from = id === product.lead.id ? null : id;
-    window.history.replaceState(
-      null,
-      "",
-      "/app/" + mode + "/vaults/" + product.id + (from ? "?from=" + from : ""),
-    );
-    setRoute({ view: "vault", id: product.id, from: id });
-  }
+  }, [route.view, institution, user]);
   const label = (id) =>
     id === "overview" && institution ? "Treasury" : LABELS[id];
   // Real links: they can be opened in a new tab, copied and reloaded; a plain
@@ -436,6 +386,7 @@ export default function ProductApp({ mode = "individual", user }) {
         navigate(id);
       }}
       aria-current={section === id ? "page" : undefined}
+      data-nav={id}
     >
       <Glyph id={id} />
       <span>{compact && id === "index" ? "Market avg" : label(id)}</span>
@@ -450,7 +401,7 @@ export default function ProductApp({ mode = "individual", user }) {
         </button>
       ))}
       <button role="menuitem" onClick={openGuide}>
-        How vaults work
+        How it works
       </button>
       <a role="menuitem" href={marketingHref("/contact")}>
         Contact support
@@ -466,8 +417,26 @@ export default function ProductApp({ mode = "individual", user }) {
       )}
     </>
   );
+  // Moving from a previous vault is its own small app: one job, no menu.
+  if (route.view === "move")
+    return (
+      <MoveApp
+        mode={mode}
+        user={user}
+        book={book}
+        migration={migration}
+        finished={finished}
+        account={account}
+        batch={batch}
+        displayName={displayName}
+        onBack={() => navigate(user ? "overview" : "earn")}
+        onOpen={(view, options) => navigate(view, null, options)}
+      />
+    );
   return (
-    <div className={`${shell.shell} ${b.app} ${vault ? b.onVault : ""}`}>
+    <div
+      className={`${shell.shell} ${b.app} ${route.view === "earn" ? b.onVault : ""}`}
+    >
       <a
         className={b.skip}
         href="#account-main"
@@ -514,7 +483,7 @@ export default function ProductApp({ mode = "individual", user }) {
           </nav>
           <div className={b.sideBottom}>
             <nav aria-label="Account">{nav("settings")}</nav>
-            <button onClick={openGuide}>How vaults work</button>
+            <button onClick={openGuide}>How it works</button>
             <a href={marketingHref("/contact")}>Contact support</a>
             {user && (
               <button onClick={signOut} disabled={signingOut}>
@@ -532,11 +501,11 @@ export default function ProductApp({ mode = "individual", user }) {
         {batch.pending && (
           <div className={`${b.banner} ${b.systemBanner}`} role="status">
             <p>
-              A transaction on the USDC Multichain vault is still
-              unconfirmed. New actions on it stay locked until it is checked.
+              A transaction on {PRODUCT.token} {PRODUCT.tag} is still
+              unconfirmed. New actions stay locked until it is checked.
             </p>
             <div className={b.requestActions}>
-              {batch.pending.hash ? (
+              {batch.pending.hash && (
                 <a
                   href={crosschain.explorer + "/tx/" + batch.pending.hash}
                   target="_blank"
@@ -544,19 +513,25 @@ export default function ProductApp({ mode = "individual", user }) {
                 >
                   View transaction ↗
                 </a>
-              ) : (
-                <label className={b.field}>
-                  <span>Transaction hash from your wallet</span>
-                  <span className={b.amount}>
-                    <input
-                      value={batch.recoveryHash}
-                      onChange={(event) =>
-                        batch.setRecoveryHash(event.target.value)
-                      }
-                    />
-                  </span>
-                </label>
               )}
+              <label className={b.field}>
+                <span>
+                  {batch.pending.hash
+                    ? "Replaced it in your wallet? Paste the new hash"
+                    : "Transaction hash from your wallet"}
+                </span>
+                <span className={b.amount}>
+                  <input
+                    placeholder="0x…"
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={batch.recoveryHash}
+                    onChange={(event) =>
+                      batch.setRecoveryHash(event.target.value)
+                    }
+                  />
+                </span>
+              </label>
               <button
                 className={b.secondary}
                 onClick={batch.recover}
@@ -564,10 +539,26 @@ export default function ProductApp({ mode = "individual", user }) {
               >
                 Check confirmation
               </button>
+              {batch.retrySaved && (
+                <button
+                  className={b.secondary}
+                  onClick={batch.retrySaved}
+                  disabled={batch.busy}
+                  title="Sends the same request with the same nonce, so it can run only once"
+                >
+                  Reopen in wallet
+                </button>
+              )}
             </div>
             {batch.message && <p className={b.hint}>{batch.message}</p>}
           </div>
         )}
+        <MoveNotice
+          summary={move}
+          guest={!user}
+          href={"/app/" + mode + PATHS.move}
+          onOpen={() => navigate("move")}
+        />
         {route.view === "overview" && (
           <PortfolioPage
             book={book}
@@ -575,31 +566,22 @@ export default function ProductApp({ mode = "individual", user }) {
             batch={batch}
             mine={mine}
             account={account}
+            move={move}
             navigate={navigate}
             institution={institution}
           />
         )}
-        {route.view === "vaults" && (
-          <VaultsPage book={book} navigate={navigate} user={user} />
-        )}
-        {route.view === "index" && (
-          <IndexPage book={book} navigate={navigate} />
-        )}
-        {route.view === "vault" && vault && (
+        {route.view === "earn" && (
           <VaultPage
-            key={product.id}
-            view={view}
-            vault={vault}
-            product={product}
-            chooseVault={chooseVault}
-            index={product.index || book.index}
+            book={book}
             user={user}
-            account={account}
             batch={batch}
-            wallet={wallet}
             navigate={navigate}
             intent={intent}
           />
+        )}
+        {route.view === "index" && (
+          <IndexPage book={book} navigate={navigate} />
         )}
         {route.view === "activity" && (
           <ActivityPage
@@ -649,7 +631,7 @@ export default function ProductApp({ mode = "individual", user }) {
         <footer className={b.footer}>
           <span>Thesauros</span>
           <button className={b.linkButton} onClick={openGuide}>
-            How vaults work
+            How it works
           </button>
           <a href={marketingHref("/security")}>Security</a>
           <a href={documentationHref("/")}>Documentation</a>
@@ -671,7 +653,7 @@ export default function ProductApp({ mode = "individual", user }) {
           onClose={() => setGuide(false)}
           navigate={(id) => {
             setGuide(false);
-            navigate(id === "overview" ? "vaults" : id);
+            navigate(id === "overview" && !user ? "earn" : id);
           }}
           returnFocusRef={guideOpener}
         />

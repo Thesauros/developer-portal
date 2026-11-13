@@ -3235,3 +3235,13 @@
   );
   vertical-align: baseline;
 }
+
+/* The line a table is about, above the rows that make it up. */
+.totalRow th,
+.totalRow td {
+  font-weight: 500;
+  background: var(--well);
+}
+.totalRow th {
+  text-align: left;
+}

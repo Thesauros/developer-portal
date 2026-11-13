@@ -121,7 +121,7 @@ function buildDoc() {
       title: 'Thesauros Developer Platform API',
       version: '1.0.0',
       description:
-        'Enterprise yield-infrastructure sandbox API. Deterministic simulation of the Thesauros routing engine: vaults, aggregated yield, positions with live accrual, rebalances, webhooks and usage telemetry. All APY values are decimal fractions (0.052 = 5.2%).',
+        'Thesauros API sandbox. Sample data only: sample venues, rates, positions, rebalances, webhooks and usage. Deposits and withdrawals here are instant; the live USDC Multichain vault uses requests that settle in batches. All APY values are decimal fractions (0.052 = 5.2%).',
       contact: { name: 'Thesauros', url: 'https://developer.thesauros.io' },
     },
     servers: [{ url: '/api/v1', description: 'Earn sandbox' }],
@@ -280,7 +280,7 @@ function buildDoc() {
           tags: ['positions'],
           summary: 'Open a position',
           description:
-            'Validates the wallet/asset/amount and routes to a vault. Settlement is synchronous: the position is active immediately.',
+            'Validates the wallet/asset/amount and creates a sample position. Settlement is synchronous in the sandbox: the position is active immediately. The live vault is not synchronous.',
           parameters: [idempotencyHeader()],
           requestBody: {
             required: true,
@@ -638,7 +638,7 @@ function buildDoc() {
             },
             perf_fee_pct: {
               type: 'number', minimum: 0, maximum: 0.5, default: 0.25,
-              description: 'Protocol performance fee charged on positive yield.', example: 0.25,
+              description: 'Performance fee applied in the simulation. The default 0.25 is the planned fee; 0 is charged on chain today.', example: 0.25,
             },
             allowed_tiers: {
               type: 'array',

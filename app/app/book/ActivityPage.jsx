@@ -46,10 +46,7 @@ export function Ledger({ book, scope, mine, account, batch, limit = 200 }) {
       .reduce((total, row) => total + (row.amount || 0), 0);
   const unreadable = Object.entries(publicFeed.data?.sources?.rebalances || {})
     .filter(([, complete]) => !complete)
-    .map(([id]) => {
-      const vault = book.byId[id];
-      return vault ? `${vault.title} on ${vault.place}` : null;
-    })
+    .map(([id]) => name(id) || null)
     .filter(Boolean);
   return (
     <>
@@ -125,9 +122,8 @@ export function Ledger({ book, scope, mine, account, batch, limit = 200 }) {
       )}
       {scope === "all" && unreadable.length > 0 && (
         <p className={b.footnote}>
-          Moves between markets in the {unreadable.join(" and ")}{" "}
-          {unreadable.length === 1 ? "vault are" : "vaults are"} not listed
-          here yet; their allocation now is on the product’s page.
+          Moves between markets in {unreadable.join(" and ")} are not listed
+          here yet.
         </p>
       )}
       {scope === "mine" && (
@@ -150,11 +146,11 @@ export default function ActivityPage({ book, user, mine, account, batch, navigat
           <h1 tabIndex={-1}>Activity</h1>
           <p className={b.pageLede}>
             {signedIn
-              ? "Your deposits, withdrawals, requests and estimated earnings, across every vault."
+              ? "Your deposits, withdrawals and requests, in the vault and in the vaults before it."
               : "Connect a wallet to see your own history here."}
           </p>
           <p className={b.footnote}>
-            What every vault did, every move between markets and networks, is in{" "}
+            What the vault did, every move between markets and networks, is in{" "}
             <button className={b.linkButton} onClick={() => navigate("transparency")}>
               Transparency
             </button>

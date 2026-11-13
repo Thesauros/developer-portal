@@ -243,10 +243,10 @@ export default function QuickGuide({
             )}
             {step === steps.length - 1 && (
               <div className={s.finalActions}>
-                <button className={s.primary} onClick={() => visit("overview")}>
+                <button className={s.primary} onClick={() => visit("earn")}>
                   Open Earn
                 </button>
-                <button className={s.docsLink} onClick={() => visit("build")}>
+                <button className={s.docsLink} onClick={() => visit("developers")}>
                   Bring Earn into your app
                 </button>
               </div>

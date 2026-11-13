@@ -1,0 +1,475 @@
+/* The account's own screen. The one blue surface holds the person's balance;
+   everything under it explains that balance: how it grew, where it is lent,
+   what is on its way in or out. */
+
+.plate {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px 40px;
+  margin: 28px 0 8px;
+  padding: 32px 36px 30px;
+  border-radius: 22px;
+  background: var(--blue);
+  color: #fff;
+  overflow: hidden;
+}
+/* The brand's light on water, faint: it belongs to the balance, nowhere else. */
+.plate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/brand/reflections-soft.webp") right center / cover no-repeat;
+  opacity: 0.22;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+.plate > * {
+  position: relative;
+  z-index: 1;
+}
+.plateMain > span {
+  font-size: 14px;
+  opacity: 0.88;
+}
+.plateMain > strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 52px;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+}
+.plateMain > strong small {
+  font-size: 19px;
+  letter-spacing: 0;
+  opacity: 0.88;
+}
+.plateMain > p {
+  max-width: 54ch;
+  margin-top: 10px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  opacity: 0.94;
+}
+.plateActions {
+  display: flex;
+  gap: 10px;
+  align-self: start;
+}
+.plateActions button {
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: none;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  transition:
+    background 0.16s ease-out,
+    border-color 0.16s ease-out;
+}
+.plateActions button:hover:not(:disabled) {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+.plateActions button[data-main] {
+  border-color: #fff;
+  background: #fff;
+  color: var(--blue-deep);
+}
+.plateActions button[data-main]:hover:not(:disabled) {
+  background: #eef4ff;
+}
+.plateFacts {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px 32px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.24);
+}
+.plateFacts dt {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.plateFacts dd {
+  margin-top: 2px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.plateFacts dd small {
+  font-size: 13px;
+  letter-spacing: 0;
+  opacity: 0.85;
+}
+.plateFacts div > small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  opacity: 0.85;
+}
+
+/* Parts of a balance that are on their way. */
+.buckets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 12px;
+}
+.buckets span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 13px;
+}
+.buckets b {
+  font-weight: 500;
+}
+
+/* Nothing deposited yet. */
+.start {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 40px;
+  margin-top: 28px;
+  padding: 28px;
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+}
+.startHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.startHead h2 {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.startHead h2 span {
+  color: var(--ink-3);
+}
+.start > div > p {
+  margin-top: 8px;
+  color: var(--ink-2);
+  max-width: 44ch;
+}
+.startFacts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 22px 0;
+  padding: 18px 0;
+  border-top: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.startFacts dt {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.startFacts dd {
+  margin-top: 2px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.startFacts small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+.startActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+}
+.steps {
+  display: grid;
+  gap: 0;
+  align-content: start;
+  counter-reset: step;
+}
+.steps li {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 0 0 20px 44px;
+  counter-increment: step;
+}
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--blue-wash);
+  color: var(--blue-deep);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.steps li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 13.5px;
+  top: 34px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--rule);
+}
+.steps strong {
+  font-weight: 500;
+}
+.steps span {
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Balance over time. */
+.chartBox {
+  display: grid;
+  gap: 10px;
+}
+.chartBox svg {
+  display: block;
+  max-width: 100%;
+  touch-action: pan-y;
+}
+.chartEmpty {
+  display: grid;
+  place-items: center;
+  height: 140px;
+  border-radius: 14px;
+  background: var(--well);
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.grid {
+  stroke: var(--rule-soft);
+  stroke-width: 1;
+}
+.axis {
+  fill: var(--ink-3);
+  font-size: 11.5px;
+}
+.area {
+  fill: var(--blue);
+  fill-opacity: 0.09;
+}
+.line {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.invested {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+.hoverLine {
+  stroke: var(--ink-4);
+  stroke-width: 1;
+}
+.dot {
+  fill: var(--blue);
+  stroke: #fff;
+  stroke-width: 2;
+}
+.read {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+}
+.read > span:first-child {
+  min-width: 132px;
+  color: var(--ink-3);
+}
+.read strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.read i {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.keyLine {
+  width: 14px;
+  height: 2px;
+  background: var(--blue);
+}
+.keyStep {
+  width: 14px;
+  height: 0;
+  border-top: 1.5px dashed var(--ink-3);
+}
+.keyBand {
+  width: 12px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--blue);
+  opacity: 0.2;
+}
+.chartControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+/* Your rate beside the Market Average. */
+.versus {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px 32px;
+}
+.versus dt {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.versus dd {
+  margin-top: 2px;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+.versus small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+/* Wallet and previous vaults: short lists with one action each. */
+.rows {
+  border-top: 1px solid var(--rule);
+}
+.rows li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 60px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.rowName {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.rowName strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.rowName small {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.rowAmount {
+  font-size: 16px;
+  white-space: nowrap;
+}
+.rowAmount small {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.previous {
+  margin-top: 28px;
+  padding: 22px 24px 8px;
+  border: 1px solid rgba(138, 75, 0, 0.22);
+  border-radius: 18px;
+  background: #fffaf1;
+}
+.previous h2 {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.previous > p {
+  max-width: 62ch;
+  margin: 4px 0 14px;
+  color: #5b4520;
+  font-size: 14.5px;
+}
+.previous .rows {
+  border-top-color: rgba(138, 75, 0, 0.18);
+}
+.previous .rows li {
+  border-bottom-color: rgba(138, 75, 0, 0.12);
+}
+.previous .rows li:last-child {
+  border-bottom: 0;
+}
+
+@media (max-width: 1099px) {
+  .start {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+}
+@media (max-width: 760px) {
+  .plate {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    padding: 24px 20px 22px;
+    border-radius: 18px;
+  }
+  .plateMain > strong {
+    font-size: 40px;
+  }
+  .plateActions button {
+    flex: 1;
+  }
+  .plateFacts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 20px;
+    padding-top: 18px;
+  }
+  .plateFacts dd {
+    font-size: 19px;
+  }
+  .start {
+    padding: 20px 18px;
+  }
+  .startFacts {
+    gap: 10px;
+  }
+  .startFacts dd {
+    font-size: 19px;
+  }
+  .versus {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .versus dd {
+    font-size: 21px;
+  }
+  .rows li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .rows li > :last-child:not(.rowAmount) {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+  .previous {
+    padding: 18px 16px 6px;
+  }
+  .read > span:first-child {
+    min-width: 100%;
+  }
+}

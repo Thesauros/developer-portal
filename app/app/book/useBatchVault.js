@@ -15,7 +15,13 @@ import {
 } from "../../../lib/crosschain-transactions.mjs";
 import { vaultClients } from "../../../lib/vault-rpc.mjs";
 import { receiptRequestIds } from "../../../lib/crosschain-reads.mjs";
-import { loadCrosschainFeed } from "../../../lib/crosschain-feed.mjs";
+import {
+  loadCrosschainFeed,
+  mergeTrackedRequestIds,
+} from "../../../lib/crosschain-feed.mjs";
+import { migrationKey, parseMigration } from "../../../lib/migration-state.mjs";
+import { retryMigrationIntent } from "../../../lib/migration-retry.mjs";
+import { migrationDestination } from "../../../lib/migration-destination.mjs";
 // The network deposits and withdrawals of the batch vault are signed on.
 const HUB = (
   crosschain.networks.find((network) => network.role === "hub") ||
@@ -36,12 +42,20 @@ async function read(resource) {
 // One lock per wallet and vault, shared across remounts of any screen.
 const locks = new Set();
 
-// The batch vault's data and every transaction on it. One instance sits above
-// all screens, so a pending operation stays locked and visible wherever the
-// person goes. A pending operation is saved before the wallet is asked to sign,
-// and a storage failure stops the signing.
-export default function useBatchVault(user, enabled = true) {
+// The vault's data and every transaction on it. One instance sits above all
+// screens, so a pending operation stays locked and visible wherever the person
+// goes. A pending operation is saved, with its nonce, before the wallet is asked
+// to sign, and a storage failure stops the signing.
+//
+// A move from a previous vault signs on the same wallet, so both share one
+// browser lock per wallet and neither starts while the other has an operation
+// whose result is unknown. `migration` carries that state: requests the move has
+// confirmed (shown here while the event index catches up) and whether it holds
+// an unresolved operation.
+export default function useBatchVault(user, enabled = true, migration = null) {
   const owner = user?.walletAddress;
+  const migrationBlocked = !!migration?.blocksNewRequests;
+  const migrationIds = migration?.requestIds || [];
   const walletAccount = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const [feed, setFeed] = useState(null),
@@ -80,13 +94,14 @@ export default function useBatchVault(user, enabled = true) {
       setError("Allow browser storage before submitting a transaction.");
     }
   }, [key, enabled]);
-  const idsKey = requestIds.join(",");
+  const trackedIds = mergeTrackedRequestIds(migrationIds, requestIds);
+  const idsKey = trackedIds.join(",");
   useEffect(() => {
     if (!enabled) return undefined;
     let active = true;
     async function load() {
       try {
-        const value = await loadCrosschainFeed(owner, requestIds, read);
+        const value = await loadCrosschainFeed(owner, trackedIds, read);
         if (value.vault) assertCrosschainIdentity(value.vault);
         if (!active) return;
         setFeed(value);
@@ -137,7 +152,53 @@ export default function useBatchVault(user, enabled = true) {
     else localStorage.removeItem(key);
     setPending(value);
   }
+  // One wallet signs one thing at a time, across tabs and across the move from
+  // a previous vault.
+  async function underWalletLock(task) {
+    if (!owner || !navigator.locks) {
+      setMessage(
+        "Use a current browser to sign transactions safely: this one cannot lock the wallet across tabs.",
+      );
+      return false;
+    }
+    return navigator.locks.request(
+      migrationKey(owner),
+      { ifAvailable: true },
+      async (lock) => {
+        if (!lock) {
+          setMessage("Another tab is preparing a transaction for this wallet.");
+          return false;
+        }
+        return task();
+      },
+    );
+  }
+  function moveHasUnresolved() {
+    const saved = parseMigration(
+      localStorage.getItem(migrationKey(owner)),
+      owner,
+    );
+    return Object.values(saved.products).some((record) => record.pending);
+  }
   async function submit(kind, input) {
+    return underWalletLock(async () => {
+      try {
+        if (moveHasUnresolved())
+          throw new Error(
+            "A transaction from your move to this vault is still unconfirmed. Check it there first.",
+          );
+        if (migrationBlocked && ["approve", "deposit", "redeem"].includes(kind))
+          throw new Error(
+            "Finish the open step of your move to this vault before starting a new request.",
+          );
+      } catch (failure) {
+        setMessage(failure.message);
+        return false;
+      }
+      return submitUnlocked(kind, input);
+    });
+  }
+  async function submitUnlocked(kind, input) {
     if (locks.has(key) || pending || !storageReady) return false;
     if (localStorage.getItem(key)) {
       setPending(JSON.parse(localStorage.getItem(key)));
@@ -229,9 +290,65 @@ export default function useBatchVault(user, enabled = true) {
       setBusy(false);
     }
   }
+  // Reopen the saved request in the wallet with the nonce it reserved. Whatever
+  // happened to the first prompt, only one transaction with that nonce can run.
+  async function retrySaved() {
+    if (busy || !pending) return false;
+    return underWalletLock(async () => {
+      locks.add(key);
+      setBusy(true);
+      try {
+        if (
+          !sameAddress(pending.owner, owner) ||
+          pending.chainId !== crosschain.chainId
+        )
+          throw new Error("Saved account or network does not match.");
+        if (moveHasUnresolved())
+          throw new Error("Check the unconfirmed step of your move first.");
+        if (walletAccount.chainId !== crosschain.chainId)
+          await switchChainAsync({ chainId: crosschain.chainId });
+        const provider = await walletAccount.connector.getProvider({
+          chainId: crosschain.chainId,
+        });
+        const wallet = createWalletClient({
+          chain: HUB_CHAIN.chain,
+          transport: custom(provider),
+        });
+        const result = await retryMigrationIntent({
+          publicClient: client,
+          walletClient: wallet,
+          owner,
+          vaultId: HUB_CHAIN.id,
+          pending,
+          beforeRetry: (kind) =>
+            ["claim", "cancel"].includes(kind)
+              ? Promise.resolve()
+              : migrationDestination.check(kind),
+          onHash: (hash) => savePending({ ...pending, hash }),
+        });
+        setRecoveryHash(result.hash);
+        setMessage(
+          "Sent again with the saved nonce, so it can run only once. Check its confirmation below.",
+        );
+        return true;
+      } catch (failure) {
+        setMessage(
+          failure.code === "NONCE_CONSUMED"
+            ? "That nonce has been used. Paste the hash of the confirmed transaction, or of the one that replaced it."
+            : "The saved request is still unresolved. Reopen it in the wallet again, or paste its transaction hash.",
+        );
+        return false;
+      } finally {
+        locks.delete(key);
+        setBusy(false);
+        refresh();
+      }
+    });
+  }
   async function recover() {
-    if (busy || locks.has(key)) return;
-    const hash = pending?.hash || recoveryHash;
+    if (busy || locks.has(key) || !pending) return;
+    // A hash typed in wins: it may be the replacement of the saved one.
+    const hash = recoveryHash || pending.hash;
     if (!/^0x[0-9a-f]{64}$/i.test(hash || "")) {
       setMessage("Enter the transaction hash from your wallet.");
       return;
@@ -249,10 +366,11 @@ export default function useBatchVault(user, enabled = true) {
         throw new Error(
           "Saved operation does not match this wallet and vault.",
         );
-      const [receipt, transaction, chainId] = await Promise.all([
+      const [receipt, transaction, chainId, head] = await Promise.all([
         client.getTransactionReceipt({ hash }),
         client.getTransaction({ hash }),
         client.getChainId(),
+        client.getBlockNumber({ cacheTime: 0 }),
       ]);
       // A wallet relay changes the sender and target; the events still show the call.
       if (
@@ -262,25 +380,64 @@ export default function useBatchVault(user, enabled = true) {
       ) {
         trackIds(receiptRequestIds(receipt, owner));
         savePending(null);
+        setRecoveryHash("");
         setMessage(`Transaction confirmed on ${HUB}.`);
         refresh();
         return;
       }
+      // The saved hash tells which nonce the wallet really used.
+      let nonce = pending.nonce;
+      if (
+        pending.hash?.toLowerCase() === hash.toLowerCase() &&
+        sameAddress(transaction.from, owner) &&
+        sameAddress(transaction.to, pending.address) &&
+        transaction.input?.toLowerCase() === pending.data?.toLowerCase() &&
+        Number.isSafeInteger(transaction.nonce)
+      ) {
+        nonce = transaction.nonce;
+        savePending({ ...pending, nonce });
+      }
       if (
         chainId !== crosschain.chainId ||
+        transaction.hash?.toLowerCase() !== hash.toLowerCase() ||
         !sameAddress(transaction.from, owner) ||
-        !sameAddress(transaction.to, pending.address) ||
-        transaction.input?.toLowerCase() !== pending.data?.toLowerCase()
+        !sameAddress(receipt.from, owner) ||
+        (transaction.to == null
+          ? receipt.to != null
+          : !sameAddress(receipt.to, transaction.to)) ||
+        receipt.transactionHash?.toLowerCase() !== hash.toLowerCase() ||
+        !["success", "reverted"].includes(receipt.status) ||
+        receipt.blockNumber == null ||
+        transaction.blockNumber !== receipt.blockNumber ||
+        head < receipt.blockNumber ||
+        transaction.blockHash?.toLowerCase() !==
+          receipt.blockHash?.toLowerCase() ||
+        (Number.isSafeInteger(nonce) && nonce !== transaction.nonce)
       )
         throw new Error("This transaction does not match the saved operation.");
-      if (receipt.status === "reverted") {
-        if (
-          !sameAddress(receipt.from, owner) ||
-          !sameAddress(receipt.to, pending.address) ||
-          receipt.transactionHash.toLowerCase() !== hash.toLowerCase()
-        )
-          throw new Error("Receipt identity does not match.");
+      const sameCall =
+        sameAddress(transaction.to, pending.address) &&
+        transaction.value === 0n &&
+        transaction.input?.toLowerCase() === pending.data?.toLowerCase();
+      if (!sameCall) {
+        // Another transaction took the saved nonce: the request was cancelled
+        // or replaced in the wallet. Without a saved nonce that cannot be told
+        // apart from an unrelated transaction.
+        if (!Number.isSafeInteger(nonce))
+          throw new Error(
+            "This transaction does not match the saved operation.",
+          );
         savePending(null);
+        setRecoveryHash("");
+        setMessage(
+          "That request was cancelled or replaced by another transaction in your wallet. Your balances are being read again.",
+        );
+        refresh();
+        return;
+      }
+      if (receipt.status === "reverted") {
+        savePending(null);
+        setRecoveryHash("");
         setMessage(
           "The transaction reverted. You can prepare a new operation.",
         );
@@ -288,6 +445,7 @@ export default function useBatchVault(user, enabled = true) {
         verifyCrosschainReceipt(receipt, hash, owner, pending.address);
         trackIds(receiptRequestIds(receipt, owner));
         savePending(null);
+        setRecoveryHash("");
         setMessage(`Transaction confirmed on ${HUB}.`);
       }
       refresh();
@@ -302,7 +460,13 @@ export default function useBatchVault(user, enabled = true) {
   }
   // Collecting and cancelling never depend on the data service being healthy.
   const blocked =
-    busy || !!pending || !storageReady || !feed?.vault || !feed?.user || !owner;
+    busy ||
+    !!pending ||
+    !storageReady ||
+    !feed?.vault ||
+    !feed?.user ||
+    !owner ||
+    migrationBlocked;
   return {
     feed,
     error,
@@ -320,6 +484,9 @@ export default function useBatchVault(user, enabled = true) {
     walletMatches: !!owner && sameAddress(walletAccount.address, owner),
     submit,
     recover,
+    // Only an operation saved with its nonce can be reopened safely.
+    retrySaved: Number.isSafeInteger(pending?.nonce) ? retrySaved : null,
+    migrationBlocked,
     refresh,
     trackManualRequest,
     clearMessage: () => {

@@ -18,7 +18,8 @@ import {
   compositeMeasure,
   exposure,
   marketName,
-  productView,
+  PRODUCT,
+  PRODUCT_ALIASES,
   walletBalances,
 } from "../lib/vault-book.mjs";
 import {
@@ -358,16 +359,22 @@ const batchFeed = {
     requests: [],
   },
 };
-test("every vault comes out in one shape, the largest first", () => {
+test("the product comes first, then the vaults before it, all in one shape", () => {
   const book = buildBook({ market, batch: batchFeed, now });
   assert.deepEqual(
     book.vaults.map((row) => row.id),
-    ["arbitrum", "base-arbitrum", "monad", "plasma", "base"],
+    ["base-arbitrum", "arbitrum", "monad", "plasma", "base"],
+  );
+  assert.equal(book.vault.id, "base-arbitrum");
+  assert.deepEqual(
+    book.previous.map((row) => row.id),
+    ["arbitrum", "monad", "plasma", "base"],
   );
   for (const row of book.vaults)
     for (const key of [
       "kind",
       "token",
+      "title",
       "networkLabel",
       "depositNetwork",
       "stage",
@@ -380,25 +387,64 @@ test("every vault comes out in one shape, the largest first", () => {
       "audit",
     ])
       assert.ok(row[key] !== undefined, `${row.id} has ${key}`);
-  assert.equal(book.byId.arbitrum.stage, "Live");
-  assert.equal(book.byId.monad.stage, "Early");
-  assert.equal(book.byId["base-arbitrum"].stage, "Pilot");
-  assert.equal(book.byId["base-arbitrum"].networkLabel, "Base + Arbitrum");
-  assert.equal(book.byId["base-arbitrum"].depositNetwork, "Base");
-  assert.equal(book.byId["base-arbitrum"].audit.state, "none");
-  assert.ok(book.byId["base-arbitrum"].notice.length >= 3);
+  // One product, named for what it does; the old addresses all lead to it.
+  assert.equal(book.vault.title, "USDC Multichain");
+  assert.equal(book.product.id, PRODUCT.id);
+  assert.equal(book.product.vault, book.vault);
+  assert.equal(book.byId[PRODUCT.id], book.vault);
+  for (const id of ["usdc-instant", "usdt0-instant", "arbitrum", "base-arbitrum"])
+    assert.ok(PRODUCT_ALIASES.includes(id), id);
+  assert.equal(book.vault.previous, false);
+  assert.equal(book.vault.networkLabel, "Base + Arbitrum");
+  assert.equal(book.vault.depositNetwork, "Base");
+  assert.equal(book.vault.audit.state, "none");
+  assert.ok(book.vault.notice.length >= 3);
+  // The vaults before it say where they are and take no new deposits.
+  for (const row of book.previous) {
+    assert.equal(row.previous, true);
+    assert.equal(row.stage, "Previous");
+    assert.equal(row.open.deposits, false);
+    assert.equal(row.open.withdrawals, true);
+  }
+  assert.equal(book.byId.arbitrum.title, "USDC on Arbitrum");
+  assert.equal(book.byId.plasma.title, "USDT0 on Plasma");
   // Names from different sources line up.
   assert.equal(marketName("Gauntlet Core Morpho"), "Gauntlet Core");
-  // A batch vault that leaves deposits closed still lets people out.
-  assert.equal(book.byId["base-arbitrum"].open.deposits, false);
-  assert.equal(book.byId["base-arbitrum"].open.withdrawals, true);
-  const open = buildBook({ market, batch: batchFeed, depositsOpen: true, now });
-  assert.equal(open.byId["base-arbitrum"].open.deposits, true);
-  // A build without the batch vault simply has four.
-  const four = buildBook({ market, includeBatch: false, now });
-  assert.equal(four.vaults.length, 4);
+  // Deposits follow the contract unless a deployment closes them; people can
+  // always get out.
+  assert.equal(book.vault.open.deposits, true);
+  const closed = buildBook({ market, batch: batchFeed, depositsOpen: false, now });
+  assert.equal(closed.vault.open.deposits, false);
+  assert.equal(closed.vault.open.withdrawals, true);
+  const paused = buildBook({
+    market,
+    batch: { ...batchFeed, vault: { ...batchFeed.vault, depositPaused: true } },
+    now,
+  });
+  assert.equal(paused.vault.open.deposits, false);
+  // Money is counted where it is: the vault, and the vaults not yet moved out of.
+  assert.equal(book.totals.tvl, 11);
+  assert.equal(book.totals.previousTvl, 50011);
 });
-test("the same USDC on Base counts once, and wallet money is never in the balance", () => {
+test("a batch says how much room it has left", () => {
+  const book = buildBook({
+    market,
+    batch: {
+      ...batchFeed,
+      vault: {
+        ...batchFeed.vault,
+        limits: { minDeposit: "1000000", maxEpochDeposits: "500000000" },
+        accounting: { ...batchFeed.vault.accounting, pendingDeposits: "120000000" },
+      },
+    },
+    now,
+  });
+  assert.equal(book.vault.batchLimit, 500);
+  assert.equal(book.vault.batchRoom, 380);
+  // Without a limit read from the contract nothing is claimed.
+  assert.equal(buildBook({ market, batch: batchFeed, now }).vault.batchRoom, null);
+});
+test("the balance is the vault's; money in previous vaults and wallets is listed apart", () => {
   const book = buildBook({
     market,
     chainRows: [
@@ -415,20 +461,26 @@ test("the same USDC on Base counts once, and wallet money is never in the balanc
     walletBalances(book.vaults).reduce((sum, row) => sum + row.amount, 0),
     5007,
   );
-  // 4.00 in Arbitrum and 1.10 in the batch vault; nothing from the wallets.
-  assert.ok(Math.abs(book.account.balance - 5.1) < 1e-9);
+  // What can be deposited right now is the USDC on the network the vault takes.
+  assert.deepEqual(book.account.ready, { network: "Base", token: "USDC", amount: 7 });
+  // 1.10 in the vault. The 4.00 in the previous Arbitrum vault is not in the
+  // balance: it is a position to move or withdraw.
+  assert.ok(Math.abs(book.account.balance - 1.1) < 1e-9);
   assert.equal(book.account.unit, "USDC");
+  assert.deepEqual(book.account.previous.map((row) => row.id), ["arbitrum"]);
+  assert.equal(book.account.previousBalance, 4);
+  assert.equal(book.account.held.length, 1);
 });
-test("a vault that cannot be read makes the total say so, and earned wait", () => {
+test("a previous vault that cannot be read is unknown, not empty", () => {
   const book = buildBook({
     market,
     chainRows: [chain("arbitrum", "0", "4000000")],
     batch: batchFeed,
     now,
   });
-  // Base, Monad and Plasma were not read: they are unknown, not zero.
-  assert.equal(book.account.atLeast, true);
-  assert.equal(book.account.earned, null);
+  // Base, Monad and Plasma were not read.
+  assert.equal(book.account.previousUnread, 3);
+  assert.equal(book.byId.base.position.known, false);
   const mine = {
     vaults: [
       { vaultId: "arbitrum", balance: 4, reconciled: true, earned: 0.25 },
@@ -438,7 +490,6 @@ test("a vault that cannot be read makes the total say so, and earned wait", () =
     market,
     chainRows: [chain("arbitrum", "0", "4000000")],
     mine,
-    includeBatch: false,
     now,
   });
   assert.equal(known.byId.arbitrum.position.earned, 0.25);
@@ -450,10 +501,13 @@ test("a vault that cannot be read makes the total say so, and earned wait", () =
         { vaultId: "arbitrum", balance: 4, reconciled: false, earned: 0.25 },
       ],
     },
-    includeBatch: false,
     now,
   });
   assert.equal(unexplained.byId.arbitrum.position.earned, null);
+  // Without a wallet nothing is claimed about the vault either.
+  const guest = buildBook({ market, batch: { ...batchFeed, user: null }, now });
+  assert.equal(guest.account.known, false);
+  assert.equal(guest.account.balance, 0);
 });
 test("exposure adds up by market and by network, across vaults", () => {
   const book = buildBook({ market, batch: batchFeed, now });
@@ -548,7 +602,7 @@ test("constituents add up by network and protocol", () => {
   assert.equal(byNetwork[1].rate, 5);
   assert.equal(byNetwork[1].weight, 50);
 });
-test("vaults group into products by stablecoin and how you leave", () => {
+test("the Thesauros record chains every USDC vault and is compared with the Market Average", () => {
   const samples = {
     arbitrum: daily(60),
     monad: daily(60, (i) => 1 + i * 0.0003, 6),
@@ -564,37 +618,65 @@ test("vaults group into products by stablecoin and how you leave", () => {
     })),
   );
   const book = buildBook({ market, batch: batchFeed, samples, index, now });
-  const ids = book.products.map((product) => product.id);
-  assert.deepEqual(ids.slice().sort(), ["usdc-instant", "usdc-multichain", "usdt0-instant"]);
-  const usdc = book.products.find((product) => product.id === "usdc-instant");
-  assert.ok(usdc.vaults.length >= 3);
-  assert.equal(usdc.title, "USDC Instant");
-  assert.equal(book.productOf.arbitrum.id, "usdc-instant");
-  // A product quotes exactly the rate of the vault that can be measured.
-  assert.equal(usdc.measured.r30.status, "ok");
-  assert.ok(Math.abs(usdc.measured.r30.rate - book.byId.arbitrum.measured.r30.rate) < 1e-9);
-  // And the same comparison with the index as that vault.
-  assert.ok(Math.abs(usdc.vsIndex.r30Diff - book.byId.arbitrum.vsIndex.r30Diff) < 1e-9);
-  // No vault is named after its network.
-  for (const vault of book.vaults) assert.ok(!/Arbitrum|Base|Monad|Plasma/.test(vault.title));
-  // The chained series is drawn, and agrees with the measured vault.
-  const chained = compositeMeasure(usdc.vaults, 30, now);
-  assert.ok(Math.abs(chained.rate - usdc.measured.r30.rate) < 0.1);
+  const record = book.product.record;
+  // The vault itself is too small to measure; the record is not, because the
+  // money is still in the previous Arbitrum vault.
+  assert.notEqual(book.vault.measured.r30.status, "ok");
+  assert.equal(record.own, false);
+  assert.equal(record.measure.status, "ok");
+  // Six dollars on Monad at three times the rate barely move a record weighted
+  // by size: it reads as the vault that holds the money.
+  assert.ok(Math.abs(record.measure.rate - book.byId.arbitrum.measured.r30.rate) < 0.01);
+  assert.ok(record.measure.series.length > 30);
+  // The same days on both sides, and the gap worked out from the shown figures.
+  assert.ok(record.vs.r30 > 3 && record.vs.r30 < 4.1);
+  assert.equal(
+    record.vs.r30Diff,
+    Math.round((Math.round(record.measure.rate * 100) / 100 - Math.round(record.vs.r30 * 100) / 100) * 100) / 100,
+  );
+  // The totals every other screen reads are that same record.
+  assert.equal(book.totals.measured.r30, record.measure);
+  assert.equal(book.totals.vsIndex.r30Diff, record.vs.r30Diff);
+  // The product's rate now is its own, from its own markets.
+  assert.equal(book.product.rateNow, book.vault.rateNow);
 });
 
-test("a product page adds its networks up and keeps their differences", () => {
-  const book = buildBook({ market, batch: batchFeed, now });
-  const usdc = book.products.find((product) => product.id === "usdc-instant");
-  const view = productView(usdc);
-  const sum = usdc.vaults.reduce((total, vault) => total + (vault.tvl || 0), 0);
-  assert.ok(Math.abs(view.tvl - sum) < 1e-9);
-  assert.equal(view.members.length, usdc.vaults.length);
-  assert.ok(view.stages.length >= 2, "Live and Early networks are both named");
-  const shares = view.allocation.reduce((total, row) => total + (row.share || 0), 0);
-  assert.ok(shares <= 100.0001);
-  // A product with one vault is that vault.
-  const single = productView(book.products.find((product) => product.vaults.length === 1));
-  assert.equal(single.members.length, 1);
+test("money that moves from a previous vault to the product stays in one record", () => {
+  // 50,000 sits in the previous vault for 45 days, then moves to the product:
+  // the old vault empties and the new one fills on the same day.
+  const moved = 45;
+  const old = daily(60).map((point, i) => ({ ...point, tvl: i < moved ? 50000 : 3 }));
+  const fresh = daily(60, (i) => 1 + i * 0.00012).map((point, i) => ({
+    at: point.at,
+    rateBid: String(BigInt(Math.round(point.price * 1e9)) * 10n ** 9n),
+    navBid: String(Math.round((i < moved ? 20 : 50000) * 1e6)),
+  }));
+  const book = buildBook({
+    market,
+    batch: batchFeed,
+    samples: { arbitrum: old },
+    ticks: fresh,
+    now,
+  });
+  // Neither vault held 10,000 for the whole month on its own.
+  assert.equal(book.byId.arbitrum.measured.r30.status, "small");
+  assert.equal(book.vault.measured.r30.status, "small");
+  // Together the money never left, so the record still has a rate, between
+  // what the two paid.
+  const record = book.product.record.measure;
+  assert.equal(record.status, "ok");
+  const low = 0.0001 * 365 * 100 * 0.98,
+    high = 0.00012 * 365 * 100 * 1.02;
+  assert.ok(record.rate > low && record.rate < high, String(record.rate));
+  // And a real dip below the floor is still caught.
+  const thin = compositeMeasure(
+    [
+      { id: "a", samples: daily(60).map((point, i) => ({ ...point, tvl: i === 50 ? 4000 : 50000 })) },
+    ],
+    30,
+    now,
+  );
+  assert.equal(thin.status, "small");
 });
 test("index members: one stablecoin, at least a million, every change dated", () => {
   const rows = [
@@ -639,7 +721,7 @@ test("a vault quotes the index's reading for each market and says which it leave
   assert.ok(Math.abs(book.byId.arbitrum.rateNow - (0.6 * 3.1 + 0.4 * 4.0)) < 1e-9);
   assert.equal(book.byId.arbitrum.ratesAt, now);
 });
-test("Live needs reviewed code as well as size", () => {
+test("a previous vault keeps what is known about its code review", () => {
   const big = {
     vaults: [
       ...market.vaults,
@@ -648,9 +730,10 @@ test("Live needs reviewed code as well as size", () => {
       ]),
     ],
   };
-  const book = buildBook({ market: big, includeBatch: false, now });
-  assert.equal(book.byId.arbitrum.stage, "Live");
-  assert.equal(book.byId.ethereum.stage, "Early", "a later build not yet confirmed as reviewed");
+  const book = buildBook({ market: big, batch: batchFeed, now });
+  assert.equal(book.byId.arbitrum.audit.state, "reviewed");
+  assert.equal(book.byId.ethereum.audit.state, "partial", "a later build not yet confirmed as reviewed");
+  assert.equal(book.vault.audit.state, "none");
 });
 test("positions read from the contracts add up to the total, cash included", () => {
   const withPositions = {
@@ -672,7 +755,7 @@ test("positions read from the contracts add up to the total, cash included", () 
         : row,
     ),
   };
-  const vault = buildBook({ market: withPositions, includeBatch: false, now }).byId.arbitrum;
+  const vault = buildBook({ market: withPositions, now }).byId.arbitrum;
   const sum = vault.allocation.reduce((total, row) => total + row.amount, 0);
   assert.equal(vault.tvl, 50010);
   assert.ok(Math.abs(sum - 50010) < 1e-9, "rows add up to the total");

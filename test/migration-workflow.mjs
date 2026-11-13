@@ -221,7 +221,7 @@ test("adapter blocks new requests for stale/frozen valuation and backend errors;
   const f = fixture();
   await withAdapter(f, async () => {
     globalThis.fetch = async () => new Response("offline", { status: 503 });
-    await assert.rejects(migrationDestination.check("deposit"), /backend/);
+    await assert.rejects(migrationDestination.check("deposit"), /data service/);
     assert.equal(f.state.writes.length, 0);
   });
 });

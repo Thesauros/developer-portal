@@ -83,9 +83,9 @@ export const QUICKSTART_MONITOR = {
   ts: {
     file: 'monitor.ts',
     lang: 'typescript',
-    code: `// Track live value + accrued yield
+    code: `// Track sample value + accrued sample yield
 const pos = await client.positions.retrieve(position.id);
-console.log(pos.current_value);  // 1000.18 \u2014 accrues continuously
+console.log(pos.current_value);  // 1000.18, grows at the sample rate
 console.log(pos.accrued_yield);  // 0.18
 
 // Every routing decision is observable
@@ -94,9 +94,9 @@ const rebalances = await client.rebalances.list({ position_id: position.id });`,
   python: {
     file: 'monitor.py',
     lang: 'python',
-    code: `# Track live value + accrued yield
+    code: `# Track sample value + accrued sample yield
 pos = client.positions.retrieve(position["id"])
-print(pos["current_value"])  # 1000.18 \u2014 accrues continuously
+print(pos["current_value"])  # 1000.18, grows at the sample rate
 print(pos["accrued_yield"])  # 0.18
 
 # Every routing decision is observable
@@ -161,7 +161,7 @@ async def thesauros_hook(request: Request):
 
 // The live "hero" request shown on Overview.
 export const OVERVIEW_REQUEST = {
-  file: 'sandbox \u2014 live request',
+  file: 'sandbox request',
   lang: 'http',
   code: `GET /api/v1/yield/USDC HTTP/1.1
 Host: developer.thesauros.io

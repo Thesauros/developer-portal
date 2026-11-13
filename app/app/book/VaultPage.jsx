@@ -1,15 +1,12 @@
 "use client";
 import { useMemo, useState } from "react";
 import { allMarkets } from "../../../lib/crosschain-feed.mjs";
-import {
-  CASH_COLOR,
-  compositeMeasure,
-  marketColor,
-} from "../../../lib/vault-book.mjs";
+import { CASH_COLOR, marketColor } from "../../../lib/vault-book.mjs";
 import { DAY, measuredRate, pricePoints } from "../../../lib/vault-metrics.mjs";
-import { earnedSeries, weeklyGaps } from "../../../lib/blue-chip-index.mjs";
+import { weeklyGaps } from "../../../lib/blue-chip-index.mjs";
 import { PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import ActionPanel, { RequestRow, batchClosing } from "./ActionPanel";
+import WhatIf from "./WhatIf";
 import {
   AllocationBar,
   AllocationHistory,
@@ -17,7 +14,6 @@ import {
   GapChart,
   MoneyMap,
   PriceChart,
-  RateChart,
 } from "./charts";
 import { groupEvents, LedgerRows } from "./ledger";
 import {
@@ -41,7 +37,6 @@ import {
   Section,
   Segmented,
   short,
-  Stage,
   Tier,
   usePublicResource,
   NetworkMarks,
@@ -53,95 +48,95 @@ import b from "./book.module.css";
 
 
 
-// "USDC index", and for an index of one market, which market that is.
 const listOf = (items) =>
   items.length < 2
     ? items.join("")
     : items.slice(0, -1).join(", ") + " and " + items.at(-1);
 const listNetworks = (rows) =>
   "On " + [...new Set(rows.map((row) => row.network))].join(", ");
-const indexName = (index) =>
-  index?.symbol ? `${index.symbol} Market Average` : "the Market Average";
-function indexLong(index) {
-  if (!index) return "the Market Average";
-  const only = index.constituents?.length === 1 ? index.constituents[0] : null;
-  return only
-    ? `the ${index.symbol} Market Average (one market: ${only.name} on ${only.network.charAt(0).toUpperCase() + only.network.slice(1)})`
-    : `the ${index.symbol} Market Average`;
+// The line the product is compared by: what Thesauros earned for depositors.
+const RECORD_NAME = "Thesauros USDC";
+
+// How often a batch closes, from the open batch's own limits.
+function batchEvery(vault) {
+  const epoch = vault.epoch;
+  if (!epoch?.openedAt || !epoch.earliestCloseAt || !epoch.latestCloseAt) return null;
+  const hours = (seconds) => {
+    const value = seconds / 3600;
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  };
+  const min = epoch.earliestCloseAt - epoch.openedAt;
+  const max = epoch.latestCloseAt - epoch.openedAt;
+  if (!(min > 0) || !(max >= min)) return null;
+  return min === max ? `${hours(min)} hours` : `${hours(min)} to ${hours(max)} hours`;
 }
 
-function StageLine({ view }) {
-  // One stage for the product: its best network's. Which network is at which
-  // stage is in "Networks and contracts".
-  return <Stage stage={view.stages?.[0]?.stage || view.stage} />;
-}
-
-function Header({ view, index, navigate }) {
+function Header({ vault, product, totals }) {
+  const record = product.record;
+  const every = batchEvery(vault);
   return (
     <header className={b.vaultHead}>
-      <button className={b.back} onClick={() => navigate("vaults")}>
-        Earn
-      </button>
       <div className={b.vaultName}>
-        <TokenMark token={view.token} size={44} />
+        <TokenMark token={vault.token} size={44} />
         <div>
           <h1 tabIndex={-1}>
-            {view.token} <span>{view.product.tag}</span>
+            {vault.token} <span>{vault.product.tag}</span>
           </h1>
-          <p>
-            {view.product.line}{" "}
-            {Number.isFinite(view.since) ? `Since ${dateLabel(view.since)}.` : ""}
-          </p>
+          <p>{vault.product.line}</p>
           <p className={b.headMeta}>
-            <StageLine view={view} />
             <span className={b.quiet}>
-              <NetworkMarks networks={view.networks} size={14} />
-              {view.kind === "batch"
-                ? `Lends on ${view.networks.join(" and ")}`
-                : `On ${view.networks.length} ${view.networks.length === 1 ? "network" : "networks"}`}
+              <NetworkMarks networks={vault.networks} size={14} />
+              Lends on {listOf(vault.networks)} · deposit and withdraw on{" "}
+              {vault.depositNetwork}
             </span>
           </p>
         </div>
       </div>
       <dl className={b.facts}>
         <div>
-          <dt>30-day rate</dt>
-          <dd>
-            <MeasuredRate measure={view.measured.r30} />
-          </dd>
+          <dt>Rate now</dt>
+          <dd>{pct(vault.rateNow)}</dd>
           <small>
-            {view.vsIndex?.r30Diff != null ? (
-              <VsIndex
-                diff={view.vsIndex.r30Diff}
-                suffix={` vs ${indexName(index)}, same days`}
-              />
-            ) : view.measured.r30?.status === "small" ? (
-              "too small to measure: under 10,000 USD"
-            ) : view.measured.r30?.status === "young" ? (
-              "too new to measure"
+            {record.vs?.nowDiff != null ? (
+              <VsIndex diff={record.vs.nowDiff} suffix=" vs the Market Average" />
             ) : (
-              "received, from the share price"
+              "quoted by its markets, a year, before fees"
             )}
           </small>
         </div>
         <div>
-          <dt>Rate now</dt>
-          <dd>{pct(view.rateNow)}</dd>
-          <small>quoted by its markets, a year, before fees</small>
+          <dt>Earned, last 30 days</dt>
+          <dd>
+            <MeasuredRate measure={record.measure} />
+          </dd>
+          <small>
+            {record.vs?.r30Diff != null ? (
+              <VsIndex diff={record.vs.r30Diff} suffix=" vs the Market Average" />
+            ) : record.measure?.status === "small" ? (
+              "too small to measure: under 10,000 USD"
+            ) : record.measure?.status === "young" ? (
+              "too new to measure"
+            ) : (
+              "a year, from share prices"
+            )}
+          </small>
         </div>
         <div>
-          <dt>Total value</dt>
+          <dt>In the vault</dt>
           <dd>
-            {compact(view.tvl)} <small>{view.token}</small>
+            {compact(vault.tvl)} <small>{vault.token}</small>
           </dd>
-          {view.members?.length > 1 && (
-            <small>across {view.members.length} networks</small>
+          {totals.previousTvl >= 1 && (
+            <small>
+              {compact(totals.previousTvl)} {totals.previousUnit} more in
+              previous vaults
+            </small>
           )}
         </div>
         <div>
           <dt>Withdraw in</dt>
-          <dd>{view.exit.label}</dd>
-          <small>{view.exit.note}</small>
+          <dd>{vault.exit.label}</dd>
+          <small>{every ? `a batch closes every ${every}` : vault.exit.note}</small>
         </div>
       </dl>
     </header>
@@ -164,59 +159,31 @@ function ValuationBanner({ vault }) {
   );
 }
 
-// The same periods as every other comparison chart.
-const RANGES = PERIODS;
-
-// One sentence against the blue-chip index on the same days. One rule for
-// small vaults everywhere: the raw change in the share price is a fact, a
-// yearly rate is not.
-function Comparison({ vault, index }) {
-  const m = vault.measured.r30;
-  const indexRate = vault.vsIndex?.r30;
-  if (!m?.from) return null;
+// One sentence against the Market Average on the same days.
+function Comparison({ record, index }) {
+  const m = record.measure;
+  const indexRate = record.vs?.r30;
+  if (m?.status !== "ok") return null;
   const days = Math.round(m.days ?? 30);
-  const only = vault.onlyMarket
-    ? ` It holds one market only, so its rate follows that market.`
-    : "";
-  const name = indexLong(index);
-  if (m.status !== "ok")
-    return (
-      <p className={b.compare}>
-        {m.change != null && (
-          <>
-            Over the last {days} days the share price rose{" "}
-            <strong>{Math.abs(m.change).toFixed(3)}%</strong>.{" "}
-          </>
-        )}
-        {indexRate != null && (
-          <>
-            {name.charAt(0).toUpperCase() + name.slice(1)} paid{" "}
-            <strong>{pct(indexRate)}</strong> a year over the same days.{" "}
-          </>
-        )}
-        This vault holds too little for a yearly rate to mean much.{only}
-      </p>
-    );
   const after = m.rate * (1 - PLANNED_PERFORMANCE_FEE / 100);
   return (
     <p className={b.compare}>
-      Over the last {days} days this vault paid <strong>{pct(m.rate)}</strong> a
-      year, or {pct(after)} after the planned {PLANNED_PERFORMANCE_FEE}% fee,
+      Over the last {days} days {RECORD_NAME} paid <strong>{pct(m.rate)}</strong>{" "}
+      a year, or {pct(after)} after the planned {PLANNED_PERFORMANCE_FEE}% fee,
       which is not charged today.{" "}
       {indexRate != null && (
         <>
-          {name.charAt(0).toUpperCase() + name.slice(1)} paid{" "}
+          The {index?.symbol || "USDC"} Market Average paid{" "}
           <strong>{pct(indexRate)}</strong> over the same days:{" "}
-          <VsIndex diff={m.rate - indexRate} />.
+          <VsIndex diff={record.vs.r30Diff} />.
         </>
       )}
-      {only}
     </p>
   );
 }
 
-function GapBlock({ vault }) {
-  const local = vault.local;
+function GapBlock({ record, vaults }) {
+  const local = record.local;
   if (local?.selection == null || local?.place == null) return null;
   // Folded: the split names the networks, and the network is detail.
   return (
@@ -227,136 +194,50 @@ function GapBlock({ vault }) {
       </summary>
       <GapSplit
         local={local}
-        total={vault.vsIndex?.r30Diff}
-        curated={curatedShare(vault.members || [vault])}
+        total={record.vs?.r30Diff}
+        curated={curatedShare(vaults)}
       />
     </details>
   );
 }
 
-function StrategyRates({ vault, index }) {
-  const [period, setPeriod] = useState("30d");
-  const [network, setNetwork] = useState(vault.depositNetwork);
-  const { data, error } = usePublicResource(
-    "/api/crosschain/rates?period=" + period,
-  );
-  const row = data?.networks?.find((net) => net.name === network);
-  return (
-    <>
-      <div className={b.controlsRow}>
-        <Segmented
-          label="Network"
-          value={network}
-          onChange={setNetwork}
-          options={vault.networks.map((name) => ({ value: name, label: name }))}
-        />
-        <Segmented
-          label="Period"
-          value={period}
-          onChange={setPeriod}
-          options={[
-            { value: "7d", label: "7d" },
-            { value: "30d", label: "30d" },
-          ]}
-        />
-      </div>
-      {row ? (
-        <RateChart
-          series={{ vault: row.vault, market: indexRates(index, row.vault) }}
-          vaultLabel={"Lent on " + network}
-        />
-      ) : (
-        <p className={b.quiet}>
-          {error
-            ? "Rate history is not available right now."
-            : "Loading rate history…"}
-        </p>
-      )}
-      <MeasureNote>
-        What the money lent on one network earned, against the Market Average.
-        The data service has these from 29 October. It leaves out cash, so it
-        is not this vault’s rate.
-      </MeasureNote>
-    </>
-  );
-}
-
-// What the index earned over each previous week, over the same days as a vault
-// series, in the chart's shape.
-function indexRates(index, series) {
-  if (!index?.earned?.length) return [];
-  const from = series?.[0]?.t ?? -Infinity;
-  return index.earned
-    .filter((point) => point.at >= from - DAY)
-    .map((point) => ({ t: point.at, v: point.rate }));
-}
-
 // One row of choices: the comparison as 30-day rates or as what 10,000 earned,
-// then the share price. A product too small to compare has its daily rate
-// instead. The period sits with the chart.
-function Performance({ view, vault, index }) {
-  // A product too small to compare opens on its share price, not an empty box.
+// then the vault's own share price. The period sits with the chart.
+function Performance({ book }) {
+  const { vault, product } = book;
+  const index = product.index;
+  const record = product.record;
+  const measurable = record.measure.status === "ok";
   // Until the reader picks, the default follows the data as it arrives.
   const [picked, setTab] = useState(null);
-  const tab = picked ?? (view.measured.r30.status === "ok" ? "versus" : "price");
+  const tab = picked ?? (measurable ? "rate" : "price");
   const [days, setDays] = useState(30);
-  const [chartView, setChartView] = useState("rate");
-  const members = view.members || [vault];
-  // The line chains the vaults the 30-day figure comes from, so the chart,
-  // its weekly bars and the figure agree; before any is measurable, all of them.
-  const chained = useMemo(
-    () => view.measured.r30.series || compositeMeasure(members, 30).series || [],
-    [view.measured.r30.series, members],
-  );
-  // With several networks the product comes first: its vaults chained by size.
-  // One network's own share price is a choice away.
-  const whole = useMemo(
-    () =>
-      members.length > 1 && chained.length > 1
-        ? {
-            id: "product",
-            place: "All networks",
-            token: view.token,
-            kind: view.kind,
-            sharePrice: null,
-            samples: chained.map((point) => ({ at: point.at, price: point.level, tvl: view.tvl })),
-          }
-        : null,
-    [members.length, chained, view.token, view.kind, view.tvl],
-  );
-  const [chosen, setShown] = useState(null);
-  const shown = chosen ?? (whole ? "product" : vault.id);
-  const priced =
-    (shown === "product" && whole) || members.find((item) => item.id === shown) || vault;
+  const chained = record.measure.series || [];
   // The same window as the rate above, so a period never shows two answers.
-  const window = days ? measuredRate(priced.samples, days) : null;
+  const window = days ? measuredRate(vault.samples, days) : null;
   const points = window?.from
-    ? priced.samples.filter((point) => point.at >= window.from.at)
-    : pricePoints(priced.samples, days);
+    ? vault.samples.filter((point) => point.at >= window.from.at)
+    : pricePoints(vault.samples, days);
   const first = points[0],
     last = points.at(-1);
   const change =
     window?.change ??
     (first && last && last !== first ? (last.price / first.price - 1) * 100 : null);
-  const age = chained.length ? (Date.now() - chained[0].at) / 86400000 : 0;
+  const series = tab === "price" ? vault.samples : chained;
+  const age = series.length ? (Date.now() - series[0].at) / 86400000 : 0;
   // The window ends where the index ends, so the index line is the same on
   // every page.
   const end = index?.series?.at(-1)?.at ?? chained.at(-1)?.at ?? Date.now();
   const from = days ? end - days * DAY : -Infinity;
-  const measurable = view.measured.r30.status === "ok";
   const gaps = useMemo(() => weeklyGaps(chained, index, from), [chained, index, from]);
-  const weekRates = useMemo(
-    () => earnedSeries(chained, 7).map((point) => ({ t: point.at, v: point.rate })),
-    [chained],
-  );
-  const v30 = days === 30 && view.measured.r30.status === "ok";
+  const v30 = days === 30 && measurable;
   const lines = useMemo(
     () =>
-      compareLines(chained, index, view.title || "This product", {
-        oursRate: v30 ? view.measured.r30.rate : null,
-        indexRate: v30 ? view.vsIndex?.r30 : null,
+      compareLines(chained, index, RECORD_NAME, {
+        oursRate: v30 ? record.measure.rate : null,
+        indexRate: v30 ? record.vs?.r30 : null,
       }),
-    [chained, index, view, v30],
+    [chained, index, record, v30],
   );
   const verdict = windowVerdict(lines, from);
   const periodControl = (
@@ -364,37 +245,21 @@ function Performance({ view, vault, index }) {
       label="Period"
       value={days}
       onChange={setDays}
-      options={RANGES.map((range) => ({
+      options={PERIODS.map((range) => ({
         ...range,
         disabled: range.value && age < range.value * 0.5,
       }))}
     />
   );
-  const networkControl =
-    members.length > 1 ? (
-      <Segmented
-        label="Network"
-        value={priced.id}
-        onChange={setShown}
-        options={[
-          ...(whole ? [{ value: "product", label: "All networks" }] : []),
-          ...members.map((item) => ({ value: item.id, label: item.place })),
-        ]}
-      />
-    ) : null;
   return (
     <Section
+      id="performance"
       title="Performance"
       aside={
         <Segmented
           label="Chart"
-          value={tab === "versus" ? chartView : tab === "rate" ? "daily" : tab}
-          onChange={(next) => {
-            if (next === "rate" || next === "earned") {
-              setChartView(next);
-              setTab("versus");
-            } else setTab(next === "daily" ? "rate" : next);
-          }}
+          value={tab}
+          onChange={setTab}
           options={[
             ...(measurable
               ? [
@@ -403,77 +268,66 @@ function Performance({ view, vault, index }) {
                 ]
               : []),
             { value: "price", label: "Share price" },
-            ...(measurable ? [] : [{ value: "daily", label: "Rate" }]),
           ]}
         />
       }
     >
-      {tab === "versus" ? (
+      {tab !== "price" ? (
         <>
           <div className={b.priceHead}>
             <p className={b.quiet}>
               {viewLede(
-                chartView,
+                tab,
                 vault.token,
                 lines[0]?.series?.find((point) => point.at >= from - DAY / 2)?.at ?? from,
               )}
             </p>
             {periodControl}
           </div>
-          {measurable ? (
-            <>
-              <ComparisonChart
-                lines={lines}
-                from={from}
-                token={vault.token}
-                markers={indexMarkers(index)}
-                mode={chartView}
-              />
-              {verdict && (
-                <p className={b.verdictLine}>
-                  {days ? `Over ${days} days` : "Since launch"}:{" "}
-                  {view.title || "this product"} {pct(verdict.ours)}, the Market Average{" "}
-                  {pct(verdict.index)}, <VsIndex diff={verdict.gap} />.
-                </p>
-              )}
-              <MeasureNote>
-                {view.title || "This product"}: its vaults large enough to
-                measure, weighted by size, from share prices. Market Average: what its
-                markets paid, weighted by size. {referenceNote(index)} Interest
-                only, before fees.
-              </MeasureNote>
-              <details className={b.disclosure}>
-                <summary>Week by week against the Market Average</summary>
-                <GapChart points={gaps} label={view.title || "This product"} />
-                <p className={b.footnote}>
-                  Each bar is that week’s part of the gap, in points; together
-                  they add up to the gap over the period. The first bar may
-                  cover fewer than seven days.
-                </p>
-              </details>
-            </>
-          ) : (
-            <p className={b.chartEmpty} style={{ height: 120 }}>
-              This vault holds too little for a comparison to mean anything
-              yet. The share price chart shows its raw change.
+          <ComparisonChart
+            lines={lines}
+            from={from}
+            token={vault.token}
+            markers={indexMarkers(index)}
+            mode={tab}
+          />
+          {verdict && (
+            <p className={b.verdictLine}>
+              {days ? `Over ${days} days` : "Since launch"}: {RECORD_NAME}{" "}
+              {pct(verdict.ours)}, the Market Average {pct(verdict.index)},{" "}
+              <VsIndex diff={verdict.gap} />.
             </p>
           )}
+          <MeasureNote>
+            {RECORD_NAME} is what Thesauros earned for depositors: this vault
+            and the vaults before it, chained day by day and weighted by the
+            money each held, from share prices.{" "}
+            {record.own
+              ? ""
+              : "Until depositors move, most of that money is in the previous vaults, so most of this line is theirs. "}
+            Market Average: what its markets paid, weighted by size.{" "}
+            {referenceNote(index)} Interest only, before fees.
+          </MeasureNote>
+          <details className={b.disclosure}>
+            <summary>Week by week against the Market Average</summary>
+            <GapChart points={gaps} label={RECORD_NAME} />
+            <p className={b.footnote}>
+              Each bar is that week’s part of the gap, in points; together they
+              add up to the gap over the period. The first bar may cover fewer
+              than seven days.
+            </p>
+          </details>
+          <Comparison record={record} index={index} />
+          <GapBlock record={record} vaults={book.vaults} />
         </>
-      ) : tab === "price" ? (
+      ) : (
         <>
           <div className={b.priceHead}>
             <p>
-              {priced.id === "product" ? (
-                <strong>{view.title}, all networks</strong>
-              ) : (
-                <>
-                  <strong>
-                    {priced.sharePrice != null ? priced.sharePrice.toFixed(6) : "—"}
-                  </strong>{" "}
-                  {priced.token} a share
-                  {members.length > 1 ? ` on ${priced.place}` : ""}
-                </>
-              )}
+              <strong>
+                {vault.sharePrice != null ? vault.sharePrice.toFixed(6) : "—"}
+              </strong>{" "}
+              {vault.token} a share
               {change != null && (
                 <span className={b.change}>
                   {change >= 0 ? "+" : "−"}
@@ -484,64 +338,17 @@ function Performance({ view, vault, index }) {
             </p>
             {periodControl}
           </div>
-          {networkControl && <div className={b.controlsRow}>{networkControl}</div>}
-          <PriceChart
-            points={points}
-            silenceMs={priced.kind === "batch" ? 6 * 3600000 : 3 * 86400000}
-            gapLabel={priced.kind === "batch" ? "No valuation" : "No reading"}
-          />
+          <PriceChart points={points} silenceMs={6 * 3600000} gapLabel="No valuation" />
           <MeasureNote>
-            {priced.id === "product"
-              ? "The product’s vaults on every network, chained and weighted by size: how a deposit spread like its money grew. Each network’s vault has its own share price; choose one above."
-              : "What one share is worth. It rises as the markets pay interest, so holders earn without receiving anything."}
-            {priced.kind === "batch"
-              ? " A dashed line marks a period with no valuation."
-              : " One reading a day, from the contract."}
+            What one share of this vault is worth. It rises as the markets pay
+            interest, so holders earn without receiving anything. A dashed line
+            marks a period with no valuation.
+            {measurable
+              ? ""
+              : " The vault holds too little for a yearly rate from this price to mean much yet."}
           </MeasureNote>
         </>
-      ) : measurable ? (
-        <>
-          <div className={b.priceHead}>
-            <p className={b.quiet}>
-              What each earned over the seven days before every reading, a year
-            </p>
-            {periodControl}
-          </div>
-          <RateChart
-            series={{
-              vault: weekRates.filter((point) => point.t >= from),
-              market: indexRates(index, weekRates.filter((point) => point.t >= from)),
-            }}
-            vaultLabel={view.title || "This product"}
-            compareLabel={`${index?.symbol || "USDC"} Market Average`}
-          />
-          <MeasureNote>
-            The same measure on both sides: share prices for {view.title || "the product"},
-            each market’s interest index for the Market Average. A week smooths single
-            days; quotes never enter it.
-          </MeasureNote>
-        </>
-      ) : priced.rateHistory ? (
-        <>
-          {networkControl && <div className={b.controlsRow}>{networkControl}</div>}
-          <RateChart
-            series={{
-              vault: priced.rateHistory.vault,
-              market: indexRates(index, priced.rateHistory.vault),
-            }}
-            vaultLabel={members.length > 1 ? "On " + priced.place : "This vault"}
-          />
-          <MeasureNote>
-            Too small to measure from its share price yet, so this is the daily
-            rate the Thesauros data service reports, against what the Market Average
-            earned over the week before each day.
-          </MeasureNote>
-        </>
-      ) : (
-        <StrategyRates vault={priced.id === "product" ? vault : priced} index={index} />
       )}
-      <Comparison vault={view} index={index} />
-      <GapBlock vault={view} />
     </Section>
   );
 }
@@ -832,13 +639,7 @@ function WhereTheMoneyIs({ vault, index }) {
     <Section
       id="where"
       title="Where the yield comes from"
-      lede={
-        vault.kind === "batch"
-          ? "One deposit, lent across markets on several networks, with cash kept for withdrawals. Each market’s rate times its share adds up to the vault’s rate."
-          : vault.allocation.filter((row) => row.kind === "market").length === 1
-            ? `The vault lends to ${vault.allocation.find((row) => row.kind === "market").name}, the one market approved for it so far. With a second market it will move money towards the better rate.`
-            : "The vault lends across approved markets and moves money towards the better rate. Each market’s rate times its share adds up to the vault’s rate."
-      }
+      lede="One deposit, lent across markets on several networks, with cash kept for withdrawals. Each market’s rate times its share adds up to the vault’s rate."
     >
       {vault.allocation.length ? (
         <>
@@ -854,19 +655,13 @@ function WhereTheMoneyIs({ vault, index }) {
               <AllocationHistory history={vault.allocationHistory} />
             </details>
           )}
-          {!vault.onlyMarket && (
-            <details className={b.disclosure}>
-              <summary>
-                Map by network
-                <small>
-                  {vault.networks.length > 1
-                    ? `How the money is split across ${listOf(vault.networks)}`
-                    : `All of it on ${vault.networks[0]}`}
-                </small>
-              </summary>
-              <MoneyMap vault={vault} />
-            </details>
-          )}
+          <details className={b.disclosure}>
+            <summary>
+              Map by network
+              <small>How the money is split across {listOf(vault.networks)}</small>
+            </summary>
+            <MoneyMap vault={vault} />
+          </details>
           {buffer != null && (
             <p className={b.footnote}>
               The vault keeps at least {money(buffer)} {vault.token}
@@ -895,91 +690,7 @@ function WhereTheMoneyIs({ vault, index }) {
   );
 }
 
-// Every market by name down to 1% of the money, the rest as one line, and
-// uninvested cash, so the list adds up to the figure above it.
-function exitList(vault) {
-  const capacity = vault.exit.capacity;
-  const many = vault.members?.length > 1;
-  const big = capacity.markets.filter((market) => market.position >= 0.01 * capacity.held);
-  const rest = capacity.markets.filter((market) => market.position < 0.01 * capacity.held);
-  // "All of it" where a market can pay the whole position, the two amounts
-  // only where it cannot.
-  const part = (label, canLeave, position) =>
-    canLeave >= position * 0.999
-      ? `${label} all ${money(position)}`
-      : `${label} ${money(canLeave)} of ${money(position)}`;
-  const parts = big.map((market) =>
-    part(
-      `${market.name}${market.network && many ? " on " + market.network : ""}`,
-      market.canLeave,
-      market.position,
-    ),
-  );
-  if (rest.length)
-    parts.push(
-      part(
-        `${rest.length} small positions`,
-        rest.reduce((sum, market) => sum + market.canLeave, 0),
-        rest.reduce((sum, market) => sum + market.position, 0),
-      ),
-    );
-  if (capacity.cash >= 0.01) parts.push(`cash in the vault ${money(capacity.cash)}`);
-  return parts.join(", ");
-}
-
-function GettingOut({ vault, feedItems, name }) {
-  if (vault.kind !== "batch")
-    return (
-      <Section id="exit" title="Getting your money out">
-        <dl className={b.terms}>
-          <div>
-            <dt>Paid so far</dt>
-            <dd>
-              {vault.exit.record
-                ? `${vault.exit.record.count} ${vault.exit.record.count === 1 ? "withdrawal" : "withdrawals"}`
-                : "—"}
-            </dd>
-            {vault.exit.record?.largest > 0 && (
-              <small>
-                The largest was {compact(vault.exit.record.largest)} {vault.token},
-                in one transaction.
-              </small>
-            )}
-            {!vault.exit.record && (
-              <small>Not measured for this vault yet.</small>
-            )}
-            {vault.exit.record?.partial && (
-              <small>
-                Counted on the networks with a full withdrawal history so far.
-              </small>
-            )}
-          </div>
-          <div>
-            <dt>Could leave now</dt>
-            <dd>
-              {vault.exit.capacity ? (
-                <>
-                  {compact(vault.exit.capacity.canLeave)} <small>{vault.token}</small>
-                  {vault.exit.capacity.held > 0 &&
-                    vault.exit.capacity.canLeave >= vault.exit.capacity.held * 0.999 && (
-                      <small> · all of it</small>
-                    )}
-                </>
-              ) : (
-                "What the markets can pay"
-              )}
-            </dd>
-            <small>
-              {vault.exit.capacity
-                ? `For each market, the smaller of the vault’s position and the cash that market can pay out now: ${exitList(vault)}. Read from the contracts at ${clock(Date.parse(vault.exit.capacity.at))}.`
-                : "Paid at once, up to the liquidity the markets have at that moment."}{" "}
-              The contract checks this when you confirm.
-              {vault.open.withdrawals ? "" : " Withdrawals are paused right now."}
-            </small>
-          </div>
-        </dl>
-      </Section>
-    );
+function GettingOut({ vault, feedItems }) {
   const closing = batchClosing(vault);
   const limits = vault.limits;
   const batches = feedItems.filter((item) => item.kind === "batch");
@@ -1034,39 +745,32 @@ function GettingOut({ vault, feedItems, name }) {
         while it waits.
       </p>
       {gaps.length > 0 && (
-        <div className={b.subBlock}>
-          <h3>When settlement had to wait</h3>
-          {vault.gaps?.staleShare != null && (
-            <p className={b.lede}>
-              The valuation was out of date {vault.gaps.staleShare.toFixed(1)}%
-              of the time since {dateLabel(vault.gaps.since, false)}.
-            </p>
-          )}
+        <details className={b.disclosure}>
+          <summary>
+            When settlement had to wait
+            <small>
+              {vault.gaps?.staleShare != null
+                ? `No fresh valuation ${vault.gaps.staleShare.toFixed(1)}% of the time since ${dateLabel(vault.gaps.since, false)}`
+                : `${gaps.length} periods`}
+            </small>
+          </summary>
           <LedgerRows rows={gaps} hideVault />
-        </div>
+        </details>
       )}
     </Section>
   );
 }
 
 function MoneyMoved({ vault, feed }) {
-  const ids = (vault.members || [vault]).map((item) => item.id);
   const items = (feed.data?.items || []).filter(
-    (item) => ids.includes(item.vaultId) && item.kind !== "gap",
+    (item) => item.vaultId === vault.id && item.kind !== "gap",
   );
-  const known =
-    vault.kind === "batch" ||
-    ids.some((id) => feed.data?.sources?.rebalances?.[id] ?? false);
   const [allMoves, setAllMoves] = useState(false);
   return (
     <Section
       id="moved"
       title="Money moved"
-      lede={
-        vault.kind === "batch"
-          ? "Batches settled and moves between networks, from the contracts. It has not moved money between markets yet."
-          : "Every move between lending markets, from its vaults’ contracts."
-      }
+      lede="Batches settled and moves between networks, from the contracts."
     >
       {feed.loading && !feed.data ? (
         <p className={b.quiet}>Loading…</p>
@@ -1084,11 +788,7 @@ function MoneyMoved({ vault, feed }) {
           )}
         </>
       ) : (
-        <p className={b.quiet}>
-          {known
-            ? "Nothing has moved yet."
-            : "Moves for this vault are not listed here yet; its allocation now is above."}
-        </p>
+        <p className={b.quiet}>Nothing has moved yet.</p>
       )}
     </Section>
   );
@@ -1149,89 +849,34 @@ function Risks({ vault }) {
   );
 }
 
-function Networks({ view }) {
-  const members = view.members || [view];
-  const many = members.length > 1;
+function Contracts({ vault }) {
   return (
     <Section id="contracts" title="Networks and contracts">
       <details className={b.disclosure}>
         <summary>
-          {many ? "Each network’s vault" : "Where this vault lives"}
+          Where this vault lives
           <small>
-            {view.kind === "batch"
-              ? `Deposits on ${view.depositNetwork}; lends on ${view.networks.join(", ")}`
-              : many
-                ? `${members.length} vaults, one per network, ${view.token} on each`
-                : `${view.token} on ${view.depositNetwork}`}
+            Deposits on {vault.depositNetwork}; lends on {listOf(vault.networks)}
             {" · "}
-            {view.contracts.length}{" "}
-            {view.contracts.length === 1 ? "contract" : "contracts"}
+            {vault.contracts.length} contracts
           </small>
         </summary>
-        {many && (
-          <div className={b.tableWrap}>
-            <table className={`${b.table} ${b.stack}`}>
-              <thead>
-                <tr>
-                  <th>Network</th>
-                  <th>Stage</th>
-                  <th>Code review</th>
-                  <th className={b.num}>Total value</th>
-                  <th className={b.num}>Rate now</th>
-                  <th className={b.num}>30-day rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => (
-                  <tr key={member.id}>
-                    <td data-cell="vault">
-                      <span className={b.inlineMark}>
-                        <NetworkMarks vault={member} size={16} />
-                        {member.place}
-                      </span>
-                      <small className={b.quietBlock}>
-                        fees in {member.gasToken}
-                      </small>
-                    </td>
-                    <td data-label="Stage">
-                      <Stage stage={member.stage} />
-                    </td>
-                    <td data-label="Code review">{member.audit.label}</td>
-                    <td className={b.num} data-label="Total value">
-                      {compact(member.tvl)} <small>{member.token}</small>
-                    </td>
-                    <td className={b.num} data-label="Rate now">
-                      {pct(member.rateNow)}
-                    </td>
-                    <td className={b.num} data-label="30-day rate">
-                      <MeasuredRate measure={member.measured.r30} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <dl className={b.terms}>
+          <div>
+            <dt>Deposit and withdraw on</dt>
+            <dd>
+              {vault.token} on {vault.depositNetwork}
+            </dd>
+            <small>Network fees are paid in {vault.gasToken}.</small>
           </div>
-        )}
-        {!many && (
-          <dl className={b.terms}>
-            <div>
-              <dt>Deposit from</dt>
-              <dd>
-                {view.token} on {view.depositNetwork}
-              </dd>
-              <small>Network fees are paid in {view.gasToken}.</small>
-            </div>
-            <div>
-              <dt>Lends on</dt>
-              <dd>{view.networks.join(", ")}</dd>
-              {view.kind === "batch" && (
-                <small>Money moves between networks through Circle’s CCTP.</small>
-              )}
-            </div>
-          </dl>
-        )}
+          <div>
+            <dt>Lends on</dt>
+            <dd>{listOf(vault.networks)}</dd>
+            <small>Money moves between networks through Circle’s CCTP.</small>
+          </div>
+        </dl>
         <ul className={b.contractList}>
-          {view.contracts.map((contract) => (
+          {vault.contracts.map((contract) => (
             <li key={contract.label + contract.address}>
               <span>{contract.label}</span>
               <a
@@ -1246,42 +891,27 @@ function Networks({ view }) {
         </ul>
         <MeasureNote>
           Balances, share prices and allocation are read from these contracts.
-          {view.kind === "batch"
-            ? " The valuation is calculated by Thesauros and published to the valuation contract."
-            : " Rates now are read from the market contracts; the daily rate history comes from the Thesauros data service."}
-          {many
-            ? " Each network’s vault is its own contract with its own share price; you choose which one in the deposit panel."
-            : ""}
+          The valuation is calculated by Thesauros and published to the
+          valuation contract.
         </MeasureNote>
       </details>
     </Section>
   );
 }
 
-export default function VaultPage({
-  view,
-  vault,
-  product,
-  chooseVault,
-  index,
-  user,
-  account,
-  batch,
-  wallet,
-  navigate,
-  intent,
-}) {
+// Earn: the product, on one page. What it pays and against what, where the
+// money is, how to get it out, what it costs and what can go wrong, with the
+// deposit panel beside it.
+export default function VaultPage({ book, user, batch, navigate, intent }) {
+  const { vault, product, totals } = book;
   const feed = usePublicResource("/api/vaults/feed", { refreshMs: 120000 });
-  const ids = (view.members || [vault]).map((item) => item.id);
-  const feedItems = (feed.data?.items || []).filter((item) =>
-    ids.includes(item.vaultId),
+  const feedItems = (feed.data?.items || []).filter(
+    (item) => item.vaultId === vault.id,
   );
-  const active = (view.members || [vault]).flatMap(
-    (member) => member.position.active || [],
-  );
+  const active = vault.position.active || [];
   return (
     <div className={b.page}>
-      <Header view={view} index={index} navigate={navigate} />
+      <Header vault={vault} product={product} totals={totals} />
       <ValuationBanner vault={vault} />
       <div className={b.vaultLayout}>
         <div className={b.vaultMain}>
@@ -1299,23 +929,20 @@ export default function VaultPage({
               </div>
             </Section>
           )}
-          <Performance view={view} vault={vault} index={index} />
-          <WhereTheMoneyIs vault={view} index={index} />
-          <GettingOut vault={view} feedItems={feedItems} />
-          <MoneyMoved vault={view} feed={feed} />
+          <Performance book={book} />
+          <WhatIf book={book} navigate={navigate} />
+          <WhereTheMoneyIs vault={vault} index={product.index} />
+          <GettingOut vault={vault} feedItems={feedItems} />
+          <MoneyMoved vault={vault} feed={feed} />
           <Terms vault={vault} />
-          <Risks vault={view} />
-          <Networks view={view} />
+          <Risks vault={vault} />
+          <Contracts vault={vault} />
         </div>
         <ActionPanel
-          key={vault.id}
           vault={vault}
-          choices={product.vaults}
-          onChoose={chooseVault}
           user={user}
-          account={account}
           batch={batch}
-          wallet={wallet}
+          wallet={book.account.wallet}
           navigate={navigate}
           intent={intent}
         />

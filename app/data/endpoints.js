@@ -5,15 +5,15 @@ export const ENDPOINT_GROUPS = [
   {
     id: 'positions',
     label: 'Positions',
-    blurb: 'Open, inspect and redeem non-custodial yield positions.',
+    blurb: 'Create, read and close sample positions.',
     endpoints: [
       {
         id: 'create-position',
         method: 'POST',
         path: '/positions',
-        summary: 'Open a yield position',
+        summary: 'Create a sample position',
         description:
-          'Deposits stablecoins from a user wallet into the optimal vault for the chosen strategy. Funds never leave the user\u2019s custody; Thesauros only routes.',
+          'Creates a sample position in the sample venue with the highest rate, or in the one named in `strategy`. Simulated: nothing is signed and no funds move. A real deposit is an approval, a request and a claim on the vault on Base.',
         params: [
           { name: 'wallet', in: 'body', type: 'string', required: true, desc: 'User wallet address (0x\u2026)', example: '0x8b3E5f2A91cD4b6E80fA2d19c7B4e3A5d0F61234' },
           { name: 'asset', in: 'body', type: 'enum', required: true, options: ['USDC', 'USDT'], desc: 'Stablecoin asset', example: 'USDC' },
@@ -21,7 +21,7 @@ export const ENDPOINT_GROUPS = [
           { name: 'strategy', in: 'body', type: 'string', required: false, desc: '"auto" (default) or a vault_id', example: 'auto' },
         ],
         bodyExample: { wallet: '0x8b3E5f2A91cD4b6E80fA2d19c7B4e3A5d0F61234', asset: 'USDC', amount: 1000, strategy: 'auto' },
-        returns: '201 \u2014 Position object (status transitions pending \u2192 active)',
+        returns: '201 \u2014 Position (active at once)',
       },
       {
         id: 'list-positions',
@@ -31,7 +31,7 @@ export const ENDPOINT_GROUPS = [
         description: 'Returns positions visible to this API key, newest first. Filter by wallet or status.',
         params: [
           { name: 'wallet', in: 'query', type: 'string', required: false, desc: 'Filter by wallet address', example: '' },
-          { name: 'status', in: 'query', type: 'enum', required: false, options: ['pending', 'active', 'withdrawing', 'closed'], desc: 'Filter by lifecycle status', example: '' },
+          { name: 'status', in: 'query', type: 'enum', required: false, options: ['active', 'closed'], desc: 'Filter by lifecycle status', example: '' },
         ],
         returns: '200 \u2014 list of Position',
       },
@@ -40,7 +40,7 @@ export const ENDPOINT_GROUPS = [
         method: 'GET',
         path: '/positions/:id',
         summary: 'Retrieve a position',
-        description: 'Returns a single position with live accrued yield computed to the current block time.',
+        description: 'Returns a single sample position with sample yield computed to the current time.',
         params: [{ name: 'id', in: 'path', type: 'string', required: true, desc: 'Position id (pos_\u2026)', example: 'pos_seed_0' }],
         returns: '200 \u2014 Position',
       },
@@ -49,7 +49,7 @@ export const ENDPOINT_GROUPS = [
         method: 'POST',
         path: '/positions/:id/withdraw',
         summary: 'Withdraw from a position',
-        description: 'Redeems part or all of a position back to the user wallet. Full withdrawal closes the position.',
+        description: 'Reduces or closes a sample position at once. Simulated: nothing is sent to a wallet. A real withdrawal is a request that settles with a batch.',
         params: [
           { name: 'id', in: 'path', type: 'string', required: true, desc: 'Position id', example: 'pos_seed_0' },
           { name: 'amount', in: 'body', type: 'number', required: false, desc: 'Amount to withdraw', example: '500' },
@@ -72,14 +72,14 @@ export const ENDPOINT_GROUPS = [
   {
     id: 'vaults',
     label: 'Vaults',
-    blurb: 'The underlying yield venues the router allocates across.',
+    blurb: 'Sample venue records.',
     endpoints: [
       {
         id: 'list-vaults',
         method: 'GET',
         path: '/vaults',
         summary: 'List vaults',
-        description: 'All yield venues with live APY, TVL, capacity and risk tier.',
+        description: 'Sample venues with sample APY, TVL, capacity and risk tier. They are not the live vault.',
         params: [
           { name: 'asset', in: 'query', type: 'enum', required: false, options: ['USDC', 'USDT'], desc: 'Filter by asset', example: '' },
           { name: 'network', in: 'query', type: 'enum', required: false, options: ['arbitrum', 'base', 'mainnet', 'monad', 'plasma'], desc: 'Filter to one network; mainnet is Ethereum', example: '' },
@@ -101,14 +101,14 @@ export const ENDPOINT_GROUPS = [
   {
     id: 'yield',
     label: 'Yield',
-    blurb: 'Aggregated, allocation-weighted yield intelligence.',
+    blurb: 'Sample blended rates.',
     endpoints: [
       {
         id: 'yield-aggregate',
         method: 'GET',
         path: '/yield',
         summary: 'Aggregate yield',
-        description: 'Best and blend APY across the router for each supported asset.',
+        description: 'Best and blended sample APY per asset.',
         params: [{ name: 'asset', in: 'query', type: 'enum', required: false, options: ['USDC', 'USDT'], desc: 'Restrict to one asset', example: '' }],
         returns: '200 \u2014 list of Yield',
       },
@@ -126,7 +126,7 @@ export const ENDPOINT_GROUPS = [
   {
     id: 'rebalances',
     label: 'Rebalances',
-    blurb: 'Every routing decision, with the reasoning.',
+    blurb: 'Sample rebalance events.',
     endpoints: [
       {
         id: 'list-rebalances',
@@ -142,7 +142,7 @@ export const ENDPOINT_GROUPS = [
   {
     id: 'webhooks',
     label: 'Webhooks',
-    blurb: 'Real-time event delivery to your backend, HMAC-signed.',
+    blurb: 'Signed sample events. The sandbox delivers nothing over the network.',
     endpoints: [
       {
         id: 'create-webhook',
@@ -180,7 +180,7 @@ export const ENDPOINT_GROUPS = [
         method: 'POST',
         path: '/webhooks/:id/test',
         summary: 'Send a test event',
-        description: 'Dispatches a synthetic position.rebalanced event so you can verify signature handling end-to-end.',
+        description: 'Records a signed sample system.status event so you can verify signature handling. The sandbox sends no network request.',
         params: [{ name: 'id', in: 'path', type: 'string', required: true, desc: 'Webhook id', example: 'wh_seed_0' }],
         returns: '200 \u2014 Delivery record (includes signature)',
       },
@@ -249,7 +249,7 @@ export const ENDPOINT_GROUPS = [
         method: 'GET',
         path: '/status',
         summary: 'System status',
-        description: 'Per-component health, 90-day uptime and latency. Public endpoint.',
+        description: 'Sample component health. Public endpoint.',
         params: [],
         returns: '200 \u2014 Status',
       },
@@ -315,7 +315,7 @@ export const ENDPOINT_GROUPS = [
         method: 'GET',
         path: '/users/:id/positions',
         summary: "A user's positions",
-        description: 'Positions owned by this user, with live accrual.',
+        description: 'Sample positions owned by this user, with sample accrual.',
         params: [{ name: 'id', in: 'path', type: 'string', required: true, desc: 'User id', example: 'usr_seed_nova' }],
         returns: '200 \u2014 list of Position',
       },
@@ -336,7 +336,7 @@ export const ENDPOINT_GROUPS = [
   {
     id: 'reconciliation',
     label: 'Reconciliation',
-    blurb: 'Ledger, balances and recorded-vs-on-chain reconciliation.',
+    blurb: 'Ledger, balances and reconciliation against a simulated settled value.',
     endpoints: [
       {
         id: 'recon-ledger',
@@ -369,7 +369,7 @@ export const ENDPOINT_GROUPS = [
         method: 'GET',
         path: '/reconciliation/report',
         summary: 'Reconciliation report',
-        description: 'Recorded (ledger) vs on-chain (settled) totals. The difference is intraday unsettled yield; within tolerance the status is "reconciled".',
+        description: 'Recorded totals against a simulated settled value. Nothing is read from a chain. Within tolerance the status is "reconciled".',
         params: [{ name: 'scope', in: 'query', type: 'string', required: false, desc: 'all, a user id (usr_\u2026) or a position id (pos_\u2026)', example: 'all' }],
         returns: '200 \u2014 Reconciliation',
       },
@@ -398,7 +398,7 @@ export const ENDPOINT_GROUPS = [
         method: 'GET',
         path: '/analytics/uplift',
         summary: 'Uplift vs baselines',
-        description: 'Routed portfolio value versus passive baselines (Aave-only and hold-original-vault). The primary proof point.',
+        description: 'Routed sample portfolio value versus passive baselines (Aave-only and hold-original-vault).',
         params: [
           { name: 'user_id', in: 'query', type: 'string', required: false, desc: 'Scope to a user', example: '' },
           { name: 'asset', in: 'query', type: 'enum', required: false, options: ['USDC', 'USDT'], desc: 'Filter by asset', example: '' },

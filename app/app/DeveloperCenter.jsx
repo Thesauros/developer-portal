@@ -14,8 +14,19 @@ import {
   PARTNER_TERMS,
   PLANNED_PERFORMANCE_FEE,
 } from "../../lib/vault-facts.mjs";
-import { Section, Segmented } from "./book/parts";
+import { crosschain } from "../../lib/crosschain-config.mjs";
+import { Section, Segmented, short } from "./book/parts";
 import b from "./book/book.module.css";
+
+// The calls an integration makes on the vault, as a wallet sees them.
+const VAULT_CALLS = `// USDC and the vault's shares both have 6 decimals. All on Base.
+usdc.approve(vault, assets)                    // exactly the amount
+vault.requestDeposit(assets, receiver)         // returns requestId
+vault.requestRedeem(shares, receiver, owner)   // returns requestId
+vault.getRequest(requestId)                    // state and amounts
+vault.claim(requestId)                         // after the batch settles
+vault.cancel(requestId)                        // while the request can still be cancelled
+vault.limits()                                 // minDeposit, maxEpochDeposits, ...`;
 
 const DeveloperTools = dynamic(() => import("./DeveloperTools"), {
   ssr: false,
@@ -211,13 +222,13 @@ const TOOLS = [
   {
     title: "Partner API",
     note: "v1",
-    text: "Customer attribution, vault observations, partner reporting and webhooks.",
+    text: "Customer attribution, sample rate records, partner reporting and webhooks. It does not record the vault's requests and claims yet.",
     action: "reference",
   },
   {
     title: "API Sandbox",
     note: "sample data",
-    text: "Try requests, sample customers and position activity. Nothing moves on chain.",
+    text: "Try requests, sample customers and position activity. Nothing moves on chain. Its deposits and withdrawals are instant; the vault's are not.",
     action: "sandbox",
   },
 ];
@@ -244,16 +255,16 @@ export default function DeveloperCenter({ user, navigate }) {
     const next = route.replace(/^integrations\//, "");
     if (sandboxViews.has(next)) setSandboxView(next);
   }
-  const contact = marketingHref("/contact?usecase=integration");
+  const contact = marketingHref("/contact?usecase=integrate");
   return (
     <div className={b.page}>
       <header className={b.pageHead}>
         <div>
           <h1 tabIndex={-1}>Developers</h1>
           <p className={b.pageLede}>
-            Put these vaults in your own product. Your users deposit from your
-            app and keep their own wallets; Thesauros runs the vaults and shows
-            the same figures you see here.
+            Put the USDC Multichain vault in your own product. Your users
+            request deposits on Base from their own wallets in your app;
+            Thesauros runs the vault and shows the same figures you see here.
           </p>
         </div>
         <div className={b.headActions}>
@@ -275,8 +286,8 @@ export default function DeveloperCenter({ user, navigate }) {
           <small>Planned. The contracts charge 0% today.</small>
         </div>
         <div>
-          <dt>Your share of that fee, now</dt>
-          <dd>{PARTNER_TERMS.preToken}%</dd>
+          <dt>Your share of that fee</dt>
+          <dd>Up to {PARTNER_TERMS.preToken}%</dd>
           <small>
             Until 60 days after the token launches. Then {PARTNER_TERMS.base}%,
             or up to {PARTNER_TERMS.bonded}% with bonded tokens.
@@ -301,45 +312,99 @@ export default function DeveloperCenter({ user, navigate }) {
         <>
           <Section
             title="How an integration works"
-            lede="Choose the wallet model with your team, then connect the records that make the vaults work inside your product."
+            lede="Choose the wallet model with your team, build the vault's request flow into your product, then connect your own records."
           >
             <ol className={b.steps}>
               <li>
                 <h3>Design the transaction</h3>
                 <p>
-                  Your app handles consent, wallet signing and confirmations.
-                  Approval, deposit and withdrawal use the vault contracts.
+                  Your app handles consent, wallet signing and confirmations. A
+                  deposit is an approval, a request and a claim after the batch
+                  settles. A withdrawal is a request and a claim. Both are on
+                  the vault contract on Base.
                 </p>
-                <button className={b.linkButton} onClick={() => navigate("vaults")}>
+                <button className={b.linkButton} onClick={() => navigate("earn")}>
                   See the deposit flow
                 </button>
+              </li>
+              <li>
+                <h3>Read the vault from the chain</h3>
+                <p>
+                  Requests, settlements and claims are on the vault contract.
+                  The Partner API does not record the vault yet: its positions,
+                  ledger and webhooks do not confirm vault activity.
+                </p>
+                <a className={b.linkButton} href={documentationHref("/build/vault/")}>
+                  Integrate the vault on chain
+                </a>
               </li>
               <li>
                 <h3>Connect customer records</h3>
                 <p>
                   Keep Partner API credentials on your backend. Link customer
                   identities and wallets to the partner account arranged with
-                  Thesauros.
+                  Thesauros, and treat chain data and API accounting as
+                  separate sources.
                 </p>
                 <button className={b.linkButton} onClick={() => browse("Customers")}>
                   Customer endpoints
                 </button>
               </li>
-              <li>
-                <h3>Operate the experience</h3>
-                <p>
-                  Bring recorded positions, delivery events and reconciliation
-                  into your services. Treat chain data and API accounting as
-                  separate sources.
-                </p>
-                <button
-                  className={b.linkButton}
-                  onClick={() => browse("Reconciliation")}
-                >
-                  Reconciliation
-                </button>
-              </li>
             </ol>
+          </Section>
+          <Section
+            id="vault-contract"
+            title="The vault contract"
+            lede="One contract on Base takes every deposit and withdrawal. Read limits and fees from it: they can change."
+          >
+            <dl className={b.terms}>
+              <div>
+                <dt>USDC Multichain vault</dt>
+                <dd>
+                  <a
+                    href={crosschain.explorer + "/address/" + crosschain.vault}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {short(crosschain.vault)} ↗
+                  </a>
+                </dd>
+                <small>Base, chain ID {crosschain.chainId}. Indexed from block {crosschain.startBlock}.</small>
+              </div>
+              <div>
+                <dt>Asset</dt>
+                <dd>
+                  <a
+                    href={crosschain.explorer + "/address/" + crosschain.asset}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    USDC {short(crosschain.asset)} ↗
+                  </a>
+                </dd>
+                <small>Native USDC on Base, 6 decimals.</small>
+              </div>
+              <div>
+                <dt>Valuations</dt>
+                <dd>
+                  <a
+                    href={crosschain.explorer + "/address/" + crosschain.accountant}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {short(crosschain.accountant)} ↗
+                  </a>
+                </dd>
+                <small>Each accepted valuation sets the share price a batch settles at.</small>
+              </div>
+            </dl>
+            <pre className={b.codeBlock} tabIndex={0} aria-label="The vault's calls">
+              <code>{VAULT_CALLS}</code>
+            </pre>
+            <p className={b.footnote}>
+              These contracts have had no external audit yet. Strategy contracts
+              on each network are internal and never receive user approvals.
+            </p>
           </Section>
           <Section title="Tools and clients">
             <ul className={b.toolRows}>
@@ -389,7 +454,7 @@ export default function DeveloperCenter({ user, navigate }) {
           </Section>
           <Section
             title="Connect your organization"
-            lede="Work with Thesauros on your signing model, supported networks and Partner API access. A wallet connection does not issue an organization credential."
+            lede="Work with Thesauros on your signing model, wallet flow on Base and Partner API access. A wallet connection does not issue an organization credential."
             aside={
               <a className={b.primary} href={contact}>
                 Plan an integration
@@ -402,7 +467,7 @@ export default function DeveloperCenter({ user, navigate }) {
       {area === "reference" && (
         <Section
           title="Partner API reference"
-          lede="Find the request your product needs. Examples use your own API origin and server credentials. Partner endpoints read and manage attributed records; this API does not sign deposits or withdrawals for your customers."
+          lede="Find the request your product needs. Examples use your own API origin and server credentials. Partner endpoints read and manage attributed records; this API does not sign deposits or withdrawals for your customers, and it does not record the USDC Multichain vault yet."
           aside={
             <a
               className={b.secondary}
@@ -485,8 +550,9 @@ export default function DeveloperCenter({ user, navigate }) {
             </p>
             <p>
               This catalog was checked against the Partner API controllers and
-              input validation on {PARTNER_API_REVIEWED}. It omits legacy reward
-              methods and deprecated aliases.
+              input validation on {PARTNER_API_REVIEWED}; the backend has
+              changed since, so confirm scopes and limits with the OpenAPI
+              file. It omits legacy reward methods and deprecated aliases.
             </p>
             <a href={documentationHref("/api/partner-models/")}>
               Read the response models
@@ -498,7 +564,7 @@ export default function DeveloperCenter({ user, navigate }) {
       {area === "sandbox" && (
         <Section
           title="API Sandbox"
-          lede="Tools for testing request shapes and sample account operations, on a shared environment with sample data. Creating a sample position does not send a blockchain transaction."
+          lede="Tools for testing request shapes and sample account operations, on a shared environment with sample data. Creating a sample position does not send a blockchain transaction, and it is instant: the live vault's deposits and withdrawals are requests that settle in batches."
           aside={
             <a
               className={b.secondary}

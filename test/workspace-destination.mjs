@@ -11,7 +11,7 @@ assert.equal(
 );
 assert.equal(
   destination("institution", { pathname: "/monitoring" }),
-  "/app/institution#vaults",
+  "/app/institution#transparency",
 );
 assert.equal(
   destination("institution", { pathname: "/developers", hash: "#reference" }),

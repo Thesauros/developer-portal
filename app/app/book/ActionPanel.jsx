@@ -1,30 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { formatUnits } from "viem";
-import {
-  crosschainAmount,
-} from "../../../lib/crosschain-transactions.mjs";
+import { crosschainAmount } from "../../../lib/crosschain-transactions.mjs";
 import { crosschain } from "../../../lib/crosschain-config.mjs";
-import { getVault, vaults as standardVaults } from "../../../lib/vault-contracts.mjs";
 import { requestStage, REQUEST_STEPS } from "../../../lib/crosschain-feed.mjs";
 import { sharesForAmount } from "../../../lib/vault-metrics.mjs";
-import { TransactionPanel } from "./InstantTransaction";
 import { ConnectAction } from "../wallet/WalletAccess";
-import {
-  compact,
-  dateLabel,
-  hourOnly,
-  money,
-  pct,
-  Segmented,
-  Stage,
-  NetworkMarks,
-} from "./parts";
+import { dateLabel, hourOnly, money, pct, Segmented } from "./parts";
 import b from "./book.module.css";
 
-const WalletFunding = dynamic(() => import("../WalletFunding"));
 const DRAFT = "thesauros.draft";
 function readDraft(vaultId) {
   try {
@@ -95,12 +80,6 @@ function Notice({ vault }) {
     <details className={b.notice} open>
       <summary>Before you deposit</summary>
       <ul>
-        {vault.stage === "Pilot" && (
-          <li>
-            A pilot that runs with team funds. Deposits are open in this build
-            for testing; outside money is not part of its plan yet.
-          </li>
-        )}
         {vault.notice.map((line) => (
           <li key={line}>{line}</li>
         ))}
@@ -111,45 +90,30 @@ function Notice({ vault }) {
 }
 
 // Your USDC is on another network: say so instead of showing an empty form.
-function WrongNetwork({ vault, wallet, navigate }) {
+function WrongNetwork({ vault, wallet }) {
   if (!wallet?.length) return null;
   const here = wallet.find(
     (row) => row.network === vault.depositNetwork && row.token === vault.token,
   );
   if (here && here.amount >= (vault.minDeposit ?? 0)) return null;
-  const elsewhere = wallet.filter((row) => row.network !== vault.depositNetwork);
+  const elsewhere = wallet.filter(
+    (row) => row.network !== vault.depositNetwork && row.token === vault.token,
+  );
   if (!elsewhere.length) return null;
   const top = [...elsewhere].sort((a, c) => c.amount - a.amount)[0];
   return (
     <p className={b.hintBox}>
-      You have {money(top.amount)} {top.token} on {top.network}. This vault
-      takes {vault.token} on {vault.depositNetwork}. Bridge it there with your
-      wallet, or{" "}
-      <button
-        className={b.linkButton}
-        onClick={() =>
-          navigate(
-            "vault",
-            standardVaults.find(
-              (item) => item.name === top.network && item.symbol === top.token,
-            )?.id || vault.id,
-          )
-        }
-      >
-        see the {top.token} vault on {top.network}
-      </button>
-      .
+      You have {money(top.amount)} {top.token} on {top.network}. The vault
+      takes {vault.token} on {vault.depositNetwork}: send it there with the
+      bridge in your wallet, to the same address, then deposit.
     </p>
   );
 }
 
 function GuestForm({ vault, action, setAction }) {
   const [amount, setAmount] = useState("");
-  // The batch vault takes at most this much in one batch.
-  const maxBatch =
-    vault.kind === "batch" && vault.limits?.maxEpochDeposits
-      ? Number(vault.limits.maxEpochDeposits) / 10 ** (vault.decimals || 6)
-      : null;
+  // The vault takes at most this much in one batch.
+  const maxBatch = vault.batchLimit;
   const value = Number(amount.replace(/[^\d.]/g, "")) || 0;
   const closed = action === "deposit" && !vault.open.deposits;
   function remember(next) {
@@ -172,10 +136,8 @@ function GuestForm({ vault, action, setAction }) {
       ) : action === "withdraw" ? (
         // A guest has nothing to withdraw yet: say what withdrawing takes.
         <p className={b.hint}>
-          Withdrawing needs the wallet that holds your shares.{" "}
-          {vault.kind === "batch"
-            ? "A withdrawal is requested now and paid when the next batch settles."
-            : "It is paid in one transaction."}
+          Withdrawing needs the wallet that holds your shares. A withdrawal
+          is requested now and paid when the next batch settles.
         </p>
       ) : (
         <label className={b.field}>
@@ -223,31 +185,13 @@ function GuestForm({ vault, action, setAction }) {
   );
 }
 
-// A vault that takes no new money and holds none of yours: say so, and only
-// offer a way in to people who already hold shares.
-function ClosedPanel({ vault, user }) {
-  return (
-    <div className={b.form}>
-      <p className={b.closedTitle}>Not open for deposits</p>
-      <p className={b.hint}>
-        It runs with team funds while it is being prepared. Everything it does
-        is shown on this page.
-      </p>
-      {!user?.walletAddress && (
-        <p className={b.footnote}>
-          Already hold shares?{" "}
-          <ConnectAction className={b.linkButton} label="Connect to withdraw" />
-        </p>
-      )}
-    </div>
-  );
-}
-
+// Deposits can be stopped by the contract or by this deployment. Money already
+// in the vault is never locked in by that.
 function ClosedDeposits() {
   return (
     <p className={b.hintBox}>
-      This vault is not open for deposits yet. It runs with team funds while it
-      is being prepared. Everything it does is shown on this page.
+      Deposits are paused right now. Withdrawing, collecting and cancelling
+      work as usual.
     </p>
   );
 }
@@ -378,9 +322,7 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
         <ClosedDeposits />
       ) : !reviewing ? (
         <>
-          {deposit && (
-            <WrongNetwork vault={vault} wallet={wallet} navigate={navigate} />
-          )}
+          {deposit && <WrongNetwork vault={vault} wallet={wallet} />}
           <label className={b.field}>
             <span>Amount</span>
             <span className={b.amount}>
@@ -501,6 +443,15 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
           </button>
         </>
       )}
+      {batch.migrationBlocked && (
+        <p className={b.hintBox}>
+          A step of your move from a previous vault is still open.{" "}
+          <button className={b.linkButton} onClick={() => navigate("move")}>
+            Finish it first
+          </button>
+          .
+        </p>
+      )}
       {noGas && !closed && (
         <p className={b.hintBad}>
           You have no {vault.gasToken} on {vault.depositNetwork}. Some wallets
@@ -522,163 +473,9 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
   );
 }
 
-function InstantForm({ vault, account, user, action, setAction, initial, navigate, wallet }) {
-  const definition = getVault(vault.id);
-  const [locked, setLocked] = useState(false);
-  const [funding, setFunding] = useState(false);
-  const fundingOpener = useRef(null);
-  const position = account.vaults.find((row) => row.id === vault.id);
-  const pending = account.transactions.find(
-    (tx) => tx.vaultId === vault.id && ["pending", "unknown"].includes(tx.status),
-  );
-  return (
-    <div className={b.form}>
-      <Segmented
-        label="Action"
-        value={action}
-        onChange={(next) => {
-          if (!locked && !pending) setAction(next);
-        }}
-        options={[
-          { value: "deposit", label: "Deposit" },
-          { value: "withdraw", label: "Withdraw" },
-        ]}
-      />
-      {action === "deposit" && (
-        <WrongNetwork vault={vault} wallet={wallet} navigate={navigate} />
-      )}
-      <TransactionPanel
-        key={vault.id}
-        embedded
-        initialAmount={initial?.amount}
-        vault={definition}
-        position={position}
-        account={account}
-        owner={user.walletAddress}
-        mode={action}
-        setMode={setAction}
-        setLocked={setLocked}
-        pending={pending}
-        onFunding={(event) => {
-          fundingOpener.current = event.currentTarget;
-          setFunding(true);
-        }}
-      />
-      {funding && (
-        <WalletFunding
-          key={vault.id}
-          vault={definition}
-          owner={user.walletAddress}
-          onClose={() => setFunding(false)}
-          onRefresh={async () => {
-            const rows = await account.refresh();
-            return (
-              rows?.some(
-                (row) => row?.id === vault.id && row.status === "ready",
-              ) ?? false
-            );
-          }}
-          loading={account.loading}
-          returnFocusRef={fundingOpener}
-        />
-      )}
-    </div>
-  );
-}
-
-// Everything a person does with one vault, in one place. Below the wide layout
+// Everything a person does with the vault, in one place. Below the wide layout
 // it lives in a sheet opened from the bar at the bottom of the screen.
-// One product, several networks: the panel works with the vault on the network
-// chosen here, and says plainly what that vault is.
-function NetworkChoice({ vault, choices, onChoose, wallet, action }) {
-  // The product is one; the network is only where the money comes from or
-  // goes back to. Each network's vault has its own rate, said in one line.
-  const warn = vault.audit?.state && vault.audit.state !== "reviewed";
-  const [changing, setChanging] = useState(false);
-  if (!changing)
-    return (
-      <div className={b.networkChoice}>
-        <p className={b.fromLine}>
-          <span>
-            {action === "withdraw" ? "On" : "From"} <strong>{vault.place}</strong>
-            {" · "}
-            {pct(vault.rateNow)} now
-            {vault.stage && vault.stage !== "Live" ? ` · ${String(vault.stage).toLowerCase()} stage` : ""}
-            {warn ? ` · ${vault.audit.label}` : ""}
-          </span>
-          <button className={b.linkButton} onClick={() => setChanging(true)}>
-            Change
-          </button>
-        </p>
-      </div>
-    );
-  // The choice as a short list: each network with its rate now and what the
-  // wallet holds there, the current one marked.
-  return (
-    <div className={b.networkChoice}>
-      <p className={b.fromLine}>
-        <span>{action === "withdraw" ? "Withdraw on" : "Deposit from"}</span>
-        <button className={b.linkButton} onClick={() => setChanging(false)}>
-          Done
-        </button>
-      </p>
-      <p className={b.networkNote}>
-        One product on every network. Each network’s vault lends to that
-        network’s markets, so the rates differ; a young vault’s rate moves
-        more with each deposit.
-      </p>
-      <ul className={b.networkList} role="radiogroup" aria-label="Network">
-        {choices.map((choice) => {
-          const funds = (wallet || []).find(
-            (row) =>
-              row.network === choice.depositNetwork && row.token === choice.token,
-          );
-          const on = choice.id === vault.id;
-          return (
-            <li key={choice.id}>
-              <button
-                role="radio"
-                aria-checked={on}
-                data-on={on ? "" : undefined}
-                onClick={() => {
-                  onChoose(choice.id);
-                  setChanging(false);
-                }}
-              >
-                <NetworkMarks vault={choice} size={18} />
-                <span className={b.networkName}>
-                  {choice.place}
-                  <small>
-                    {choice.position.balance > 0
-                      ? "your balance is here"
-                      : funds
-                        ? `${money(funds.amount)} ${choice.token} in wallet`
-                        : choice.stage && choice.stage !== "Live"
-                          ? `${String(choice.stage).toLowerCase()} stage`
-                          : ""}
-                  </small>
-                </span>
-                <span className={b.networkRate}>{pct(choice.rateNow)}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-export default function ActionPanel({
-  vault,
-  choices,
-  onChoose,
-  user,
-  account,
-  batch,
-  wallet,
-  navigate,
-  intent,
-}) {
+export default function ActionPanel({ vault, user, batch, wallet, navigate, intent }) {
   const [draft] = useState(() => readDraft(vault.id));
   const [action, setAction] = useState(
     intent?.action === "withdraw" || draft?.action === "withdraw"
@@ -694,11 +491,6 @@ export default function ActionPanel({
     setSheet(true);
   }
   const hasBalance = vault.position.balance > 0;
-  const closedForNew =
-    !vault.open.deposits &&
-    vault.open.closedByPolicy &&
-    !hasBalance &&
-    !(vault.position.active?.length > 0);
   return (
     <>
       <aside
@@ -712,20 +504,8 @@ export default function ActionPanel({
         >
           Close
         </button>
-        {choices?.length > 1 && (
-          <NetworkChoice
-            vault={vault}
-            choices={choices}
-            onChoose={onChoose}
-            wallet={wallet}
-            action={action}
-          />
-        )}
         {user?.walletAddress && <Plate vault={vault} user={user} />}
-        {action === "deposit" && vault.open.deposits && <Notice vault={vault} />}
-        {closedForNew ? (
-          <ClosedPanel vault={vault} user={user} />
-        ) : !user ? (
+        {!user ? (
           <GuestForm vault={vault} action={action} setAction={setAction} />
         ) : !user.walletAddress ? (
           <div className={b.form}>
@@ -740,7 +520,7 @@ export default function ActionPanel({
               Link a wallet
             </button>
           </div>
-        ) : vault.kind === "batch" ? (
+        ) : (
           <BatchForm
             vault={vault}
             batch={batch}
@@ -750,18 +530,8 @@ export default function ActionPanel({
             navigate={navigate}
             wallet={wallet}
           />
-        ) : (
-          <InstantForm
-            vault={vault}
-            account={account}
-            user={user}
-            action={action}
-            setAction={setAction}
-            initial={draft}
-            navigate={navigate}
-            wallet={wallet}
-          />
         )}
+        {action === "deposit" && vault.open.deposits && <Notice vault={vault} />}
       </aside>
       <div className={b.actionBar}>
         {user?.walletAddress ? (
@@ -778,24 +548,16 @@ export default function ActionPanel({
             <strong>{pct(vault.rateNow)}</strong>
           </div>
         )}
-        {closedForNew ? (
-          <button className={b.secondary} onClick={() => open("deposit")}>
-            Not open
-          </button>
-        ) : (
-          <>
-            <button className={b.primary} onClick={() => open("deposit")}>
-              Deposit
-            </button>
-            <button
-              className={b.secondary}
-              disabled={!hasBalance}
-              onClick={() => open("withdraw")}
-            >
-              Withdraw
-            </button>
-          </>
-        )}
+        <button className={b.primary} onClick={() => open("deposit")}>
+          Deposit
+        </button>
+        <button
+          className={b.secondary}
+          disabled={!hasBalance}
+          onClick={() => open("withdraw")}
+        >
+          Withdraw
+        </button>
       </div>
       {sheet && (
         <button

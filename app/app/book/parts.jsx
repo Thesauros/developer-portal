@@ -126,17 +126,24 @@ const NETWORK_ICONS = {
   Plasma: "/brand/tokens/plasma.png",
 };
 export const placeLabel = (vault) =>
-  vault.kind === "batch"
-    ? "Across " + vault.networks.join(", ")
-    : "On " + vault.place;
+  vault.previous
+    ? "Previous vault"
+    : "Lends on " + vault.networks.join(" and ");
 
+// The vault, or one of the vaults before it, named the same way everywhere.
 export function VaultTitle({ vault, size = 28, place = true }) {
   return (
     <span className={b.vaultTitle}>
       <TokenMark token={vault.token} size={size} />
       <span>
         <strong>
-          {vault.token} <span className={b.tag}>{vault.product.tag}</span>
+          {vault.previous ? (
+            vault.title
+          ) : (
+            <>
+              {vault.token} <span className={b.tag}>{vault.product.tag}</span>
+            </>
+          )}
         </strong>
         {place && (
           <small>
@@ -148,37 +155,8 @@ export function VaultTitle({ vault, size = 28, place = true }) {
     </span>
   );
 }
-export function ProductTitle({ product, size = 28, stage = true, networks = false }) {
-  return (
-    <span className={b.vaultTitle}>
-      <TokenMark token={product.token} size={size} />
-      <span>
-        <strong className={b.titleLine}>
-          {product.token} <span className={b.tag}>{product.tag}</span>
-        </strong>
-        <small className={b.titleSub}>
-          {product.short || product.line}
-          {stage && (
-            <>
-              <span aria-hidden="true"> · </span>
-              <Stage stage={product.stage} />
-            </>
-          )}
-          {networks && product.vaults?.length > 0 && (
-            <>
-              <span aria-hidden="true"> · </span>
-              {product.kind === "batch"
-                ? `lends on ${product.vaults[0].networks?.length || 2} networks`
-                : `${product.vaults.length} network${product.vaults.length === 1 ? "" : "s"}`}
-            </>
-          )}
-        </small>
-      </span>
-    </span>
-  );
-}
 
-// How far a rate is above or below the blue-chip index, in percentage points.
+// How far a rate is above or below the Market Average, in percentage points.
 export function VsIndex({ diff, suffix = "" }) {
   if (diff == null || !Number.isFinite(diff))
     return <span className={b.quiet}>—</span>;
@@ -192,9 +170,8 @@ export function VsIndex({ diff, suffix = "" }) {
 }
 
 const STAGE_NOTE = {
-  Live: "Holds over 10,000 USD.",
-  Early: "Holds under 10,000 USD, so its rates cannot yet be measured reliably.",
-  Pilot: "Running with team funds. No external audit yet.",
+  Early: "New: no external audit yet and a limit on deposits per batch.",
+  Previous: "Takes no new deposits. Holders move to the current vault or withdraw.",
 };
 export function Stage({ stage }) {
   if (!stage) return null;
