@@ -1335,3 +1335,34 @@
 .destination dt {
   grid-row: auto;
 }
+
+/* A part of a long move is done: said in the card's own voice, in green. */
+.move > .partDone {
+  margin: 18px 28px 0;
+}
+.partDone {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eaf6ef;
+  color: #1c4a33;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.partDone strong {
+  color: #0f3b26;
+  font-weight: 500;
+}
+.bridgeNote {
+  margin: 10px 0 0;
+  color: var(--ink-2, #41535f);
+  font-size: 13.5px;
+}
+.move {
+  scroll-margin-top: 76px;
+}
+
+@media (max-width: 760px) {
+  .move > .partDone {
+    margin: 16px 18px 0;
+  }
+}

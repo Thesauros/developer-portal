@@ -107,3 +107,34 @@ test("a request and its cancellation in one block are read in order, whatever or
   assert.equal(series.at(-1).value, 0);
   assert.equal(series.at(-1).invested, 0);
 });
+
+test("a wallet's requests read in USDC, and only money that moved counts in the totals", async () => {
+  const { requestRows } = await import("../lib/crosschain-feed.mjs");
+  const rows = requestRows(
+    [
+      { type: "deposit_requested", requestId: "1", assets: "50000000", txHash: "0xa", logIndex: 0, at: 1 },
+      { type: "deposit_claimed", requestId: "1", shares: "49870000", txHash: "0xb", logIndex: 0, at: 2 },
+      { type: "deposit_requested", requestId: "2", assets: "40000000", txHash: "0xc", logIndex: 0, at: 3 },
+      { type: "request_cancelled", requestId: "2", txHash: "0xd", logIndex: 0, at: 4 },
+      { type: "redeem_requested", requestId: "3", shares: "99730000", txHash: "0xe", logIndex: 0, at: 5 },
+      { type: "redeem_claimed", requestId: "3", assets: "100000000", txHash: "0xf", logIndex: 0, at: 6 },
+      { type: "tick", txHash: "0x10", logIndex: 0, at: 7 },
+    ],
+    "1002707000000000000",
+  );
+  assert.equal(rows.length, 6);
+  const by = Object.fromEntries(rows.map((row) => [row.txHash, row]));
+  // The shares of a collected deposit stand for exactly what was requested.
+  assert.equal(by["0xb"].stands, 50);
+  assert.equal(by["0xb"].about, false);
+  // A withdrawal that has not settled is valued at today's price, as an estimate.
+  assert.ok(Math.abs(by["0xe"].stands - 100) < 0.01);
+  assert.equal(by["0xe"].about, true);
+  const total = (flow) =>
+    rows.filter((row) => row.flow === flow).reduce((sum, row) => sum + row.amount, 0);
+  // The cancelled request never went in; the withdrawal counts once, when collected.
+  assert.equal(total("in"), 50);
+  assert.equal(total("out"), 100);
+  // Without a price a share amount is left as shares.
+  assert.equal(requestRows([{ type: "redeem_requested", requestId: "9", shares: "1000000", txHash: "0x1", logIndex: 0 }]).at(0).stands, null);
+});

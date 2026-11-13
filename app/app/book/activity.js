@@ -1,15 +1,7 @@
 import { mergeActivity } from "./feed";
 import { BATCH_VAULT_ID } from "../../../lib/vault-facts.mjs";
 import { crosschain } from "../../../lib/crosschain-config.mjs";
-
-const BATCH_EVENT = {
-  deposit_requested: ["request", "Deposit requested"],
-  redeem_requested: ["request", "Withdrawal requested"],
-  request_cancelled: ["cancel", "Request cancelled"],
-  deposit_claimed: ["collect", "Deposit collected"],
-  redeem_claimed: ["collect", "Withdrawal collected"],
-  instant_exit: ["withdraw", "Instant withdrawal"],
-};
+import { requestRows } from "../../../lib/crosschain-feed.mjs";
 
 // Everything this wallet did, in every vault, as one list.
 export function mineLedger({ mine, account, batch }) {
@@ -42,63 +34,12 @@ export function mineLedger({ mine, account, batch }) {
           amount: day.v,
           token: vault.vaultId === "plasma" ? "USDT0" : "USDC",
         });
-  // The vault's requests. A share amount is shown with the USDC it stands for:
-  // what was requested for a collected deposit, today's price for a withdrawal
-  // that has not settled yet.
-  const events = batch?.activity?.events || [];
-  const cancelled = new Set(
-    events.filter((event) => event.type === "request_cancelled").map((event) => event.requestId),
-  );
-  const asked = new Map(
-    events
-      .filter((event) => event.type === "deposit_requested" && event.assets != null)
-      .map((event) => [event.requestId, Number(event.assets) / 1e6]),
-  );
-  const price = /^\d+$/.test(String(batch?.vault?.tick?.rateBid ?? ""))
-    ? Number(batch.vault.tick.rateBid) / 1e18
-    : null;
-  for (const event of events) {
-    const known = BATCH_EVENT[event.type];
-    if (!known) continue;
-    const [kind, title] = known;
-    const shares = event.type === "redeem_requested" || event.type === "deposit_claimed";
-    const amount =
-      event.assets != null
-        ? Number(event.assets) / 1e6
-        : event.shares != null
-          ? Number(event.shares) / 1e6
-          : null;
-    const stands =
-      !shares || amount == null
-        ? null
-        : event.type === "deposit_claimed"
-          ? (asked.get(event.requestId) ?? null)
-          : price != null
-            ? amount * price
-            : null;
+  for (const row of requestRows(batch?.activity?.events, batch?.vault?.tick?.rateBid))
     rows.push({
-      id: event.txHash + ":" + event.logIndex,
-      kind,
-      title,
-      at: event.at,
+      ...row,
       vaultId: BATCH_VAULT_ID,
-      amount,
-      token: "USDC",
-      unit: shares ? "shares" : "USDC",
-      // What a share amount is in USDC, and whether that figure is exact.
-      stands,
-      about: stands != null && event.type !== "deposit_claimed",
-      // Money that went in or came out, for the totals: a deposit counts when
-      // it is requested unless it was cancelled, a withdrawal when collected.
-      flow:
-        event.type === "deposit_requested" && !cancelled.has(event.requestId)
-          ? "in"
-          : event.type === "redeem_claimed" || event.type === "instant_exit"
-            ? "out"
-            : null,
-      url: crosschain.explorer + "/tx/" + event.txHash,
+      url: crosschain.explorer + "/tx/" + row.txHash,
     });
-  }
   return rows.sort((a, c) => (c.at || 0) - (a.at || 0));
 }
 

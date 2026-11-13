@@ -795,7 +795,7 @@ export default function useMigrationAccount(destination, { kept = {} } = {}) {
             ...(row?.record.actions || []).map((action) => ({
               hash: action.hash,
               label:
-                action.kind === "approve" ? "Approve · Base" : "Claim · Base",
+                action.kind === "approve" ? "Approval · Base" : "Shares collected · Base",
               explorer: destination?.config.explorer,
             })),
             ...(row?.record.deposits || []).map((hash) => ({
@@ -836,7 +836,9 @@ export default function useMigrationAccount(destination, { kept = {} } = {}) {
             canAct:
               current.canAct &&
               !busy &&
-              !loading &&
+              // Only the first read holds a step back: a refresh in the
+              // background must not switch its button off and on.
+              !(loading && snapshot.key !== key) &&
               !storageError &&
               !Object.values(state.products).some((row) => row.record.pending),
             amountInput: inputs[vault.id] || "",

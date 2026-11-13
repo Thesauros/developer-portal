@@ -134,14 +134,17 @@ function Header({ vault, product, totals }) {
             {totals.previousTvl >= 1
               ? `${compact(totals.previousTvl)} ${totals.previousUnit} more in previous vaults. `
               : ""}
+            {vault.capital?.pendingDeposits >= 0.5
+              ? `${compact(vault.capital.pendingDeposits)} USDC more is waiting in the open batch. `
+              : ""}
             {vault.batchLimit != null
-              ? `Takes up to ${money(vault.batchLimit, 0)} USDC per batch.`
+              ? `Early stage: takes up to ${money(vault.batchLimit, 0)} USDC per batch.`
               : ""}
           </small>
         </div>
         <div>
-          <dt>Withdraw in</dt>
-          <dd>{vault.exit.label}</dd>
+          <dt>Withdrawals</dt>
+          <dd>In batches</dd>
           <small>
             {every ? `A batch closes every ${every} when valuations are on time. ` : ""}
             {longest >= 24
@@ -274,8 +277,8 @@ function Performance({ book }) {
           options={[
             ...(measurable
               ? [
-                  { value: "rate", label: "Rate vs Market Average" },
-                  { value: "earned", label: "Earned vs Market Average" },
+                  { value: "rate", label: "30-day rate" },
+                  { value: "earned", label: "Earned" },
                 ]
               : []),
             { value: "price", label: "Share price" },

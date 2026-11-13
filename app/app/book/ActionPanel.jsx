@@ -56,9 +56,11 @@ function Plate({ vault, user }) {
             <div>
               <dt>Earned</dt>
               <dd>
-                {position.earned != null
-                  ? money(position.earned, Math.abs(position.earned) < 1 ? 4 : 2)
-                  : "—"}
+                {position.earned == null
+                  ? "—"
+                  : Math.abs(position.earned) < 0.00005
+                    ? "0.00"
+                    : money(position.earned, Math.abs(position.earned) < 1 ? 4 : 2)}
               </dd>
             </div>
             <div>
@@ -387,7 +389,7 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
               About {money(typed)} USDC ({money(Number(shares) / 1e6, 4)}{" "}
               shares). Set at settlement
               {atMost != null ? `, at most ${money(Number(atMost) / 1e6)} USDC, possibly lower` : ""}
-              . You can cancel until this batch closes.
+              . You can cancel only until this batch closes.
             </p>
           )}
           {!deposit && typed != null && free != null && typed > free && !problem && (
@@ -427,7 +429,7 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
               <li>
                 {deposit
                   ? "Request the deposit. You can cancel until the batch settles."
-                  : "Request the withdrawal. You can cancel until the batch closes."}
+                  : "Request the withdrawal. You can cancel only until its batch closes; a deposit, until it settles."}
               </li>
               <li>
                 {deposit

@@ -67,7 +67,8 @@ function Plate({ book, move, navigate }) {
               </span>
             )}
             {buckets.map(([label, amount]) => (
-              <span key={label}>
+              <span key={label} data-part={split || undefined}>
+                {split ? "of it, " : ""}
                 <b>{money(amount)}</b> {label}
               </span>
             ))}
@@ -100,7 +101,7 @@ function Plate({ book, move, navigate }) {
       {holds && (
         <dl className={c.plateFacts}>
           <div>
-            <dt>Earned</dt>
+            <dt>{split ? `Earned in ${vault.title}` : "Earned"}</dt>
             <dd>
               {account.earned == null ? (
                 "—"
@@ -117,7 +118,7 @@ function Plate({ book, move, navigate }) {
             </small>
           </div>
           <div>
-            <dt>Rate now</dt>
+            <dt>{split ? "Its rate now" : "Rate now"}</dt>
             <dd>{pct(account.rateNow)}</dd>
             {book.index?.rateNow != null && (
               <small>Market Average {pct(book.index.rateNow)}</small>
@@ -178,8 +179,8 @@ function Start({ book, navigate }) {
             <small>all its USDC vaults, a year</small>
           </div>
           <div>
-            <dt>Withdraw in</dt>
-            <dd>{vault.exit.label}</dd>
+            <dt>Withdrawals</dt>
+            <dd>In batches</dd>
             <small>no time is promised</small>
           </div>
         </dl>
@@ -375,7 +376,7 @@ function Versus({ book, navigate }) {
     <Section
       id="versus"
       title="Against the Market Average"
-      lede="The Market Average is what blue-chip USDC lending markets pay, weighted by their size."
+      lede="The Market Average is what the largest USDC lending markets pay, weighted by their size."
       aside={
         <button className={b.linkButton} onClick={() => navigate("index")}>
           See the comparison

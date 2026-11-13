@@ -70,9 +70,12 @@ export function Ledger({ book, scope, mine, account, batch, limit = 200 }) {
             <dd>{money(sum("withdraw"))}</dd>
           </div>
           <div>
-            <dt>Earned, 30 days</dt>
+            <dt>Earned in previous vaults, 30 days</dt>
             <dd>{money(sum("earned"))}</dd>
-            <small>estimate from each day’s rate</small>
+            <small>
+              estimate from each day’s rate; what the vault earned you is in
+              Portfolio
+            </small>
           </div>
         </dl>
       )}

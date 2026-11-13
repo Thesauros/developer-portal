@@ -474,3 +474,18 @@
     min-width: 100%;
   }
 }
+
+/* A fact's note may be a phrase: it wraps inside its own column. */
+.startFacts small,
+.startFacts small * {
+  white-space: normal;
+}
+.startFacts > div {
+  min-width: 0;
+}
+/* A part of the figure before it, not one more figure to add up. */
+.buckets span[data-part] {
+  background: none;
+  padding: 0 2px;
+  opacity: 0.92;
+}

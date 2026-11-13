@@ -3348,3 +3348,8 @@
 .scoreTable td:last-child {
   width: 25%;
 }
+
+/* Code under a list of facts keeps its distance. */
+.codeBlock {
+  margin-top: 14px;
+}

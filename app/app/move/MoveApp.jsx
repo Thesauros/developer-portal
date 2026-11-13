@@ -229,6 +229,15 @@ const span = (hours) => {
   return days >= 2 ? `${Math.round(days)} days` : `${Math.round(hours)} hours`;
 };
 
+// A transport error is the library's wording, not ours: say what it means.
+function plain(error, network) {
+  const text = String(error || "");
+  if (!text) return "";
+  return /HTTP request failed|fetch failed|Failed to fetch|timed out|timeout|network error|ECONN|socket/i.test(text)
+    ? `${network || "The network"} did not answer just now. Nothing was sent and nothing is assumed. Try again in a minute.`
+    : text;
+}
+
 // What a large move means at today's limit, said before anything is withdrawn.
 function Plan({ amount, vault }) {
   const limit = vault.batchLimit;
@@ -321,7 +330,7 @@ function Move({ product, model, vault, eth, batch }) {
   const closing = batchClosing(vault);
   const noGas = /^\d+$/.test(String(eth ?? "")) && BigInt(eth) === 0n;
   const acting = model.busy;
-  const error = product.error || product.positionError;
+  const error = plain(product.error || product.positionError, product.name);
 
   // Step 1. A balance larger than a batch can take is moved in parts: what the
   // open batch has room for, or a whole batch when this one is full.
@@ -378,6 +387,11 @@ function Move({ product, model, vault, eth, batch }) {
   const keptBack = left > 0n && left >= minimum;
   const overRoom = room != null && selected > room;
   const later = remaining > selected ? remaining - selected : 0n;
+  // What of the withdrawn money is really in the wallet. When slightly less
+  // than was withdrawn sits on Base, the difference was the bridge's fee, and
+  // the figures on screen follow the wallet.
+  const held = nearly ? cash : remaining;
+  const rest = held > selected ? held - selected : 0n;
   // Some is on Base, clearly not all of it: the holder may go on with that.
   const partly =
     product.stage === "base" && cash != null && cash >= minimum && cash > 0n && !nearly && !arrived;
@@ -387,6 +401,25 @@ function Move({ product, model, vault, eth, batch }) {
     ["base", "approve", "deposit"].includes(product.stage) && remaining > 0n && !acting;
   const [stopping, setStopping] = useState(false);
 
+  // When the move goes on to another step, the card's top comes back into
+  // view: the four figures there are what tells the holder what just happened.
+  const card = useRef(null);
+  const lastStep = useRef(step);
+  useEffect(() => {
+    if (lastStep.current === step) return;
+    lastStep.current = step;
+    // Only when the holder is looking at this card below its top; someone
+    // reading further down the page is left where they are.
+    const box = card.current?.getBoundingClientRect();
+    if (box && box.top < 0 && box.bottom > 160)
+      card.current.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [step]);
+  // A part is done and more is waiting in the previous vault.
+  const moved = credited > queued ? credited - queued : 0n;
+  const partDone = product.stage === "withdraw" && moved > 0n && inVault > 0n && remaining === 0n;
+  // Figures that could not be read are not shown as zero.
+  const unread = product.stage === "check" || product.positionStatus === "error";
+
   const request =
     product.requestId != null
       ? (batch.feed?.user?.requests || []).find(
@@ -395,7 +428,7 @@ function Move({ product, model, vault, eth, batch }) {
       : null;
 
   return (
-    <article className={m.move} aria-labelledby={"move-" + product.id}>
+    <article ref={card} className={m.move} aria-labelledby={"move-" + product.id}>
       <header className={m.moveHead}>
         <div className={m.route}>
           <div className={m.routeEnd}>
@@ -422,9 +455,9 @@ function Move({ product, model, vault, eth, batch }) {
           product={product}
           places={[
             ["In the previous vault", ready ? inVault : null, inVault > 0n ? "earning there" : ""],
-            ["In your wallet", remaining, remaining > 0n ? "withdrawn, not deposited yet" : ""],
-            ["In the open batch", queued, queued > 0n ? "waiting to settle or be collected" : ""],
-            ["In the new vault", credited > queued ? credited - queued : 0n, credited > queued ? "moved" : ""],
+            ["In your wallet", unread ? null : held, held > 0n ? "withdrawn, not deposited yet" : ""],
+            ["In the open batch", unread ? null : queued, queued > 0n ? "waiting to settle or be collected" : ""],
+            ["In the new vault", unread ? null : moved, moved > 0n ? "moved" : ""],
           ]}
         />
       </header>
@@ -443,7 +476,14 @@ function Move({ product, model, vault, eth, batch }) {
           {error}
         </p>
       )}
-      {product.message && !error && (
+      {partDone && (
+        <p className={m.partDone} role="status">
+          <strong>{usdc(moved)} USDC is in the new vault.</strong>{" "}
+          {usdc(inVault)} USDC is still earning in the previous vault: take out
+          the next part when you are ready.
+        </p>
+      )}
+      {product.message && !error && !partDone && (
         <p className={m.said} role="status">
           {product.message}
         </p>
@@ -483,8 +523,8 @@ function Move({ product, model, vault, eth, batch }) {
               {everything ? (
                 <p>
                   Takes your whole balance, <strong>{usdc(inVault)} USDC</strong>,
-                  into your wallet on {product.name}. At today’s limit most of
-                  it will wait there, earning nothing, for many batches.{" "}
+                  into your wallet on {product.name}. What does not fit the
+                  next batch waits there, earning nothing, until later batches.{" "}
                   <button className={m.textLink} onClick={() => setEverything(false)}>
                     Move in parts instead
                   </button>
@@ -527,7 +567,11 @@ function Move({ product, model, vault, eth, batch }) {
                   onClick={product.act}
                   disabled={!product.canAct || acting || !withdrawReady || !!withdrawProblem}
                 >
-                  {acting ? "Check your wallet…" : `Withdraw ${precise(everything ? inVault : taking)} USDC`}
+                  {acting
+                    ? "Check your wallet…"
+                    : everything || taking === inVault
+                      ? `Withdraw everything, ${usdc(inVault)} USDC`
+                      : `Withdraw ${precise(taking)} USDC`}
                 </button>
                 <span className={m.aside}>Network fee in ETH on {product.name}</span>
               </div>
@@ -614,10 +658,16 @@ function Move({ product, model, vault, eth, batch }) {
                       <dd>{cash == null ? "—" : usdc(cash)}</dd>
                     </div>
                     <div>
-                      <dt>Waiting to arrive</dt>
-                      <dd>{usdc(short_ > 0n ? short_ : 0n)}</dd>
+                      <dt>To send from {product.name}</dt>
+                      <dd>{usdc(remaining)}</dd>
                     </div>
                   </dl>
+                  {cash != null && cash > 0n && !nearly && !arrived && (
+                    <p className={m.bridgeNote}>
+                      The {usdc(cash)} USDC already on Base is separate from
+                      what you withdrew: send the whole {usdc(remaining)} USDC.
+                    </p>
+                  )}
                 </div>
                 <p className={m.waitLine} role="status">
                   <i className={m.spinner} aria-hidden="true" />
@@ -674,7 +724,7 @@ function Move({ product, model, vault, eth, batch }) {
                 The open batch is full: it has taken its{" "}
                 {limit != null ? `${usdc(limit)} USDC` : "limit"} of deposits.
                 {closing && !closing.late ? " " + closing.text : ""} Your{" "}
-                {usdc(remaining)} USDC waits in your wallet until the next one
+                {usdc(held)} USDC waits in your wallet until the next one
                 opens.
               </p>
               <div className={m.actions}>
@@ -729,10 +779,10 @@ function Move({ product, model, vault, eth, batch }) {
                   That is more than the {usdc(room)} USDC the open batch can
                   still take.
                 </p>
-              ) : later > 0n && room != null && selected >= room ? (
+              ) : rest > 0n && room != null && selected >= room ? (
                 <p className={m.note}>
                   The amount is set to what this batch can take. The other{" "}
-                  {usdc(later)} USDC stays in your wallet on Base; deposit it
+                  {usdc(rest)} USDC stays in your wallet on Base; deposit it
                   into a later batch from this page.
                 </p>
               ) : later > 0n && cash != null && selected >= cash ? (
@@ -741,9 +791,9 @@ function Move({ product, model, vault, eth, batch }) {
                   withdrew is on Base. If the rest was the bridge’s fee, the
                   move goes on without it.
                 </p>
-              ) : later > 0n ? (
+              ) : rest > 0n ? (
                 <p className={m.note}>
-                  The other {usdc(later)} USDC stays in your wallet for a later
+                  The other {usdc(rest)} USDC stays in your wallet for a later
                   batch.
                 </p>
               ) : null}
@@ -861,7 +911,7 @@ function Move({ product, model, vault, eth, batch }) {
         (stopping ? (
           <div className={m.stop} role="group" aria-label="Stop the move">
             <p>
-              Keep <strong>{usdc(remaining, remaining < 10000n ? 6 : 2)} USDC</strong>{" "}
+              Keep <strong>{usdc(held, held < 10000n ? 6 : 2)} USDC</strong>{" "}
               in your wallet and stop asking for it here? It stays yours and is
               not deposited. You can bring it back from this page, or deposit
               it any time from Earn.
@@ -885,7 +935,7 @@ function Move({ product, model, vault, eth, batch }) {
           <p className={m.finish}>
             Not depositing the rest?{" "}
             <button className={m.textLink} onClick={() => setStopping(true)}>
-              Keep {usdc(remaining, remaining < 10000n ? 6 : 2)} USDC in my wallet
+              Keep {usdc(held, held < 10000n ? 6 : 2)} USDC in my wallet
             </button>
           </p>
         ))}
@@ -1268,7 +1318,13 @@ export default function MoveApp({
                   />
                 )}
                 {complete.map((product) => {
-                  const left = whole(product.left) ?? 0n;
+                  const journal = whole(product.left) ?? 0n;
+                  const wallet = whole(product.cash);
+                  // Slightly less on Base than was kept: the bridge's fee.
+                  const left =
+                    wallet != null && wallet > 0n && wallet < journal && (journal - wallet) * 50n <= journal
+                      ? wallet
+                      : journal;
                   const min = whole(product.minDeposit) ?? 0n;
                   const keptPart = left > 0n && left >= min && whole(kept?.[product.id]) != null;
                   return (
