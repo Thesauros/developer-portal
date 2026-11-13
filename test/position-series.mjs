@@ -138,3 +138,25 @@ test("a wallet's requests read in USDC, and only money that moved counts in the 
   // Without a price a share amount is left as shares.
   assert.equal(requestRows([{ type: "redeem_requested", requestId: "9", shares: "1000000", txHash: "0x1", logIndex: 0 }]).at(0).stands, null);
 });
+
+test("the balance steps at the moment money moves, not over the hours before it", () => {
+  const hour = 3600000;
+  const series = positionSeries(
+    [
+      { type: "deposit_requested", requestId: "1", assets: "1000000000", at: 10 * hour },
+      { type: "deposit_claimed", requestId: "1", shares: "1000000000", at: 12 * hour },
+      { type: "redeem_requested", requestId: "2", shares: "100000000", at: 20 * hour },
+      { type: "redeem_claimed", requestId: "2", assets: "100000000", at: 30 * hour },
+    ],
+    [{ at: 0, price: 1 }],
+    { now: 40 * hour, step: 1000 * hour },
+  );
+  const just = (time) => series.find((point) => point.at === time);
+  // An instant before the withdrawal is collected the balance is still whole.
+  assert.equal(just(30 * hour - 1).value, 1000);
+  assert.equal(just(30 * hour - 1).invested, 1000);
+  assert.equal(just(30 * hour).value, 900);
+  assert.equal(just(30 * hour).invested, 900);
+  // Nothing was earned or lost at any point: the line and the step agree.
+  assert.ok(series.every((point) => Math.abs(point.earned) < 1e-9));
+});

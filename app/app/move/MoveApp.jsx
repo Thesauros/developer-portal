@@ -390,7 +390,10 @@ function Move({ product, model, vault, eth, batch }) {
   // What of the withdrawn money is really in the wallet. When slightly less
   // than was withdrawn sits on Base, the difference was the bridge's fee, and
   // the figures on screen follow the wallet.
-  const held = nearly ? cash : remaining;
+  // The same holds for a remainder too small to deposit: it is in the wallet
+  // only as far as the wallet has it.
+  const held =
+    cash != null && cash < remaining && (nearly || remaining < minimum) ? cash : remaining;
   const rest = held > selected ? held - selected : 0n;
   // Some is on Base, clearly not all of it: the holder may go on with that.
   const partly =
