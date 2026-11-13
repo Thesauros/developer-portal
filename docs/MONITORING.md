@@ -1,10 +1,11 @@
 # Protocol and market views
 
-Monitoring is embedded in both authenticated account roles. `/monitoring/` is
-an entry alias to the account's Protocol screen; the separate monitor UI has
-been retired. The account also has a Markets screen and read-only wallet data.
+The vault's capital, exposure and moves are on the Transparency page. The
+benchmark is on the Market Average page. Both are open without sign-in.
+`/monitoring/` is an entry alias: it asks for Institution sign-in and then opens
+Transparency. The separate monitor UI has been retired.
 
-The blue-chip index page (`app/app/book/IndexPage.jsx`) replaced the old live panels. `lib/live-data.mjs` normalizes
+The Market Average page (`app/app/book/IndexPage.jsx`) replaced the old live panels. `lib/live-data.mjs` normalizes
 public monitor responses from `monitoring.thesauros.io` (formerly
 `bastardgreeks.thesauros.io`). Market rates come from the Thesauros indexer
 (`lib/market-history.mjs`), not from an outside service. `app/app/live/route.js` gates access through

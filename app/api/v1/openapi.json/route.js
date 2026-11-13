@@ -488,7 +488,7 @@ function buildDoc() {
           tags: ['lab'],
           summary: 'Strategy catalog',
           description:
-            'Policies, named presets, market regimes, comparable metrics and accepted parameter ranges — everything needed to construct a valid strategy object.',
+            'Policies, named presets, market regimes, comparable metrics and accepted parameter ranges: everything needed to construct a valid strategy object.',
           responses: withErrors({ 200: single('StrategyCatalog', 'Catalog') }, [401, 429, 500]),
         },
       },
@@ -518,7 +518,7 @@ function buildDoc() {
           tags: ['lab'],
           summary: 'Backtest one strategy',
           description:
-            'Runs a strategy over one market window. Returns its equity curve, decision log and metrics next to four baselines: passive bluechip, route-once-and-hold, equal weight, and the ex-post best venue as an unattainable ceiling. Creates nothing — read scope is sufficient despite the POST.',
+            'Runs a strategy over one market window. Returns its equity curve, decision log and metrics next to four baselines: passive bluechip, route-once-and-hold, equal weight, and the ex-post best venue as an unattainable ceiling. Creates nothing: read scope is sufficient despite the POST.',
           requestBody: {
             required: false,
             content: { 'application/json': { schema: ref('BacktestRequest') } },
@@ -533,7 +533,7 @@ function buildDoc() {
           tags: ['lab'],
           summary: 'Compare variants and judge a hypothesis',
           description:
-            'Runs every variant against identical markets, repeatedly, and reports the paired difference per metric with a 95% interval, a win rate and a p-value. When a hypothesis is supplied the response carries a verdict: supported, refuted, negligible, underpowered or inconclusive. Creates nothing — read scope is sufficient despite the POST.',
+            'Runs every variant against identical markets, repeatedly, and reports the paired difference per metric with a 95% interval, a win rate and a p-value. When a hypothesis is supplied the response carries a verdict: supported, refuted, negligible, underpowered or inconclusive. Creates nothing: read scope is sufficient despite the POST.',
           requestBody: {
             required: true,
             content: { 'application/json': { schema: ref('ExperimentRequest') } },

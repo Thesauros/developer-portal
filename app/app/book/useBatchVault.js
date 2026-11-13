@@ -68,6 +68,9 @@ export default function useBatchVault(user, enabled = true, migration = null) {
     [lastDone, setLastDone] = useState(null);
   const [pending, setPending] = useState(null),
     [recoveryHash, setRecoveryHash] = useState("");
+  // What the last action was, so a screen without the form can still say how
+  // collecting or cancelling went.
+  const [lastKind, setLastKind] = useState(null);
   const [storageReady, setStorageReady] = useState(false);
   const [requestIds, setRequestIds] = useState([]);
   const key =
@@ -181,6 +184,7 @@ export default function useBatchVault(user, enabled = true, migration = null) {
     return Object.values(saved.products).some((record) => record.pending);
   }
   async function submit(kind, input) {
+    setLastKind(kind);
     return underWalletLock(async () => {
       try {
         if (moveHasUnresolved())
@@ -209,6 +213,7 @@ export default function useBatchVault(user, enabled = true, migration = null) {
     setMessage("");
     setSucceeded(false);
     setLastDone(null);
+    setLastKind(kind);
     let signing = false;
     try {
       if (!owner || !sameAddress(walletAccount.address, owner))
@@ -475,6 +480,7 @@ export default function useBatchVault(user, enabled = true, migration = null) {
     message,
     succeeded,
     lastDone,
+    lastKind,
     pending,
     recoveryHash,
     setRecoveryHash,
@@ -493,6 +499,7 @@ export default function useBatchVault(user, enabled = true, migration = null) {
       setMessage("");
       setSucceeded(false);
       setLastDone(null);
+      setLastKind(null);
     },
   };
 }

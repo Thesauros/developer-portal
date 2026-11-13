@@ -3245,3 +3245,20 @@
 .totalRow th {
   text-align: left;
 }
+
+/* Something the person just did went through. */
+.doneBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 24px 0 0 !important;
+  background: #e9f6ee;
+  color: #0c3a20;
+}
+.systemBanner:has(> .linkButton) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}

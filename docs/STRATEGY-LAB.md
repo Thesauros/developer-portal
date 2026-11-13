@@ -4,9 +4,9 @@ A test stand for routing policies. Configure a strategy, run it against a
 market, and find out whether it actually beats the alternatives — or whether
 the difference you are looking at is noise.
 
-- **UI**: `/app/institution#integrations/lab`
+- **UI**: `/app/individual/developers`, tab API Sandbox, then Strategy lab.
 - **API**: `/api/v1/lab/{catalog,market,backtest,experiments}`
-- **SDK**: `client.lab.*` (TypeScript and Python)
+- **SDK**: `client.lab.*` (TypeScript and Python) on the backend repository's `dev` branch. The 1.1.0 packages in the docs downloads do not include it.
 - **Code**: `lib/api/strategy.js` (simulator), `lib/api/market-paths.js` (rates),
   `app/views/StrategyLab.jsx` (UI), `test/strategy.mjs` (invariants)
 
@@ -55,7 +55,7 @@ declare victory on three samples.
 
 | | `synthetic` | `historical` |
 | --- | --- | --- |
-| Rates | Seeded simulation around the sandbox venues | Real daily rates of the markets Thesauros vaults are approved to use, from each market's interest index as the Thesauros indexer reads it |
+| Rates | Seeded simulation around the sandbox's sample venues, some of which Thesauros does not use | Real daily rates of the markets Thesauros vaults are approved to use, from each market's interest index as the Thesauros indexer reads it |
 | Samples | Any number of independent markets | Non-overlapping blocks of one history |
 | Reproducible | Yes, from `(seed, regime)` | Yes, but it is one fixed past |
 | A p-value means | A statement about the rate model | Indicative only — blocks are not independent draws |
@@ -97,7 +97,8 @@ invent returns nobody can earn.
 **Moving money costs money.** Every move pays a proportional cost plus gas per
 venue touched, and the performance fee is charged on yield, so churn has to
 out-earn its own friction. `gross_apy` is the same run with no fee, no cost and
-no price impact; `drag_bps` is the gap.
+no price impact; `drag_bps` is the gap. The default fee of 0.25 is the planned
+fee. Nothing is charged on chain today; set `perf_fee_pct` to 0 to model today.
 
 **Capital has price impact.** Supplying into a venue dilutes its rate by your
 share of the pool, and capacity is a hard cap. A strategy cannot win by
@@ -127,7 +128,7 @@ Defaults come from `GET /lab/catalog`; every field is optional.
 | `max_alloc_pct` | 1.0 | Cap on any single venue's share |
 | `tx_cost_bps` | 3 | Proportional cost of moving capital |
 | `gas_cost_usd` | 1.2 | Fixed cost per venue touched |
-| `perf_fee_pct` | 0.25 | Protocol fee on positive yield |
+| `perf_fee_pct` | 0.25 | Protocol fee on positive yield. 0.25 is the planned fee; 0 is charged on chain today |
 | `allowed_tiers` | all three | Risk tiers the strategy may enter |
 | `risk_penalty` | 1.0 / 0.92 / 0.82 | APY multiplier per tier |
 | `capacity_aware` | `true` | Apply price impact and capacity limits |
@@ -213,6 +214,9 @@ Worth stating plainly, because a backtest invites over-reading:
   depeg, no withdrawal queue, no MEV.
 - Execution is assumed to succeed at the quoted rate minus the configured
   costs. Real routing can fail, revert or partially fill.
+- Capital moves between venues at once. The live vault moves money between
+  networks through Circle CCTP, which takes minutes, and deposits and
+  withdrawals settle in batches. The lab models neither.
 - Historical mode drops venues that do not cover the whole window, which
   removes survivorship bias in one direction and shortens the window in the
   other. The response says which happened.

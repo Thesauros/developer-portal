@@ -553,6 +553,19 @@ export default function ProductApp({ mode = "individual", user }) {
             {batch.message && <p className={b.hint}>{batch.message}</p>}
           </div>
         )}
+        {/* Collecting and cancelling happen on rows that then disappear, so
+            their outcome is said here, on whichever page the person is. */}
+        {batch.message && !batch.busy && ["claim", "cancel"].includes(batch.lastKind) && (
+          <p
+            className={`${b.banner} ${batch.succeeded ? b.doneBanner : b.systemBanner}`}
+            role="status"
+          >
+            <span>{batch.message}</span>
+            <button className={b.linkButton} onClick={batch.clearMessage}>
+              Dismiss
+            </button>
+          </p>
+        )}
         <MoveNotice
           summary={move}
           guest={!user}

@@ -4,22 +4,22 @@ register: product
 
 ## What it is
 
-Stablecoin vaults that show where every dollar is, what it earns and how to get it out. People deposit USDC or USDT0; a vault lends it across approved markets and they hold shares whose price rises as the markets pay interest. Partners can put the same vaults in their own products.
+One USDC vault that shows where every dollar is, what it earns and how to get it out. People deposit USDC on Base; the vault lends it across approved markets on Base and Arbitrum and they hold shares whose price rises as the markets pay interest. Partners can put the same vault in their own products.
 
 ## Who uses it
 
-- **A holder.** A few thousand USDC in a wallet they open a few times a month. Knows what Aave is, not what a batch or a share price is. Wants to know which vault, how much it pays, when they can leave and what can go wrong.
+- **A holder.** A few thousand USDC in a wallet they open a few times a month. Knows what Aave is, not what a batch or a share price is. Wants to know what it is, how much it pays, when they can leave and what can go wrong.
 - **A partner.** Evaluating an embed for their own users, with twenty minutes before a call. Wants what it is, how big and how proven it really is, what they would earn and who to talk to.
 - **An investor.** Sceptical and numerate. Wants total capital, net results against simply using Aave, where every dollar is, what has gone wrong and who is in control.
-- **A treasury.** An institution with an email login and a linked wallet, using the same vaults.
+- **A treasury.** An institution with an email login and a linked wallet, using the same vault.
 
 ## One model
 
-One account in stablecoins, sold as native yield from blue-chip lending across many networks. A vault belongs to a product, named by the stablecoin and how you get out: USDC Instant, USDC Multichain, USDT0 Instant. The network a vault takes deposits on is a choice inside the product, never its name, and network detail (which network, contracts, cash per network) sits in nested places. Vaults differ only in where the money works, how fast you can leave and how proven they are. The words "cross-chain" and "single-network" do not appear in the interface.
+One product, USDC Multichain: one USDC vault on Base that lends on Base and Arbitrum. Deposits and withdrawals are requests that settle in batches. The vaults that came before it are previous vaults: they keep their history and their holders' positions, take no new deposits, and holders move from them. The words "cross-chain" and "single-network" do not appear in the interface.
 
 ## The market
 
-"The market" means one thing everywhere: the Market Average, a TVL-weighted blue-chip index. Its members are every lending market a Thesauros vault is approved to use, as the vault contracts list them; each counts by how much it holds; its return comes from each market's own interest index, chained day by day. Every vault, product and the whole of Thesauros are compared with it over the same days, in percentage points. The index page shows its members, weights and method.
+"The market" means one thing everywhere: the Market Average, weighted by market size. Its members are every lending market a Thesauros vault is approved to use, as the vault contracts list them; each counts by how much it holds; its return comes from each market's own interest index, chained day by day. The vault, each previous vault and the whole of Thesauros are compared with it over the same days, in percentage points. The Market Average page shows its members, weights and method.
 
 The comparison chart puts Thesauros and the Market Average side by side, as 30-day rates day by day or as what 10,000 earned, with two reference lines: T-bills (the on-chain price of Ondo USDY) and Aave alone (the Market Average built only from Aave's markets). Where Thesauros runs above the Market Average the area between them is hatched: that is the gain a year, or in money; a shortfall is not drawn. The gap is always measured against the Market Average.
 
@@ -36,7 +36,7 @@ Only Thesauros resources: the vault and market contracts read over RPC, the Thes
 3. **Bad news sits next to good news.** An audit that has not happened, a valuation that stopped, a rate below Aave: on the page, in plain words, before someone has to find it.
 4. **Say what happens next.** Before a transaction: what you will sign and what follows. After: where it is now, and that you can close the tab. Never promise a time the contracts do not.
 5. **Reading needs no wallet.** Connect only to see a balance or to act.
-6. **One comparison.** Every rate is set against the blue-chip index over the same days, and the gap is shown in points, good or bad. Reference lines give scale, never a second gap.
+6. **One comparison.** Every rate is set against the Market Average over the same days, and the gap is shown in points, good or bad. Reference lines give scale, never a second gap.
 
 ## Tone
 

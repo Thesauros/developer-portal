@@ -158,7 +158,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
           <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>
             Every key is scoped: <code className={s.mono}>read</code> (GET),{' '}
             <code className={s.mono}>write</code> (positions &amp; webhooks) and{' '}
-            <code className={s.mono}>keys:admin</code> (key management). Scopes are server-assigned — a
+            <code className={s.mono}>keys:admin</code> (key management). Scopes are server-assigned: a
             key cannot grant itself broader access, and minting <code className={s.mono}>live</code> keys
             requires the <code className={s.mono}>keys:live</code> scope. Revocation is immediate: a
             revoked key returns <code className={s.mono}>401</code>, and an out-of-scope call returns{' '}
@@ -172,7 +172,7 @@ export default function ApiKeys({ apiKey, setApiKey }) {
         {newSecret ? (
           <>
             <div className={`${s.card} ${s.cardPad}`} style={{ borderLeft: '3px solid var(--teal)', background: 'var(--bg-inset)' }}>
-              <div className={s.h3} style={{ fontSize: 13 }}>Copy this secret now — it won’t be shown again</div>
+              <div className={s.h3} style={{ fontSize: 13 }}>Copy this secret now. It won’t be shown again</div>
               <code className={s.mono} style={{ display: 'block', marginTop: 10, fontSize: 12.5, wordBreak: 'break-all', color: 'var(--teal)' }}>
                 {newSecret.secret}
               </code>

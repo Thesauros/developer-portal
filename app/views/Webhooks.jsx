@@ -241,7 +241,7 @@ export default function Webhooks({ apiKey }) {
         {created ? (
           <>
             <div className={`${s.card} ${s.cardPad}`} style={{ borderLeft: '3px solid var(--teal)', background: 'var(--bg-inset)' }}>
-              <div className={s.h3} style={{ fontSize: 13 }}>Signing secret — shown once</div>
+              <div className={s.h3} style={{ fontSize: 13 }}>Signing secret, shown once</div>
               <code className={s.mono} style={{ display: 'block', marginTop: 10, fontSize: 12.5, wordBreak: 'break-all', color: 'var(--teal)' }}>
                 {created.secret}
               </code>

@@ -19,7 +19,7 @@ Someone checks their savings at a laptop in daylight; a partner reads it at a de
 | `--warn`, `--warn-wash` | `#8f5200`, `#fff4e6` | Pilot, notices, valuation gaps: the brand's orange, darkened for text |
 | `--side` | `#f6f8fb` | The desktop menu column |
 
-Colour follows the market, never its rank (`marketColor` in `lib/vault-book.mjs`): Aave `#196aff`, Compound `#0b8f7b`, Gauntlet Core `#7b5bd6`, Gauntlet Prime `#5a3fb8`, Steakhouse High Yield `#c77a12`, Steakhouse Prime `#c44b8a`, Steakhouse `#a8620f`, Smokehouse `#8a5a3c`, cash `#a9b8c7`. Thesauros lines are blue, the blue-chip index is `#5f7183`. Networks have their own colours only where capital is grouped by network.
+Colour follows the market, never its rank (`marketColor` in `lib/vault-book.mjs`): Aave `#196aff`, Compound `#0b8f7b`, Gauntlet Core `#7b5bd6`, Gauntlet Prime `#5a3fb8`, Steakhouse High Yield `#c77a12`, Steakhouse Prime `#c44b8a`, Steakhouse `#a8620f`, Smokehouse `#8a5a3c`, cash `#a9b8c7`. Thesauros lines are blue, the Market Average is `#5f7183`. Networks have their own colours only where capital is grouped by network.
 
 ## Type
 
@@ -27,16 +27,16 @@ Onest, tabular figures. Page title 32, vault facts 22, section 20, body 15, labe
 
 ## Layout
 
-Desktop, from 1100: the account layout people know. A 64 top bar with the brand, Docs and the account; a 240 menu on the left (Portfolio, Earn, Activity, Transparency; then Tools: Blue-chip index, Developers, Account; How vaults work and support at the foot); content up to 1320 with a 44 gutter. A vault page is two columns from 1280: content and a sticky 380 panel.
+Desktop, from 1100: the account layout people know. A 64 top bar with the brand, Docs and the account; a 240 menu on the left (Portfolio, Earn, Activity, Transparency; then Tools: Market Average, Developers; Account, How it works and support at the foot); content up to 1320 with a 44 gutter. A vault page is two columns from 1280: content and a sticky 380 panel.
 
 Phone, below 1100: the light layout. A 56 top bar with the brand, Connect and a menu icon; a dock of four sections at the bottom; on a vault page the panel is a sheet opened from a bar, which replaces the dock. Below 900 the tables become stacked rows.
 
 ## Components
 
-- **Product title**: the stablecoin's mark, its name and a tag for how you leave (Instant, Multichain). Network icons are small and secondary.
-- **Deposit from**: the networks of one product as pills inside the vault header, each with its rate.
-- **Against the index**: a difference in points, green ahead, red behind, "now" when only today's rates can be compared.
-- **Growth of 100**: Thesauros and the index rebased to 100 on the same day, labelled at the line ends.
+- **Product title**: the stablecoin's mark and the name USDC Multichain. Network icons are small and secondary.
+- **Network**: Base, shown once in the panel.
+- **Against the Market Average**: a difference in points, green ahead, red behind, "now" when only today's rates can be compared.
+- **Growth of 100**: Thesauros and the Market Average rebased to 100 on the same day, labelled at the line ends.
 - **Disclosure**: networks, contracts and the network map open on request.
 - **Stage**: Live, Early or Pilot, set by a rule rather than chosen per vault.
 - **Money map**: the vault's money split into networks and markets, to scale. The signature of the product.

@@ -269,7 +269,7 @@ export default function ApiReference({ apiKey }) {
       <h1 className={s.viewTitle}>REST API v1</h1>
       <p className={s.viewLead}>
         Every endpoint is live in the sandbox. Fill parameters, hit Send, and inspect the real
-        response — including rate-limit headers and request ids.
+        response, including rate-limit headers and request ids.
       </p>
 
       <div className={s.sectionLinks}><a href={documentationHref("/api/partner/")}>Partner API reference</a><a href={documentationHref("/api/sandbox/")}>Full sandbox contract</a><a href={documentationHref("/sdks/")}>SDK guides</a></div>

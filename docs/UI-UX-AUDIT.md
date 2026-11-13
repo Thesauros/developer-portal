@@ -1,4 +1,6 @@
-# Platform UI/UX audit — 20 September 2026
+# Platform UI/UX audit, 20 September 2026
+
+Historical record, 20 September 2026. Superseded.
 
 Status: findings remediated and deployed to the local review preview on 20 September 2026.
 
