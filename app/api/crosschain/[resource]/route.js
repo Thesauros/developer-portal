@@ -76,9 +76,10 @@ export async function GET(request, { params }) {
     const history = ["user", "activity"].includes(resource)
       ? readIndexedActivity(owner)
       : null;
-    const requestIds = history
-      ? [...new Set([...history.requestIds, ...ids])].slice(0, 100)
+    const combinedRequestIds = history
+      ? [...new Set([...ids, ...history.requestIds])]
       : ids;
+    const requestIds = combinedRequestIds.slice(0, 100);
     const value =
       resource === "rates"
         ? await readCrosschainRates(
@@ -106,7 +107,7 @@ export async function GET(request, { params }) {
                         historyScope:
                           "Indexed EpochVault events plus explicitly tracked request IDs",
                         truncated:
-                          history.truncated || history.requestIds.length > 100,
+                          history.truncated || combinedRequestIds.length > 100,
                       }
                     : await shared("crosschain:" + resource, 30000, () =>
                         readCrosschain(resource),
