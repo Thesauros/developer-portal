@@ -677,6 +677,16 @@ test("money that moves from a previous vault to the product stays in one record"
     now,
   );
   assert.equal(thin.status, "small");
+  // A vault that emptied does not lend its old size to what is left.
+  const drained = compositeMeasure(
+    [
+      { id: "old", samples: daily(60).map((point, i) => ({ ...point, tvl: i < 20 ? 50000 : 0 })) },
+      { id: "new", samples: daily(60, (i) => 1 + i * 0.00012, 3000) },
+    ],
+    30,
+    now,
+  );
+  assert.equal(drained.status, "small");
 });
 test("index members: one stablecoin, at least a million, every change dated", () => {
   const rows = [

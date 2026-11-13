@@ -461,7 +461,8 @@ function Security({ book }) {
           <dt>Previous vaults</dt>
           <dd>Reviewed by Hexens</dd>
           <small>
-            {AUDITS.map((audit) => audit.date).join(" and ")}. Vault
+            {AUDITS.map((audit) => audit.date).join(" and ")}. The one on
+            Ethereum runs a later build than the one reviewed. Vault
             administrators can upgrade the code, change fees and pause.
           </small>
         </div>

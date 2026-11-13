@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useDisconnect } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { documentationHref, marketingHref } from "../../lib/site-links.mjs";
 import { workspaceDestination } from "./destination.mjs";
 import useEarnAccount from "./useEarnAccount";
@@ -21,7 +21,7 @@ import ActivityPage from "./book/ActivityPage";
 import TransparencyPage from "./book/TransparencyPage";
 import IndexPage from "./book/IndexPage";
 import MoveNotice, { moveSummary } from "./move/MoveNotice";
-import { useFinished } from "./move/finished";
+import { useKept } from "./move/kept";
 import { vaultGuide } from "./vault-guide";
 import shell from "./workspace.module.css";
 import b from "./book/book.module.css";
@@ -204,8 +204,17 @@ export default function ProductApp({ mode = "individual", user }) {
   const { disconnectAsync } = useDisconnect();
   const owner = user?.walletAddress;
   const account = useEarnAccount(owner);
-  // The move from a previous vault reads and signs with the signed-in wallet.
-  const migration = useMigrationAccount(owner ? migrationDestination : null);
+  // The move from a previous vault is read and signed by the wallet connected
+  // in the browser. It runs only when that is the wallet of this account;
+  // otherwise positions still show, from the account's own reads, and the move
+  // asks for that wallet to be connected.
+  const connected = useAccount();
+  const walletHere =
+    !!owner &&
+    connected.status === "connected" &&
+    connected.address?.toLowerCase() === owner.toLowerCase();
+  const kept = useKept(owner);
+  const migration = useMigrationAccount(walletHere ? migrationDestination : null, { kept });
   const batch = useBatchVault(user, true, migration);
   const market = useInsights("market", "30d", true);
   const mine = useInsights("account", "", !!owner);
@@ -255,10 +264,9 @@ export default function ProductApp({ mode = "individual", user }) {
       }),
     [market.data, account.vaults, mine.data, history.data, batch.feed],
   );
-  const finished = useFinished(owner);
   const move = useMemo(
-    () => moveSummary(migration, book.account.previous, finished),
-    [migration, book.account.previous, finished],
+    () => moveSummary(migration, book.account.previous),
+    [migration, book.account.previous],
   );
 
   function navigate(view, id, options) {
@@ -425,7 +433,8 @@ export default function ProductApp({ mode = "individual", user }) {
         user={user}
         book={book}
         migration={migration}
-        finished={finished}
+        walletHere={walletHere}
+        kept={kept}
         account={account}
         batch={batch}
         displayName={displayName}
@@ -620,9 +629,9 @@ export default function ProductApp({ mode = "individual", user }) {
             {!user ? (
               <div className={b.guestAccount}>
                 <p>
-                  Sign in with your wallet to see the wallet you use, your
-                  balances across every network and your statements. Signing
-                  in moves no funds and grants no approvals.
+                  Sign in with your wallet to see the wallet this account
+                  uses and how you sign in. Your balance is in Portfolio.
+                  Signing in moves no funds and grants no approvals.
                 </p>
                 <ConnectAction className={b.primary} />
               </div>

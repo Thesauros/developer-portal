@@ -448,7 +448,8 @@
     padding: 20px 18px;
   }
   .startFacts {
-    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 12px;
   }
   .startFacts dd {
     font-size: 19px;

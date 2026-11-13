@@ -50,7 +50,7 @@ function describe(row, vaultName) {
     default:
       return {
         title: row.title,
-        detail: `${where}${row.at ? clock(row.at) : ""}${row.note ? ". " + row.note : ""}`,
+        detail: `${where}${row.at ? clock(row.at) : ""}${row.stands != null ? `. ${money(row.amount)} shares` : ""}${row.note ? ". " + row.note : ""}`,
       };
   }
 }
@@ -64,6 +64,9 @@ function amountOf(row) {
     return parts.join(", ") || null;
   }
   if (row.amount == null) return null;
+  // A share amount reads as the USDC it stands for; the shares go in the detail.
+  if (row.stands != null)
+    return `${row.about ? "about " : ""}${money(row.stands)} USDC`;
   const sign =
     row.kind === "deposit" || row.kind === "earned"
       ? "+"

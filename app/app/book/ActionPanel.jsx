@@ -65,7 +65,7 @@ function Plate({ vault, user }) {
               <dt>In your wallet</dt>
               <dd>
                 {position.inWallet != null ? money(position.inWallet) : "—"}{" "}
-                {vault.depositNetwork}
+                <small>USDC on {vault.depositNetwork}</small>
               </dd>
             </div>
           </dl>
@@ -74,18 +74,28 @@ function Plate({ vault, user }) {
   );
 }
 
+// What a depositor has to know first, in one breath; the full list is one
+// link away, under "What can go wrong".
 function Notice({ vault }) {
   if (!vault.notice) return null;
   return (
-    <details className={b.notice} open>
-      <summary>Before you deposit</summary>
-      <ul>
-        {vault.notice.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
-      <a href="#risks">All risks</a>
-    </details>
+    <p className={b.noticeLine}>
+      <strong>Before you deposit:</strong> these contracts have no external
+      audit yet, one team key can upgrade them, and Thesauros publishes the
+      vault’s valuation itself. <a href="#risks">All risks</a>
+    </p>
+  );
+}
+
+// The vault takes a fixed amount of deposits per batch: say it before the
+// amount is typed, not after it is refused.
+function BatchRoom({ vault }) {
+  if (vault.batchLimit == null) return null;
+  return (
+    <p className={b.hint}>
+      Up to {money(vault.batchLimit, 0)} USDC per batch for now
+      {vault.batchRoom != null ? `; the open batch has room for ${money(vault.batchRoom)}` : ""}.
+    </p>
   );
 }
 
@@ -117,8 +127,10 @@ function GuestForm({ vault, action, setAction }) {
   const value = Number(amount.replace(/[^\d.]/g, "")) || 0;
   const closed = action === "deposit" && !vault.open.deposits;
   function remember(next) {
-    setAmount(next);
-    saveDraft({ vaultId: vault.id, action, amount: next });
+    // Digits and one decimal point: anything else is not an amount.
+    const clean = next.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+    setAmount(clean);
+    saveDraft({ vaultId: vault.id, action, amount: clean });
   }
   return (
     <div className={b.form}>
@@ -168,12 +180,15 @@ function GuestForm({ vault, action, setAction }) {
             : "Connect wallet"
         }
       />
-      {!closed && action === "deposit" && maxBatch != null && value > maxBatch && (
-        <p className={b.hintBad}>
-          At most {money(maxBatch, 0)} {vault.token} fit in one batch; the rest
-          can go in the next one.
-        </p>
-      )}
+      {!closed && action === "deposit" &&
+        (maxBatch != null && value > maxBatch ? (
+          <p className={b.hintBad}>
+            At most {money(maxBatch, 0)} {vault.token} fit in one batch; the rest
+            can go in a later one.
+          </p>
+        ) : (
+          <BatchRoom vault={vault} />
+        ))}
       <p className={b.hint}>
         Connect a wallet, then sign a message to continue. Signing does not move
         funds.{" "}
@@ -315,7 +330,12 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
         }}
         options={[
           { value: "deposit", label: "Deposit" },
-          { value: "withdraw", label: "Withdraw", disabled: !heldShares },
+          {
+            value: "withdraw",
+            label: "Withdraw",
+            disabled: !heldShares,
+            title: heldShares ? undefined : "Nothing in the vault to withdraw yet",
+          },
         ]}
       />
       {closed ? (
@@ -361,6 +381,7 @@ function BatchForm({ vault, batch, action, setAction, initial, navigate, wallet 
                 ? `${money(Number(user?.cash ?? 0) / 1e6)} ${vault.token} in your wallet on ${vault.depositNetwork}.`
                 : `${money(Number(user?.valueBid ?? 0) / 1e6)} USDC in this vault.`)}
           </p>
+          {deposit && !problem && <BatchRoom vault={vault} />}
           {!deposit && shares != null && shares > 0n && !problem && (
             <p className={b.hint}>
               About {money(typed)} USDC ({money(Number(shares) / 1e6, 4)}{" "}
@@ -482,10 +503,14 @@ export default function ActionPanel({ vault, user, batch, wallet, navigate, inte
       ? "withdraw"
       : "deposit",
   );
-  useEffect(() => {
-    if (intent?.action) setAction(intent.action);
-  }, [intent]);
   const [sheet, setSheet] = useState(false);
+  useEffect(() => {
+    if (!intent?.action) return;
+    setAction(intent.action);
+    // On a phone the form lives in a sheet: an action asked for elsewhere
+    // (Portfolio's Deposit) opens it.
+    if (window.matchMedia("(max-width: 1279px)").matches) setSheet(true);
+  }, [intent]);
   function open(next) {
     setAction(next);
     setSheet(true);
@@ -572,7 +597,7 @@ export default function ActionPanel({ vault, user, batch, wallet, navigate, inte
 }
 
 // One request, from any vault, on any screen.
-export function RequestRow({ request, price, batch, compactVault }) {
+export function RequestRow({ request, price, batch, compactVault, closing }) {
   const stage = requestStage(request);
   const deposit = request.kind === "deposit";
   const value = deposit
@@ -618,7 +643,10 @@ export function RequestRow({ request, price, batch, compactVault }) {
           ))}
         </ol>
       )}
-      <p className={stage.ready ? b.hintGood : b.hint}>{stage.note}</p>
+      <p className={stage.ready ? b.hintGood : b.hint}>
+        {stage.note}
+        {request.state === "pending" && closing && !closing.late ? " " + closing.text : ""}
+      </p>
       <div className={b.requestActions}>
         {collectable && (
           <button
@@ -626,7 +654,9 @@ export function RequestRow({ request, price, batch, compactVault }) {
             disabled={batch.blocked}
             onClick={() => batch.submit("claim", request.id)}
           >
-            Collect {money(collectValue)} USDC
+            {deposit
+              ? `Collect shares (${money(collectValue)} USDC)`
+              : `Collect ${money(collectValue)} USDC`}
           </button>
         )}
         {request.cancellable && (

@@ -4,7 +4,7 @@ import { exposure, CASH_COLOR } from "../../../lib/vault-book.mjs";
 import { positionSeries } from "../../../lib/crosschain-feed.mjs";
 import { MIGRATION_VAULT_IDS } from "../../../lib/migration-state.mjs";
 import { DAY } from "../../../lib/vault-metrics.mjs";
-import { RequestRow } from "./ActionPanel";
+import { RequestRow, batchClosing } from "./ActionPanel";
 import BalanceChart from "./BalanceChart";
 import { LedgerRows } from "./ledger";
 import { mineLedger, vaultNamer } from "./activity";
@@ -25,7 +25,7 @@ import c from "./portfolio.module.css";
 const small = (value) => money(value, Math.abs(value) < 1 ? 4 : 2);
 
 // The balance, on the one blue surface of the screen.
-function Plate({ book, navigate }) {
+function Plate({ book, move, navigate }) {
   const { vault } = book;
   const account = book.account;
   const { position } = vault;
@@ -37,16 +37,31 @@ function Plate({ book, navigate }) {
     leaving > 0 && ["leaving", leaving],
   ].filter(Boolean);
   const ready = account.ready;
+  // Money in a previous vault is the person's money with Thesauros too: the
+  // figure on top counts it, and says where each part is.
+  const before = account.previousBalance || 0;
+  const split = before > 0;
+  const unit = split && account.previousUnit !== "USDC" ? "USD" : "USDC";
   return (
     <section className={c.plate} aria-label="Your balance">
       <div className={c.plateMain}>
-        <span>In {vault.title}</span>
+        <span>{split ? "With Thesauros" : `In ${vault.title}`}</span>
         <strong>
-          {account.known ? money(account.balance) : "—"} <small>USDC</small>
+          {account.known ? money(account.balance + before) : "—"} <small>{unit}</small>
         </strong>
-        {buckets.length > 0 && (
+        {(split || buckets.length > 0) && (
           <div className={c.buckets}>
-            {position.earning > 0 && (
+            {split && (
+              <>
+                <span>
+                  <b>{money(account.balance)}</b> in {vault.title}
+                </span>
+                <span>
+                  <b>{money(before)}</b> in previous vaults
+                </span>
+              </>
+            )}
+            {!split && position.earning > 0 && (
               <span>
                 <b>{money(position.earning)}</b> earning
               </span>
@@ -62,9 +77,13 @@ function Plate({ book, navigate }) {
           <p>
             {!account.known
               ? "Reading your balance from the vault…"
-              : ready
-                ? `You have ${money(ready.amount)} USDC on ${ready.network}, ready to deposit.`
-                : `Nothing deposited yet. The vault takes USDC on ${vault.depositNetwork}.`}
+              : split
+                ? "It keeps earning in the previous vault until you move or withdraw it."
+                : move?.amount > 0
+                  ? `Nothing in the vault yet. ${money(move.amount)} USDC you withdrew from a previous vault is waiting in your wallet: see below.`
+                  : ready
+                  ? `You have ${money(ready.amount)} USDC on ${ready.network}, ready to deposit.`
+                  : `Nothing deposited yet. The vault takes USDC on ${vault.depositNetwork}.`}
           </p>
         )}
       </div>
@@ -87,8 +106,9 @@ function Plate({ book, navigate }) {
                 "—"
               ) : (
                 <>
-                  {account.earned >= 0 ? "+" : "−"}
-                  {small(Math.abs(account.earned))} <small>USDC</small>
+                  {Math.abs(account.earned) < 0.00005 ? "" : account.earned > 0 ? "+" : "−"}
+                  {Math.abs(account.earned) < 0.00005 ? "0.00" : small(Math.abs(account.earned))}{" "}
+                  <small>USDC</small>
                 </>
               )}
             </dd>
@@ -151,16 +171,16 @@ function Start({ book, navigate }) {
             </small>
           </div>
           <div>
-            <dt>Earned, 30 days</dt>
+            <dt>Thesauros, 30 days</dt>
             <dd>
               <MeasuredRate measure={record.measure} />
             </dd>
-            <small>Thesauros USDC, a year</small>
+            <small>all its USDC vaults, a year</small>
           </div>
           <div>
             <dt>Withdraw in</dt>
             <dd>{vault.exit.label}</dd>
-            <small>settled in batches</small>
+            <small>no time is promised</small>
           </div>
         </dl>
         <div className={c.startActions}>
@@ -364,7 +384,7 @@ function Versus({ book, navigate }) {
     >
       <dl className={c.versus}>
         <div>
-          <dt>The vault, now</dt>
+          <dt>This vault, now</dt>
           <dd>{pct(product.rateNow)}</dd>
           <small>
             <VsIndex diff={record.vs?.nowDiff} />
@@ -381,7 +401,7 @@ function Versus({ book, navigate }) {
             <MeasuredRate measure={record.measure} />
           </dd>
           <small>
-            <VsIndex diff={record.vs?.r30Diff} />
+            <VsIndex diff={record.vs?.r30Diff} /> · all its USDC vaults
           </small>
         </div>
         <div>
@@ -442,22 +462,43 @@ function Wallet({ book, navigate }) {
   );
 }
 
-// Money in the vaults before the product. It stays the holder's and takes one
-// decision: move it or withdraw it.
-function Previous({ book, move, navigate }) {
+// Money in the vaults before the product, and money on its way out of them.
+// It stays the holder's; each line says where it is and offers one action.
+function Previous({ book, move, navigate, unread = false }) {
   const rows = book.account.previous;
-  const moving = move?.moves || [];
-  if (!rows.length && !moving.some((item) => item.toDeposit > 0 || item.settling))
-    return null;
-  const midway = moving.filter(
-    (item) => !rows.some((vault) => vault.id === item.id) && (item.toDeposit > 0 || item.settling),
-  );
+  const moving = (move?.moves || []).flatMap((item) => [
+    item.inBatch > 0 && {
+      key: item.id + ":batch",
+      network: item.network,
+      title: `Move from ${item.network}`,
+      note: item.collect
+        ? "Settled in the new vault · shares ready to collect"
+        : "In the new vault’s open batch · waiting to settle",
+      amount: item.inBatch,
+      action: item.collect ? "Collect" : "See progress",
+    },
+    item.inWallet > 0 && {
+      key: item.id + ":wallet",
+      network: item.network,
+      title: `Move from ${item.network}`,
+      note: "Withdrawn · in your wallet, not earning, waiting to be deposited",
+      amount: item.inWallet,
+      action: "Continue",
+    },
+  ]).filter(Boolean);
+  if (!rows.length && !moving.length)
+    return unread ? (
+      <p className={b.footnote} role="status">
+        Some previous vaults could not be read right now, so a position there
+        may be missing from this page.
+      </p>
+    ) : null;
   return (
     <section className={c.previous} aria-labelledby="previous-vaults">
-      <h2 id="previous-vaults">In previous vaults</h2>
+      <h2 id="previous-vaults">Previous vaults</h2>
       <p>
-        Thesauros now runs on one vault. These positions stay yours and can be
-        moved to it or withdrawn at any time.
+        Thesauros now runs on one vault. Money in a previous vault stays yours,
+        keeps earning there, and can be moved or withdrawn at any time.
       </p>
       <ul className={c.rows}>
         {rows.map((vault) => {
@@ -471,8 +512,8 @@ function Previous({ book, move, navigate }) {
                 </strong>
                 <small>
                   {movable
-                    ? "Previous vault · takes no new deposits"
-                    : "Previous vault · withdraw only"}
+                    ? "In the previous vault · takes no new deposits"
+                    : "In the previous vault · withdraw only"}
                 </small>
               </span>
               <span className={c.rowAmount}>
@@ -484,36 +525,30 @@ function Previous({ book, move, navigate }) {
             </li>
           );
         })}
-        {midway.map((item) => (
-          <li key={"move-" + item.id}>
+        {moving.map((item) => (
+          <li key={item.key}>
             <span className={c.rowName}>
               <strong>
                 <NetworkMarks networks={[item.network]} size={16} />
-                Move from {item.network}
+                {item.title}
               </strong>
-              <small>
-                {item.collect
-                  ? "Settled · shares ready to collect"
-                  : item.settling
-                    ? "In the open batch"
-                    : "Withdrawn · waiting to be deposited"}
-              </small>
+              <small>{item.note}</small>
             </span>
             <span className={c.rowAmount}>
-              {item.toDeposit > 0 ? (
-                <>
-                  {money(item.toDeposit)} <small>USDC</small>
-                </>
-              ) : (
-                ""
-              )}
+              {money(item.amount)} <small>USDC</small>
             </span>
             <button className={b.secondary} onClick={() => navigate("move")}>
-              {item.collect ? "Collect" : "Continue"}
+              {item.action}
             </button>
           </li>
         ))}
       </ul>
+      {unread && (
+        <p className={b.footnote} role="status">
+          Some previous vaults could not be read right now, so a position there
+          may be missing from this list.
+        </p>
+      )}
     </section>
   );
 }
@@ -576,8 +611,13 @@ export default function PortfolioPage({
       <h1 className={b.srOnly} tabIndex={-1}>
         {title}
       </h1>
-      <Plate book={book} navigate={navigate} />
-      <Previous book={book} move={move} navigate={navigate} />
+      <Plate book={book} move={move} navigate={navigate} />
+      <Previous
+        book={book}
+        move={move}
+        navigate={navigate}
+        unread={book.account.previousUnread > 0 && !account.loading}
+      />
       {holdings.attention.length > 0 && (
         <Section title="In progress">
           <div className={b.requests}>
@@ -587,6 +627,7 @@ export default function PortfolioPage({
                 request={request}
                 price={price}
                 batch={batch}
+                closing={batchClosing(book.vault)}
               />
             ))}
           </div>
@@ -596,11 +637,11 @@ export default function PortfolioPage({
         <>
           <Growth book={book} batch={batch} />
           <Exposure vault={book.vault} balance={holdings.balance} />
+          <Versus book={book} navigate={navigate} />
         </>
       ) : (
         <Start book={book} navigate={navigate} />
       )}
-      <Versus book={book} navigate={navigate} />
       <Wallet book={book} navigate={navigate} />
       {ledger.length > 0 && (
         <Section

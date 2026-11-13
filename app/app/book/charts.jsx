@@ -208,20 +208,30 @@ function FlowDiagram({ vault, groups, W }) {
                   rx="2"
                   fill="#0b1b2b"
                 />
-                <text
-                  x={midX + 16}
-                  y={group.netY + group.netH / 2 - 3}
-                  className={b.flowName}
-                >
-                  {group.name}
-                </text>
-                <text
-                  x={midX + 16}
-                  y={group.netY + group.netH / 2 + 13}
-                  className={b.flowValue}
-                >
-                  {amount(group.amount)}
-                </text>
+                {group.netH >= 36 ? (
+                  <>
+                    <text
+                      x={midX + 16}
+                      y={group.netY + group.netH / 2 - 3}
+                      className={b.flowName}
+                    >
+                      {group.name}
+                    </text>
+                    <text
+                      x={midX + 16}
+                      y={group.netY + group.netH / 2 + 13}
+                      className={b.flowValue}
+                    >
+                      {amount(group.amount)}
+                    </text>
+                  </>
+                ) : (
+                  // A thin band has no room for two lines inside it: one line above.
+                  <text x={midX} y={group.netY - 7} className={b.flowName}>
+                    {group.name}{" "}
+                    <tspan className={b.flowValue}>{amount(group.amount)}</tspan>
+                  </text>
+                )}
               </>
             )}
             {group.markets.map((row) => {
@@ -449,8 +459,8 @@ export function PriceChart({
         )}
         {longest && (
           <text
-            x={(x(longest.from.at) + x(longest.to.at)) / 2}
-            y={Math.min(y(longest.from.price), y(longest.to.price)) - 10}
+            x={Math.min(Math.max((x(longest.from.at) + x(longest.to.at)) / 2, left + 90), W - right - 90)}
+            y={top - 5}
             textAnchor="middle"
             className={b.annotation}
           >
@@ -819,7 +829,11 @@ export function ComparisonChart({
               y={labelY + 4}
               className={line.strong ? b.endStrong : b.endLabel}
             >
-              <tspan className={b.endValue}>{line.rate.toFixed(2)}%</tspan>{" "}
+              <tspan className={b.endValue}>
+                {mode === "rate"
+                  ? line.rate.toFixed(2) + "%"
+                  : "+" + money(line.points.at(-1).value, line.points.at(-1).value >= 1000 ? 0 : 2)}
+              </tspan>{" "}
               {line.tiny || line.short || line.name}
             </text>
           </g>
@@ -1261,7 +1275,7 @@ export function GapChart({ points, height = 200, label = "This vault" }) {
           {p.partial
             ? `${dateLabel(p.from, false)} to ${dateLabel(p.at, false)}`
             : `Week to ${dateLabel(p.at, false)}`}
-          : {label} <strong>{pct(p.ours)}</strong>, index{" "}
+          : {label} <strong>{pct(p.ours)}</strong>, Market Average{" "}
           <strong>{pct(p.index)}</strong> a year
           {p.share != null ? (
             <>

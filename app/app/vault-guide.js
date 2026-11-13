@@ -20,7 +20,7 @@ export const vaultGuide = [
     title: "Approve, request, then collect.",
     body: "You keep your USDC until you sign. First you approve exactly the amount, then you request the deposit. Each step shows in your wallet.",
     detail:
-      "Your deposit starts earning when the batch settles, usually within 1 to 2 hours. You can cancel until then. Afterwards you collect your shares.",
+      "Your deposit starts earning when the batch settles. A batch closes every 1 to 2 hours when the vault’s valuations are on time; no time is promised. You can cancel until it settles. Afterwards you collect your shares.",
     note: "Three wallet confirmations: approve, request, collect.",
     visual: [
       ["wallet", "Enter an amount", "In USDC"],

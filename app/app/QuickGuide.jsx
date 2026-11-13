@@ -216,9 +216,6 @@ export default function QuickGuide({
                     <strong>{label}</strong>
                     <span>{detail}</span>
                   </div>
-                  <span className={s.cardNumber}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
                 </div>
               ))}
             </div>

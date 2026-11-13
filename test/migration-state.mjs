@@ -600,3 +600,101 @@ test("malformed saved operations cannot be resumed as trusted migration", () => 
     /hash/,
   );
 });
+
+// How a move ends when not every withdrawn dollar is deposited.
+const moved = (extra = {}) => ({
+  position: { status: "ready", shares: 0n, withdrawPaused: false },
+  withdrawals: [{ amount: 1_000_000_000n }],
+  requests: [{ id: "5", state: "claimed", amount: "999400000" }],
+  cash: 0n,
+  allowance: 0n,
+  minDeposit: "1000000",
+  ...extra,
+});
+
+test("a bridge fee left below the minimum deposit does not keep a move open", () => {
+  const state = deriveMigration(moved());
+  assert.equal(state.stage, "complete");
+  assert.equal(state.amount, "0");
+  assert.equal(state.left, "600000");
+  assert.equal(state.credited, "999400000");
+});
+
+test("a remainder at or above the minimum still asks to be deposited", () => {
+  const state = deriveMigration(
+    moved({ requests: [{ id: "5", state: "claimed", amount: "990000000" }] }),
+  );
+  assert.equal(state.amount, "10000000");
+  assert.equal(state.stage, "base");
+  assert.equal(state.left, "0");
+});
+
+test("a first withdrawal below the minimum keeps its top-up path", () => {
+  const state = deriveMigration({
+    position: { status: "ready", shares: 0n, withdrawPaused: false },
+    withdrawals: [{ amount: 400_000n }],
+    requests: [],
+    cash: 5_000_000n,
+    allowance: 0n,
+    minDeposit: "1000000",
+  });
+  assert.equal(state.amount, "400000");
+  assert.equal(state.stage, "approve");
+  assert.equal(state.selected, "1000000");
+});
+
+test("what the holder keeps in their wallet closes that part of the move", () => {
+  const partly = moved({
+    requests: [{ id: "5", state: "claimed", amount: "500000000" }],
+  });
+  assert.equal(deriveMigration(partly).amount, "500000000");
+  const kept = deriveMigration({ ...partly, kept: "500000000" });
+  assert.equal(kept.stage, "complete");
+  assert.equal(kept.amount, "0");
+  assert.equal(kept.left, "500000000");
+  // Keeping more than is outstanding, or nonsense, changes nothing else.
+  assert.equal(deriveMigration({ ...partly, kept: "900000000000" }).left, "500000000");
+  assert.equal(deriveMigration({ ...partly, kept: "x" }).amount, "500000000");
+  assert.equal(deriveMigration({ ...partly, kept: -5n }).amount, "500000000");
+  // Kept money never hides money still in the previous vault.
+  const holding = deriveMigration({
+    ...partly,
+    kept: "500000000",
+    position: { status: "ready", shares: 7n, withdrawPaused: false },
+  });
+  assert.equal(holding.stage, "withdraw");
+  assert.equal(holding.visible, true);
+  // Nor a request that is still queued.
+  const queued = deriveMigration({
+    ...partly,
+    kept: "500000000",
+    requests: [{ id: "5", state: "pending", amount: "500000000" }],
+  });
+  assert.equal(queued.stage, "settlement");
+  assert.equal(queued.queued, "500000000");
+});
+
+test("moving in parts: after each part is collected the next withdrawal opens", () => {
+  const round = deriveMigration({
+    position: { status: "ready", shares: 50_000_000_000n, withdrawPaused: false },
+    withdrawals: [{ amount: 500_000_000n }],
+    requests: [{ id: "9", state: "claimed", amount: "500000000" }],
+    cash: 0n,
+    allowance: 0n,
+    minDeposit: "1000000",
+  });
+  assert.equal(round.stage, "withdraw");
+  assert.equal(round.canAct, true);
+  assert.equal(round.credited, "500000000");
+  // With a fee-sized remainder from the last part the next withdrawal still opens.
+  const afterFee = deriveMigration({
+    position: { status: "ready", shares: 50_000_000_000n, withdrawPaused: false },
+    withdrawals: [{ amount: 500_000_000n }],
+    requests: [{ id: "9", state: "claimed", amount: "499700000" }],
+    cash: 0n,
+    allowance: 0n,
+    minDeposit: "1000000",
+  });
+  assert.equal(afterFee.stage, "withdraw");
+  assert.equal(afterFee.left, "300000");
+});

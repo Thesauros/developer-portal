@@ -202,6 +202,29 @@ export default function useBatchVault(user, enabled = true, migration = null) {
       return submitUnlocked(kind, input);
     });
   }
+  // What a new request needs before the wallet is asked: the data service
+  // answering for this vault and a fresh valuation. A withdrawal needs the
+  // same, and nothing about deposits being open.
+  async function ensureFresh() {
+    const vault = await read("vault");
+    assertCrosschainIdentity(vault);
+    await Promise.all([
+      read("health"),
+      read("backend-base"),
+      read("backend-arbitrum"),
+    ]);
+    if (
+      vault.tick?.frozen !== false ||
+      vault.tick?.quarantined !== false ||
+      !Number.isFinite(vault.tick?.ageSeconds) ||
+      vault.tick.ageSeconds < 0 ||
+      !Number.isFinite(vault.risk?.maxTickAge) ||
+      vault.tick.ageSeconds > vault.risk.maxTickAge
+    )
+      throw new Error(
+        "New requests are unavailable until the vault has a fresh accepted valuation.",
+      );
+  }
   async function submitUnlocked(kind, input) {
     if (locks.has(key) || pending || !storageReady) return false;
     if (localStorage.getItem(key)) {
@@ -218,26 +241,8 @@ export default function useBatchVault(user, enabled = true, migration = null) {
     try {
       if (!owner || !sameAddress(walletAccount.address, owner))
         throw new Error("Connect the wallet you used to sign in.");
-      const vault = await read("vault");
-      assertCrosschainIdentity(vault);
-      if (["approve", "deposit", "redeem"].includes(kind))
-        await Promise.all([
-          read("health"),
-          read("backend-base"),
-          read("backend-arbitrum"),
-        ]);
-      if (
-        ["approve", "deposit", "redeem"].includes(kind) &&
-        (vault.tick?.frozen !== false ||
-          vault.tick?.quarantined !== false ||
-          !Number.isFinite(vault.tick?.ageSeconds) ||
-          vault.tick.ageSeconds < 0 ||
-          !Number.isFinite(vault.risk?.maxTickAge) ||
-          vault.tick.ageSeconds > vault.risk.maxTickAge)
-      )
-        throw new Error(
-          "New requests are unavailable until the vault has a fresh accepted valuation.",
-        );
+      if (["approve", "deposit", "redeem"].includes(kind)) await ensureFresh();
+      else assertCrosschainIdentity(await read("vault"));
       if (walletAccount.chainId !== crosschain.chainId)
         await switchChainAsync({ chainId: crosschain.chainId });
       const provider = await walletAccount.connector.getProvider({
@@ -259,7 +264,14 @@ export default function useBatchVault(user, enabled = true, migration = null) {
           setMessage(`Submitted. Waiting for confirmation on ${HUB}…`);
         },
         (intent) => {
-          savePending({ ...intent, kind, owner, chainId: crosschain.chainId });
+          savePending({
+            ...intent,
+            kind,
+            owner,
+            chainId: crosschain.chainId,
+            // An identical call made earlier must not pass for this one.
+            savedAt: Date.now(),
+          });
           signing = true;
           setMessage("Confirm the operation in your wallet.");
         },
@@ -299,6 +311,22 @@ export default function useBatchVault(user, enabled = true, migration = null) {
   // happened to the first prompt, only one transaction with that nonce can run.
   async function retrySaved() {
     if (busy || !pending) return false;
+    // The saved nonce only protects a transaction the wallet sent as itself.
+    // If the first one is already mined, or a relay is carrying it, sending
+    // again could run the request twice: check what is known first.
+    if (pending.hash) {
+      const [receipt, sent] = await Promise.all([
+        client.getTransactionReceipt({ hash: pending.hash }).catch(() => null),
+        client.getTransaction({ hash: pending.hash }).catch(() => null),
+      ]);
+      if (receipt) return recover();
+      if (sent && !sameAddress(sent.from, owner)) {
+        setMessage(
+          "Your wallet sent this through a relay, so it cannot be sent again safely. Wait for it to confirm, then check it here.",
+        );
+        return false;
+      }
+    }
     return underWalletLock(async () => {
       locks.add(key);
       setBusy(true);
@@ -325,10 +353,13 @@ export default function useBatchVault(user, enabled = true, migration = null) {
           owner,
           vaultId: HUB_CHAIN.id,
           pending,
+          // A deposit needs deposits open; a withdrawal only a fresh valuation.
           beforeRetry: (kind) =>
             ["claim", "cancel"].includes(kind)
               ? Promise.resolve()
-              : migrationDestination.check(kind),
+              : kind === "redeem"
+                ? ensureFresh()
+                : migrationDestination.check(kind),
           onHash: (hash) => savePending({ ...pending, hash }),
         });
         setRecoveryHash(result.hash);
@@ -337,10 +368,15 @@ export default function useBatchVault(user, enabled = true, migration = null) {
         );
         return true;
       } catch (failure) {
+        const cancelled =
+          failure.walk?.((e) => e.code === 4001) ||
+          /User rejected|UserRejected|denied.*request/i.test(failure.message || "");
         setMessage(
           failure.code === "NONCE_CONSUMED"
-            ? "That nonce has been used. Paste the hash of the confirmed transaction, or of the one that replaced it."
-            : "The saved request is still unresolved. Reopen it in the wallet again, or paste its transaction hash.",
+            ? "Your wallet already sent a transaction in its place. Paste the hash of the transaction it shows now."
+            : cancelled
+              ? "You cancelled in the wallet. The saved request is still here to check or send again."
+              : `The saved request could not be sent again: ${failure.shortMessage || failure.message || "the wallet did not answer"}`,
         );
         return false;
       } finally {
@@ -377,11 +413,25 @@ export default function useBatchVault(user, enabled = true, migration = null) {
         client.getChainId(),
         client.getBlockNumber({ cacheTime: 0 }),
       ]);
-      // A wallet relay changes the sender and target; the events still show the call.
+      // The same call made before this request was saved is a different
+      // transaction: an earlier deposit of the same amount must not settle
+      // this one.
+      if (Number.isFinite(pending.savedAt) && receipt.blockNumber != null) {
+        const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+        if (Number(block.timestamp) * 1000 < pending.savedAt - 10 * 60_000)
+          throw new Error("That transaction is older than this request.");
+      }
+      // A wallet relay changes the sender and target; the events still show the
+      // call. When the wallet sent it as itself, the nonce must be the saved one.
       if (
         chainId === crosschain.chainId &&
         receipt.transactionHash.toLowerCase() === hash.toLowerCase() &&
-        receiptShowsCall(receipt, owner, pending.address, pending.data)
+        receiptShowsCall(receipt, owner, pending.address, pending.data) &&
+        !(
+          sameAddress(transaction.from, owner) &&
+          Number.isSafeInteger(pending.nonce) &&
+          transaction.nonce !== pending.nonce
+        )
       ) {
         trackIds(receiptRequestIds(receipt, owner));
         savePending(null);

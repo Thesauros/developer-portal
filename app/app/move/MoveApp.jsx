@@ -4,20 +4,35 @@ import { getVault } from "../../../lib/vault-contracts.mjs";
 import { MIGRATION_VAULT_IDS } from "../../../lib/migration-state.mjs";
 import { marketingHref, documentationHref } from "../../../lib/site-links.mjs";
 import { ConnectAction } from "../wallet/WalletAccess";
-import { finishMove, isFinished } from "./finished";
+import { keepRest, resumeMove } from "./kept";
 import { TransactionPanel } from "../book/InstantTransaction";
 import { batchClosing } from "../book/ActionPanel";
 import { money, pct, short, NetworkMarks, TokenMark } from "../book/parts";
 import b from "../book/book.module.css";
 import m from "./move.module.css";
 
-// Exact token units as the amount a person reads: two decimals, never rounded up
-// past what the chain holds.
+// Token units as the amount a person reads, to two decimals. `precise` is for
+// an amount about to be signed: it shows every digit that is not zero, so the
+// screen never names a rounder figure than the wallet will.
 const whole = (value) =>
   /^\d+$/.test(String(value ?? "")) ? BigInt(value) : null;
 const usdc = (value, digits = 2) => {
   const units = whole(value);
   return units == null ? "—" : money(Number(units) / 1e6, digits);
+};
+const precise = (value) => {
+  const units = whole(value);
+  if (units == null) return "—";
+  if (units % 10000n === 0n) return money(Number(units) / 1e6);
+  const [int, fraction = ""] = exact(units).split(".");
+  return int.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + fraction.padEnd(2, "0");
+};
+// A typed amount as token units, or null when it is not an amount.
+const toUnits = (text) => {
+  const value = String(text ?? "").trim();
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value)) return null;
+  const [int, fraction = ""] = value.split(".");
+  return BigInt(int) * 1_000_000n + BigInt(fraction.padEnd(6, "0"));
 };
 const exact = (value) => {
   const units = whole(value);
@@ -201,24 +216,87 @@ function CopyAddress({ address }) {
   );
 }
 
+// "1 to 2 hours", from the open batch's own limits.
+function batchHours(vault) {
+  const epoch = vault.epoch;
+  if (!epoch?.openedAt || !epoch.earliestCloseAt || !epoch.latestCloseAt) return null;
+  const min = (epoch.earliestCloseAt - epoch.openedAt) / 3600;
+  const max = (epoch.latestCloseAt - epoch.openedAt) / 3600;
+  return min > 0 && max >= min ? { min, max } : null;
+}
+const span = (hours) => {
+  const days = hours / 24;
+  return days >= 2 ? `${Math.round(days)} days` : `${Math.round(hours)} hours`;
+};
+
+// What a large move means at today's limit, said before anything is withdrawn.
+function Plan({ amount, vault }) {
+  const limit = vault.batchLimit;
+  if (limit == null || !(amount > limit)) return null;
+  const rounds = Math.ceil(amount / limit);
+  const hours = batchHours(vault);
+  return (
+    <div className={m.plan} role="note">
+      <strong>At today’s limit this is a long move.</strong>
+      <p>
+        The new vault takes up to {money(limit, 0)} USDC per batch, shared by
+        everyone, and a batch closes every{" "}
+        {hours ? `${hours.min} to ${hours.max} hours` : "few hours"}. Your{" "}
+        {money(amount, 0)} USDC would need at least {rounds} batches
+        {hours ? `: ${span(rounds * hours.min)} to ${span(rounds * hours.max)} of repeating these steps` : ""}.
+      </p>
+      <p>
+        What you withdraw and have not deposited yet sits in your wallet and
+        earns nothing. So move in parts: take out only what the next batch can
+        take, and leave the rest earning in the previous vault. The limit is
+        read from the contract; this page shows it as it changes.
+      </p>
+    </div>
+  );
+}
+
+// Where this move's money is right now. Every dollar is in one place.
+function Where({ product, places }) {
+  return (
+    <dl className={m.tally}>
+      {places.map(([label, value, note]) => (
+        <div key={label} data-empty={value === 0n || undefined}>
+          <dt>{label}</dt>
+          <dd>{value == null ? "—" : usdc(value)}</dd>
+          <small>{note}</small>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 // One previous vault and its way into the product.
-function Move({ product, model, vault, eth }) {
+function Move({ product, model, vault, eth, batch }) {
   const fromArbitrum = product.chainId !== 8453;
   const withdrawn = whole(product.withdrawn) ?? 0n;
   // "check" means a reading is missing. Before anything was withdrawn that is
   // the position in the previous vault; after, it is the wallet on Base.
   const rechecking = product.stage === "check" && withdrawn > 0n;
+  const [typed, setTyped] = useState(false);
   const step = rechecking
     ? fromArbitrum
       ? "bring"
       : "deposit"
-    : STEP_OF[product.stage] || "withdraw";
+    : product.stage === "recover"
+      ? product.pendingKind === "claim"
+        ? "collect"
+        : "deposit"
+      : // While the holder is typing an amount the form stays where it is,
+        // whatever the amount means for the stage.
+        product.stage === "base" && typed
+        ? "deposit"
+        : STEP_OF[product.stage] || "withdraw";
   const order = fromArbitrum
     ? ["withdraw", "bring", "deposit", "settle", "collect"]
     : ["withdraw", "deposit", "settle", "collect"];
   // A Base vault pays out on Base, so "bring" only means the money is not in
   // the wallet any more: it shows inside the deposit step.
-  const at = step === "done" ? order.length : order.indexOf(step === "bring" && !fromArbitrum ? "deposit" : step);
+  const at = order.indexOf(step === "bring" && !fromArbitrum ? "deposit" : step);
   const stateOf = (name) => {
     const i = order.indexOf(name);
     if (i < at) return "done";
@@ -232,45 +310,89 @@ function Move({ product, model, vault, eth }) {
   const ready = product.positionStatus === "ready";
   const remaining = whole(product.amount) ?? 0n;
   const credited = whole(product.credited) ?? 0n;
+  const queued = whole(product.queued) ?? 0n;
   const inVault = ready && (whole(product.shares) ?? 0n) > 0n ? (whole(product.assets) ?? 0n) : 0n;
   const selected = whole(product.selected) ?? remaining;
   const cash = whole(product.cash);
   const additional = whole(product.additionalFunds) ?? 0n;
-  const room =
-    vault.batchRoom == null ? null : BigInt(Math.floor(vault.batchRoom * 1e6));
-  const overRoom = room != null && selected > room;
+  const minimum = whole(product.minDeposit) ?? 0n;
+  const limit = vault.batchLimit == null ? null : BigInt(Math.round(vault.batchLimit * 1e6));
+  const room = vault.batchRoom == null ? null : BigInt(Math.round(vault.batchRoom * 1e6));
   const closing = batchClosing(vault);
   const noGas = /^\d+$/.test(String(eth ?? "")) && BigInt(eth) === 0n;
-  const txOf = (...labels) =>
-    (product.txs || []).filter((row) => labels.some((label) => row.label.startsWith(label)));
   const acting = model.busy;
   const error = product.error || product.positionError;
-  // The bridge step asks for nothing to sign: it waits for USDC to arrive.
-  const need = selected > 0n ? selected : remaining;
-  const short_ = cash != null && need > cash ? need - cash : 0n;
-  const minimum = whole(product.minDeposit) ?? 0n;
-  // A bridge keeps a fee, so a little less than was withdrawn arrives. When
-  // nearly all of it is on Base the move goes on with what arrived, once, and
-  // only if the holder has not typed an amount of their own.
-  const nearly =
-    product.stage === "base" &&
-    cash != null &&
-    cash >= minimum &&
-    cash > 0n &&
-    short_ > 0n &&
-    short_ * 20n <= need;
-  const proposed = useRef(false);
+
+  // Step 1. A balance larger than a batch can take is moved in parts: what the
+  // open batch has room for, or a whole batch when this one is full.
+  const large = limit != null && inVault > limit;
+  const round = room != null && room >= minimum && room > 0n ? room : limit;
+  const [everything, setEverything] = useState(false);
   useEffect(() => {
-    if (!nearly || proposed.current || product.amountInput) return;
-    proposed.current = true;
-    product.setAmountInput(exact(cash < remaining ? cash : remaining));
+    if (product.stage !== "withdraw") {
+      if (everything) setEverything(false);
+      return;
+    }
+    if (large && !everything && !product.withdrawInput && round != null)
+      product.setWithdrawInput(exact(inVault < round ? inVault : round));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nearly]);
+  }, [product.stage, large, everything, product.withdrawInput, round, inVault]);
+  const part = product.withdrawInput ? toUnits(product.withdrawInput) : null;
+  const taking = part ?? inVault;
+  const withdrawReady = !large || everything || !!product.withdrawInput;
+  const withdrawProblem =
+    product.withdrawInput && (part == null || part <= 0n || part > inVault)
+      ? "Enter an amount, with up to 6 decimals, no larger than your balance in the previous vault."
+      : "";
+
+  // Step 3. The amount follows what can actually go in now: what is waiting,
+  // what is on Base, and what the open batch has room for. The holder can
+  // still type their own.
+  const need = selected > 0n ? selected : remaining;
+  const onBase = cash ?? 0n;
+  const fits = [remaining, onBase, ...(room != null ? [room] : [])].reduce((a, c) => (c < a ? c : a));
+  const short_ = cash != null && remaining > cash ? remaining - cash : 0n;
+  // A bridge keeps a fee, so a little less than was withdrawn arrives.
+  const nearly = cash != null && cash > 0n && short_ > 0n && short_ * 50n <= remaining;
+  const arrived = cash != null && cash >= remaining;
+  const full = room != null && room < (minimum > 0n ? minimum : 1n);
+  // The amount this screen filled in itself; it follows the room and the
+  // balance as they change, until the holder types their own.
+  const filled = useRef("");
+  useEffect(() => {
+    if (!["base", "approve", "deposit"].includes(product.stage)) {
+      if (typed) setTyped(false);
+      filled.current = "";
+      return;
+    }
+    if (typed || full || !(arrived || nearly)) return;
+    if (product.amountInput && product.amountInput !== filled.current) return;
+    const next = fits >= minimum && fits > 0n && fits !== remaining ? exact(fits) : "";
+    if (next !== (product.amountInput || "")) {
+      filled.current = next;
+      product.setAmountInput(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.stage, typed, product.amountInput, full, arrived, nearly, fits, remaining]);
+  const left = whole(product.left) ?? 0n;
+  const keptBack = left > 0n && left >= minimum;
+  const overRoom = room != null && selected > room;
+  const later = remaining > selected ? remaining - selected : 0n;
   // Some is on Base, clearly not all of it: the holder may go on with that.
   const partly =
-    product.stage === "base" && cash != null && cash >= minimum && cash > 0n && !nearly;
-  const canFinish =
-    ["base", "approve", "deposit"].includes(product.stage) && inVault === 0n && withdrawn > 0n;
+    product.stage === "base" && cash != null && cash >= minimum && cash > 0n && !nearly && !arrived;
+
+  // Stopping: the rest stays in the wallet. Asked twice, undone from the page.
+  const canStop =
+    ["base", "approve", "deposit"].includes(product.stage) && remaining > 0n && !acting;
+  const [stopping, setStopping] = useState(false);
+
+  const request =
+    product.requestId != null
+      ? (batch.feed?.user?.requests || []).find(
+          (item) => String(item.id) === String(product.requestId),
+        )
+      : null;
 
   return (
     <article className={m.move} aria-labelledby={"move-" + product.id}>
@@ -296,23 +418,27 @@ function Move({ product, model, vault, eth }) {
             <small>Deposits on Base</small>
           </div>
         </div>
-        <dl className={m.tally}>
-          <div>
-            <dt>In the previous vault</dt>
-            <dd>{ready ? usdc(inVault) : "—"}</dd>
-          </div>
-          <div>
-            <dt>Waiting to be deposited</dt>
-            <dd>{usdc(remaining)}</dd>
-          </div>
-          <div>
-            <dt>Moved so far</dt>
-            <dd>{usdc(credited)}</dd>
-          </div>
-        </dl>
+        <Where
+          product={product}
+          places={[
+            ["In the previous vault", ready ? inVault : null, inVault > 0n ? "earning there" : ""],
+            ["In your wallet", remaining, remaining > 0n ? "withdrawn, not deposited yet" : ""],
+            ["In the open batch", queued, queued > 0n ? "waiting to settle or be collected" : ""],
+            ["In the new vault", credited > queued ? credited - queued : 0n, credited > queued ? "moved" : ""],
+          ]}
+        />
       </header>
 
-      {error && !["base", "approve", "deposit", "claim"].includes(product.stage) && (
+      {keptBack && (
+        <p className={m.keptLine}>
+          {usdc(left)} USDC you withdrew earlier is kept in your wallet and is
+          not part of this move.{" "}
+          <button className={m.textLink} onClick={() => resumeMove(model.owner, product.id)}>
+            Bring it back
+          </button>
+        </p>
+      )}
+      {error && !["base", "approve", "deposit", "claim", "withdraw"].includes(product.stage) && (
         <p className={m.alert} role="alert">
           {error}
         </p>
@@ -330,7 +456,7 @@ function Move({ product, model, vault, eth }) {
           title="Withdraw from the previous vault"
           summary={
             stateOf("withdraw") === "done"
-              ? `${usdc(withdrawn)} USDC arrived in your wallet on ${product.name}.`
+              ? `${usdc(withdrawn)} USDC withdrawn to your wallet on ${product.name}${inVault > 0n ? `; ${usdc(inVault)} USDC still earning in the previous vault` : ""}.`
               : null
           }
         >
@@ -351,6 +477,66 @@ function Move({ product, model, vault, eth }) {
             </>
           ) : product.stage === "withdraw_pending" ? (
             <Unresolved product={product} model={model} />
+          ) : large ? (
+            <>
+              <Plan amount={Number(inVault) / 1e6} vault={vault} />
+              {everything ? (
+                <p>
+                  Takes your whole balance, <strong>{usdc(inVault)} USDC</strong>,
+                  into your wallet on {product.name}. At today’s limit most of
+                  it will wait there, earning nothing, for many batches.{" "}
+                  <button className={m.textLink} onClick={() => setEverything(false)}>
+                    Move in parts instead
+                  </button>
+                </p>
+              ) : (
+                <>
+                  <div className={m.amount}>
+                    <label htmlFor={"withdraw-" + product.id}>Take out now</label>
+                    <div className={m.amountBox}>
+                      <input
+                        id={"withdraw-" + product.id}
+                        inputMode="decimal"
+                        autoComplete="off"
+                        value={product.withdrawInput ?? ""}
+                        onChange={(event) => product.setWithdrawInput(event.target.value)}
+                        disabled={acting}
+                      />
+                      <span>USDC</span>
+                    </div>
+                    <p className={m.amountHint}>
+                      {room != null && room >= minimum && room > 0n
+                        ? `The open batch has room for ${usdc(room)} USDC. `
+                        : limit != null
+                          ? `The open batch is full; the next one takes up to ${usdc(limit)} USDC. `
+                          : ""}
+                      The other {usdc(inVault > taking ? inVault - taking : 0n)} USDC
+                      stays in the previous vault, earning.
+                    </p>
+                  </div>
+                </>
+              )}
+              {(withdrawProblem || (error && product.stage === "withdraw")) && (
+                <p className={m.alert} role="alert">
+                  {withdrawProblem || error}
+                </p>
+              )}
+              <div className={m.actions}>
+                <button
+                  className={m.primary}
+                  onClick={product.act}
+                  disabled={!product.canAct || acting || !withdrawReady || !!withdrawProblem}
+                >
+                  {acting ? "Check your wallet…" : `Withdraw ${precise(everything ? inVault : taking)} USDC`}
+                </button>
+                <span className={m.aside}>Network fee in ETH on {product.name}</span>
+              </div>
+              {!everything && (
+                <button className={m.textLink} onClick={() => { product.setWithdrawInput(""); setEverything(true); }}>
+                  Withdraw everything instead
+                </button>
+              )}
+            </>
           ) : (
             <>
               <p>
@@ -359,6 +545,11 @@ function Move({ product, model, vault, eth }) {
                 One confirmation in your wallet. The amount you receive is read
                 from the confirmed transaction.
               </p>
+              {error && product.stage === "withdraw" && (
+                <p className={m.alert} role="alert">
+                  {error}
+                </p>
+              )}
               <div className={m.actions}>
                 <button className={m.primary} onClick={product.act} disabled={!product.canAct || acting}>
                   {acting ? "Check your wallet…" : `Withdraw ${usdc(inVault)} USDC`}
@@ -383,65 +574,81 @@ function Move({ product, model, vault, eth }) {
             {rechecking ? (
               <Recheck model={model} text="Reading your wallet on Base…" />
             ) : (
-            <>
-            <p>
-              The new vault takes deposits on Base. Send{" "}
-              <strong>{usdc(short_ > 0n ? short_ : need)} USDC</strong> from
-              Arbitrum to <strong>the same wallet on Base</strong>. The bridge
-              in your wallet does this in a few minutes: choose USDC on
-              Arbitrum, USDC on Base, and your own address.
-            </p>
-            <div className={m.bridge}>
-              <div>
-                <span>Send to, on Base</span>
-                <CopyAddress address={model.owner} />
-              </div>
-              <dl>
-                <div>
-                  <dt>USDC on Base now</dt>
-                  <dd>{cash == null ? "—" : usdc(cash)}</dd>
+              <>
+                <p>
+                  Your <strong>{usdc(remaining)} USDC</strong> is in your wallet
+                  on Arbitrum. The new vault takes deposits on Base, so it has
+                  to go there first. The app does not do this for you: it is a
+                  transfer you make yourself, to your own address.
+                </p>
+                <ol className={m.how}>
+                  <li>
+                    <strong>Open the bridge inside your wallet.</strong>{" "}
+                    MetaMask, Rabby, Coinbase Wallet and others have one. Do
+                    not search for a bridge: fake bridge sites are a common way
+                    to lose money.
+                  </li>
+                  <li>
+                    <strong>From USDC on Arbitrum to USDC on Base,</strong> to
+                    the same address. The token that must arrive is native
+                    USDC, shown below.
+                  </li>
+                  <li>
+                    <strong>Check the fee before you confirm,</strong> and send
+                    a small amount first if this is new to you. Routes over
+                    Circle’s CCTP usually cost the least.
+                  </li>
+                </ol>
+                <div className={m.bridge}>
+                  <div>
+                    <span>Send to, on Base: your own wallet</span>
+                    <CopyAddress address={model.owner} />
+                  </div>
+                  <div>
+                    <span>The token that must arrive: USDC on Base</span>
+                    <CopyAddress address={model.destination?.asset || ""} />
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>USDC on Base now</dt>
+                      <dd>{cash == null ? "—" : usdc(cash)}</dd>
+                    </div>
+                    <div>
+                      <dt>Waiting to arrive</dt>
+                      <dd>{usdc(short_ > 0n ? short_ : 0n)}</dd>
+                    </div>
+                  </dl>
                 </div>
-                <div>
-                  <dt>Needed to continue</dt>
-                  <dd>{usdc(need)}</dd>
+                <p className={m.waitLine} role="status">
+                  <i className={m.spinner} aria-hidden="true" />
+                  Watching your Base balance. This step finishes by itself when
+                  the USDC arrives.
+                </p>
+                <div className={m.actions}>
+                  <button className={m.ghost} onClick={model.refresh} disabled={model.loading || acting}>
+                    {model.loading ? "Checking…" : "Check now"}
+                  </button>
+                  {partly && (
+                    <button
+                      className={m.ghost}
+                      onClick={() => {
+                        setTyped(true);
+                        product.setAmountInput(exact(cash < remaining ? cash : remaining));
+                      }}
+                      disabled={acting}
+                    >
+                      Deposit the {usdc(cash)} USDC already on Base
+                    </button>
+                  )}
                 </div>
-              </dl>
-            </div>
-            <p className={m.waitLine} role="status">
-              <i className={m.spinner} aria-hidden="true" />
-              Watching your Base balance. This step finishes by itself when the
-              USDC arrives.
-            </p>
-            <div className={m.actions}>
-              <button className={m.ghost} onClick={model.refresh} disabled={model.loading || acting}>
-                {model.loading ? "Checking…" : "Check now"}
-              </button>
-              {partly && fromArbitrum && (
-                <button
-                  className={m.ghost}
-                  onClick={() => product.setAmountInput(exact(cash < remaining ? cash : remaining))}
-                  disabled={acting}
-                >
-                  Deposit the {usdc(cash)} USDC already on Base
-                </button>
-              )}
-            </div>
-            <details className={m.help}>
-              <summary>Less arrived than you sent?</summary>
-              <p>
-                Bridges take a small fee. Type the amount that arrived and
-                continue with that. The move counts what you deposit; the
-                difference stays shown as not moved.
-              </p>
-              <AmountField product={product} model={model} cash={cash} id={"amount-bring-" + product.id} />
-            </details>
-            {noGas && (
-              <p className={m.note}>
-                You have no ETH on Base yet. The deposit needs a little for
-                network fees, so bring some along.
-              </p>
-            )}
-            </>
+                <p className={m.note}>
+                  {noGas
+                    ? "You have no ETH on Base yet. The deposit needs a little for network fees: send some along."
+                    : "The deposit on Base needs a little ETH there for network fees."}{" "}
+                  A bridge keeps a small fee, so slightly less arrives than you
+                  sent; the next step goes on with what arrived.
+                </p>
+              </>
             )}
           </Step>
         )}
@@ -452,65 +659,103 @@ function Move({ product, model, vault, eth }) {
           title={`Deposit into ${vault.title}`}
           summary={
             stateOf("deposit") === "done"
-              ? `${usdc(credited)} USDC requested.`
+              ? `${usdc(queued > 0n ? queued : credited)} USDC requested.`
               : "Two confirmations on Base: approve the exact amount, then request the deposit."
           }
         >
-          {["deposit_pending", "recover"].includes(product.stage) ? (
+          {product.stage === "deposit_pending" ||
+          (product.stage === "recover" && product.pendingKind !== "claim") ? (
             <Unresolved product={product} model={model} />
           ) : rechecking ? (
             <Recheck model={model} text="Reading your wallet on Base…" />
+          ) : full ? (
+            <>
+              <p role="status">
+                The open batch is full: it has taken its{" "}
+                {limit != null ? `${usdc(limit)} USDC` : "limit"} of deposits.
+                {closing && !closing.late ? " " + closing.text : ""} Your{" "}
+                {usdc(remaining)} USDC waits in your wallet until the next one
+                opens.
+              </p>
+              <div className={m.actions}>
+                <button className={m.ghost} onClick={model.refresh} disabled={model.loading}>
+                  {model.loading ? "Checking…" : "Check for a new batch"}
+                </button>
+              </div>
+            </>
           ) : (
             <>
-              {product.stage === "base" && !fromArbitrum && (
+              {product.stage === "base" && (!fromArbitrum || typed) && (
                 <p className={m.alert} role="alert">
                   {error ||
                     "Your wallet on Base holds less USDC than this move needs. Add USDC or lower the amount."}
                 </p>
               )}
-              <AmountField product={product} model={model} cash={cash} id={"amount-" + product.id} />
-              {selected < remaining &&
-                !overRoom &&
-                (cash != null && selected >= cash ? (
-                  <p className={m.note}>
-                    {usdc(remaining - selected, remaining - selected < 10000n ? 6 : 2)}{" "}
-                    USDC less than you withdrew is on Base. If the rest was
-                    the bridge’s fee, the move finishes with this deposit.
-                  </p>
-                ) : (
-                  <p className={m.note}>
-                    The other {usdc(remaining - selected)} USDC stays in your
-                    wallet for a later batch.
-                  </p>
-                ))}
+              <div className={m.amount}>
+                <label htmlFor={"amount-" + product.id}>Amount to deposit</label>
+                <div className={m.amountBox}>
+                  <input
+                    id={"amount-" + product.id}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder={exact(selected) || "0.00"}
+                    value={product.amountInput ?? ""}
+                    onChange={(event) => {
+                      setTyped(true);
+                      product.setAmountInput(event.target.value);
+                    }}
+                    disabled={acting}
+                  />
+                  <span>USDC</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTyped(true);
+                      product.setAmountInput(exact(room != null && cash != null && room < cash ? room : cash));
+                    }}
+                    disabled={acting || cash == null || cash === 0n}
+                  >
+                    Max
+                  </button>
+                </div>
+                <p className={m.amountHint}>
+                  {cash == null ? "Reading your Base wallet…" : `${usdc(cash)} USDC in your wallet on Base.`}
+                  {minimum > 0n ? ` Minimum ${usdc(minimum)}.` : ""}
+                  {room != null ? ` The open batch has room for ${usdc(room)}.` : ""}
+                </p>
+              </div>
+              {overRoom ? (
+                <p className={m.alert} role="alert">
+                  That is more than the {usdc(room)} USDC the open batch can
+                  still take.
+                </p>
+              ) : later > 0n && room != null && selected >= room ? (
+                <p className={m.note}>
+                  The amount is set to what this batch can take. The other{" "}
+                  {usdc(later)} USDC stays in your wallet on Base; deposit it
+                  into a later batch from this page.
+                </p>
+              ) : later > 0n && cash != null && selected >= cash ? (
+                <p className={m.note}>
+                  {usdc(later, later < 10000n ? 6 : 2)} USDC less than you
+                  withdrew is on Base. If the rest was the bridge’s fee, the
+                  move goes on without it.
+                </p>
+              ) : later > 0n ? (
+                <p className={m.note}>
+                  The other {usdc(later)} USDC stays in your wallet for a later
+                  batch.
+                </p>
+              ) : null}
               {additional > 0n && (
                 <p className={m.note}>
                   {usdc(product.migrationCredit)} USDC from your move and{" "}
                   {usdc(additional)} USDC more from your wallet.
                 </p>
               )}
-              {overRoom && (
-                <div className={m.cap} role="status">
-                  <p>
-                    The vault takes up to {money(vault.batchLimit, 0)} USDC per
-                    batch for now, and this batch has room for{" "}
-                    <strong>{usdc(room)} USDC</strong>. Deposit that now; the
-                    rest stays in your wallet and goes in with the next batch.
-                  </p>
-                  {room > 0n && (
-                    <button
-                      className={m.ghost}
-                      onClick={() => product.setAmountInput(exact(room))}
-                      disabled={acting}
-                    >
-                      Use {usdc(room)} USDC
-                    </button>
-                  )}
-                </div>
-              )}
               <ol className={m.pair}>
                 <li data-state={product.stage === "approve" ? "current" : product.stage === "deposit" ? "done" : "next"}>
-                  <span>Approve exactly {usdc(selected)} USDC</span>
+                  <span>Approve exactly {precise(selected)} USDC</span>
                   {product.stage === "approve" && (
                     <button
                       className={m.primary}
@@ -529,7 +774,7 @@ function Move({ product, model, vault, eth }) {
                       onClick={product.act}
                       disabled={!product.canAct || acting || overRoom}
                     >
-                      {acting ? "Check your wallet…" : `Deposit ${usdc(selected)} USDC`}
+                      {acting ? "Check your wallet…" : `Deposit ${precise(selected)} USDC`}
                     </button>
                   )}
                 </li>
@@ -555,54 +800,95 @@ function Move({ product, model, vault, eth }) {
           summary={
             stateOf("settle") === "done"
               ? "Settled."
-              : "Deposits are settled together at the vault’s next valuation, usually within one to two hours."
+              : "Deposits settle together when the batch closes: every one to two hours when valuations are on time. No time is promised."
           }
         >
           <p role="status">
-            Your USDC is in the open batch
-            {product.requestId != null ? `, request #${product.requestId}` : ""}.
-            It settles at the vault’s next valuation and starts earning then.
+            Your <strong>{usdc(queued)} USDC</strong> is in the vault’s open
+            batch. It settles when the batch closes and starts earning then.
             {closing && !closing.late ? " " + closing.text : ""}
           </p>
           <p className={m.note}>
-            Nothing to do in the meantime. You can close this page and come
-            back: progress is read from the chain.
+            Nothing to do in the meantime. You can close this page: come back
+            after the batch closes to collect your shares.
           </p>
+          {request?.cancellable && (
+            <div className={m.actions}>
+              <button
+                className={m.ghost}
+                disabled={batch.blocked}
+                onClick={() => batch.submit("cancel", request.id)}
+              >
+                Cancel this deposit request
+              </button>
+              <span className={m.aside}>Returns the USDC to your wallet on Base</span>
+            </div>
+          )}
         </Step>
 
         <Step
           index={number("collect")}
           state={stateOf("collect")}
           title="Collect your shares"
-          summary="One confirmation puts the vault’s shares in your wallet."
+          summary="One confirmation puts the vault’s shares in your wallet. Their value is your balance in Portfolio."
         >
-          <p>
-            The batch settled and your deposit is earning. Collect your shares
-            to finish
-            {remaining > 0n ? " this part of the move" : " the move"}.
-          </p>
-          <div className={m.actions}>
-            <button className={m.primary} onClick={product.act} disabled={!product.canAct || acting}>
-              {acting ? "Check your wallet…" : "Collect shares"}
-            </button>
-          </div>
-          {error && (
-            <p className={m.alert} role="alert">
-              {error}
-            </p>
+          {product.stage === "recover" ? (
+            <Unresolved product={product} model={model} />
+          ) : (
+            <>
+              <p>
+                The batch settled and your <strong>{usdc(queued)} USDC</strong>{" "}
+                is earning. One confirmation puts the vault’s shares in your
+                wallet; their value shows as your balance in Portfolio.
+                {remaining > 0n || inVault > 0n ? " Then the next part of the move opens." : ""}
+              </p>
+              <div className={m.actions}>
+                <button className={m.primary} onClick={product.act} disabled={!product.canAct || acting}>
+                  {acting ? "Check your wallet…" : "Collect shares"}
+                </button>
+              </div>
+              {error && (
+                <p className={m.alert} role="alert">
+                  {error}
+                </p>
+              )}
+            </>
           )}
         </Step>
       </ol>
 
-      {canFinish && (
-        <p className={m.finish}>
-          Keeping the remaining {usdc(remaining, remaining < 10000n ? 6 : 2)} USDC
-          in your wallet?{" "}
-          <button className={m.textLink} onClick={() => finishMove(model.owner, product)}>
-            Finish the move here
-          </button>
-        </p>
-      )}
+      {canStop &&
+        (stopping ? (
+          <div className={m.stop} role="group" aria-label="Stop the move">
+            <p>
+              Keep <strong>{usdc(remaining, remaining < 10000n ? 6 : 2)} USDC</strong>{" "}
+              in your wallet and stop asking for it here? It stays yours and is
+              not deposited. You can bring it back from this page, or deposit
+              it any time from Earn.
+            </p>
+            <div className={m.actions}>
+              <button
+                className={m.ghost}
+                onClick={() => {
+                  keepRest(model.owner, product);
+                  setStopping(false);
+                }}
+              >
+                Keep it in my wallet
+              </button>
+              <button className={m.textLink} onClick={() => setStopping(false)}>
+                Go back
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className={m.finish}>
+            Not depositing the rest?{" "}
+            <button className={m.textLink} onClick={() => setStopping(true)}>
+              Keep {usdc(remaining, remaining < 10000n ? 6 : 2)} USDC in my wallet
+            </button>
+          </p>
+        ))}
       <TxLinks rows={product.txs} />
       <a
         className={m.contract}
@@ -616,37 +902,63 @@ function Move({ product, model, vault, eth }) {
   );
 }
 
-function AmountField({ product, model, cash, id }) {
-  const selected = product.selected || product.amount;
+// A withdrawal made in another browser is not in this one's journal. Its hash
+// brings the move here.
+function Elsewhere({ model }) {
+  const [vaultId, setVaultId] = useState(model.vaults?.[0]?.id || "arbitrum");
+  const [hash, setHash] = useState("");
   return (
-    <div className={m.amount}>
-      <label htmlFor={id}>Amount to deposit</label>
-      <div className={m.amountBox}>
+    <details className={`${m.help} ${m.elsewhere}`}>
+      <summary>Started the move in another browser or on another device?</summary>
+      <p>
+        Progress is read from the chain, but the list of your withdrawals is
+        kept in the browser where you made them. Paste the hash of your
+        withdrawal from the previous vault (your wallet’s activity shows it) and
+        the move continues here. If you already deposited that money from the
+        other browser, it shows as waiting here too: choose to keep it in your
+        wallet and the move closes.
+      </p>
+      <div className={m.hashRow}>
+        <select
+          aria-label="Previous vault"
+          value={vaultId}
+          onChange={(event) => setVaultId(event.target.value)}
+          disabled={model.busy}
+        >
+          {(model.vaults || []).map((vault) => (
+            <option key={vault.id} value={vault.id}>
+              USDC on {vault.name}
+            </option>
+          ))}
+        </select>
         <input
-          id={id}
-          inputMode="decimal"
+          aria-label="Withdrawal transaction hash"
+          placeholder="0x…"
+          spellCheck={false}
           autoComplete="off"
-          placeholder={exact(selected) || "0.00"}
-          value={product.amountInput ?? ""}
-          onChange={(event) => product.setAmountInput(event.target.value)}
+          value={hash}
+          onChange={(event) => {
+            setHash(event.target.value);
+            model.clearImportError?.();
+          }}
           disabled={model.busy}
         />
-        <span>USDC</span>
         <button
-          type="button"
-          onClick={() => product.setAmountInput(exact(cash))}
-          disabled={model.busy || cash == null || cash === 0n}
+          className={m.ghost}
+          disabled={model.busy || !hash.trim()}
+          onClick={async () => {
+            if (await model.importWithdrawal(vaultId, hash)) setHash("");
+          }}
         >
-          Max
+          Find it
         </button>
       </div>
-      <p className={m.amountHint}>
-        {cash == null ? "Reading your Base wallet…" : `${usdc(cash)} USDC in your wallet on Base.`}
-        {product.minDeposit != null && whole(product.minDeposit) > 0n
-          ? ` Minimum ${usdc(product.minDeposit)}.`
-          : ""}
-      </p>
-    </div>
+      {model.importError && (
+        <p className={m.alert} role="alert">
+          {model.importError}
+        </p>
+      )}
+    </details>
   );
 }
 
@@ -694,54 +1006,77 @@ function WithdrawOnly({ vault, account, owner }) {
   );
 }
 
-function Destination({ book, onOpen }) {
+// What the holder is choosing between, side by side: where the money is now
+// and where it would go. No figure is left out because it is unflattering.
+function Destination({ book, from, onOpen }) {
   const vault = book.vault;
   const closing = batchClosing(vault);
+  const hours = batchHours(vault);
+  const every = hours ? `every ${hours.min} to ${hours.max} hours` : "every few hours";
+  const rows = [
+    ["Rate now", from ? pct(from.rateNow) : null, pct(vault.rateNow)],
+    ["Lends on", from?.place, vault.networks.join(" and ")],
+    ["Code review", from?.audit?.label, vault.audit.label],
+    ["Getting out", from ? "One transaction" : null, `In batches, ${every}`],
+    [
+      "New deposits",
+      from ? "Closed" : null,
+      vault.batchLimit != null ? `Up to ${money(vault.batchLimit, 0)} USDC per batch` : "Open",
+    ],
+  ];
   return (
-    <aside className={m.destination} aria-label="The new vault">
-      <span className={m.eyebrow}>Where your money goes</span>
+    <aside className={m.destination} aria-label="The previous vault and the new one">
+      <span className={m.eyebrow}>{from ? "What changes if you move" : "Where your money goes"}</span>
       <h2>
         <TokenMark token="USDC" size={28} />
         {vault.title}
       </h2>
-      <p>{vault.product.line}</p>
-      <dl>
-        <div>
-          <dt>Rate now</dt>
-          <dd>{pct(vault.rateNow)}</dd>
-          <small>
-            {book.index?.rateNow != null
-              ? `Market Average ${pct(book.index.rateNow)}`
-              : "quoted by its markets"}
-          </small>
-        </div>
-        <div>
-          <dt>Lends on</dt>
-          <dd>{vault.networks.join(" and ")}</dd>
-          <small>one balance for you, on Base</small>
-        </div>
-        <div>
-          <dt>Batches</dt>
-          <dd>Every 1 to 2 hours</dd>
-          <small>{closing && !closing.late ? closing.text : "when a fresh valuation is published"}</small>
-        </div>
-        {vault.batchLimit != null && (
-          <div>
-            <dt>Per batch</dt>
-            <dd>Up to {money(vault.batchLimit, 0)} USDC</dd>
-            <small>
-              {vault.batchRoom != null ? `${money(vault.batchRoom)} USDC of room now` : ""}
-            </small>
-          </div>
-        )}
-      </dl>
-      <ul className={m.know}>
-        {(vault.notice || []).map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
+      <p>
+        One deposit on Base, lent across networks. Thesauros develops this
+        vault now: new lending markets and networks are being added to it.
+      </p>
+      {from ? (
+        <table className={m.compare}>
+          <thead>
+            <tr>
+              <th />
+              <th>Previous vault</th>
+              <th>New vault</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([label, before, after]) => (
+              <tr key={label}>
+                <th scope="row">{label}</th>
+                <td>{before ?? "—"}</td>
+                <td>{after}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <dl>
+          {rows.map(([label, , after]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{after}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <p className={m.destinationNote}>
+        {from
+          ? "Your money keeps earning in the previous vault until you move it. When and how much is your choice."
+          : closing && !closing.late
+            ? closing.text
+            : ""}
+      </p>
+      <p className={m.destinationNote}>
+        The new vault’s contracts are younger: one team key can upgrade them,
+        and Thesauros publishes the vault’s valuation itself.
+      </p>
       <button className={m.textLink} onClick={() => onOpen("earn")}>
-        Everything about the vault
+        All risks and everything else about the new vault
       </button>
     </aside>
   );
@@ -749,8 +1084,12 @@ function Destination({ book, onOpen }) {
 
 const QUESTIONS = [
   [
-    "Is my money safe while it is still in the previous vault?",
-    "Yes. It stays in that vault’s contract under your wallet and you can withdraw it at any time. Nothing moves until you confirm a transaction.",
+    "What happens to my money while it is still in the previous vault?",
+    "It stays in that vault’s contract under your wallet, keeps earning there, and you can withdraw it at any time. Nothing moves until you confirm a transaction.",
+  ],
+  [
+    "Do I have to move, and is there a deadline?",
+    "No. The previous vaults keep working, pay interest and let you withdraw at any time; their contracts set no deadline. Thesauros develops only the new vault from here on, so new lending markets and networks are added there. The table on this page shows what you would give up and what you would get.",
   ],
   [
     "Why do I have to move it myself?",
@@ -758,11 +1097,11 @@ const QUESTIONS = [
   ],
   [
     "What if I close the page halfway?",
-    "Nothing is lost. Every step is checked on the chain, so this page picks up where you left off, on any visit from the same browser. From another browser, use the transaction hash from your wallet.",
+    "Nothing is lost: the money is where the last confirmed step left it. This browser remembers your withdrawals and picks up where you left off. In another browser or on another device, paste the withdrawal’s transaction hash on this page and it continues there.",
   ],
   [
     "Do I have to move everything at once?",
-    "No. You can deposit part of what you withdrew and the rest later. While the vault takes a limited amount per batch, larger moves go in over several batches.",
+    "No, and with a large balance you should not. The vault takes a limited amount per batch, so take out what the next batch can take and leave the rest earning in the previous vault.",
   ],
 ];
 
@@ -771,7 +1110,8 @@ export default function MoveApp({
   user,
   book,
   migration,
-  finished,
+  walletHere,
+  kept,
   account,
   batch,
   displayName,
@@ -787,16 +1127,19 @@ export default function MoveApp({
     () => book.account.previous.filter((vault) => !MIGRATION_VAULT_IDS.includes(vault.id)),
     [book.account.previous],
   );
-  const active = products.filter((product) => !isFinished(product, finished));
-  const complete = products.filter((product) => isFinished(product, finished));
+  const active = products.filter((product) => product.stage !== "complete");
+  const complete = products.filter((product) => product.stage === "complete");
   const [picked, setPicked] = useState(null);
   const shown =
     active.find((product) => product.id === picked) ||
     active.find((product) => product.recovery) ||
     active[0] ||
     null;
-  const reading =
-    !!owner && migration.loading && !products.some((product) => product.positionStatus === "ready");
+  // The first read of the previous vaults; later refreshes are silent.
+  const reading = !!owner && walletHere && !migration.checked;
+  // Positions the account sees while the wallet is not connected in this browser.
+  const seen = book.account.previous.filter((vault) => MIGRATION_VAULT_IDS.includes(vault.id));
+  const unread = book.account.previousUnread > 0 && !account.loading;
   const eth = batch.feed?.user?.eth;
   return (
     <div className={`${b.app} ${m.app}`}>
@@ -857,6 +1200,29 @@ export default function MoveApp({
                   Link a wallet
                 </button>
               </section>
+            ) : !walletHere ? (
+              <section className={m.empty}>
+                <h2>Connect the wallet that holds the position</h2>
+                <p>
+                  You are signed in as {short(owner)}, and that wallet is not
+                  connected in this browser right now. The move is signed by
+                  it, step by step.
+                </p>
+                {seen.length > 0 && (
+                  <ul className={m.seen}>
+                    {seen.map((vault) => (
+                      <li key={vault.id}>
+                        <NetworkMarks networks={[vault.place]} size={16} />
+                        {vault.title}
+                        <strong>
+                          {money(vault.position.balance)} {vault.token}
+                        </strong>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <ConnectAction className={m.primary} label="Connect wallet" />
+              </section>
             ) : (
               <>
                 {migration.storageError && (
@@ -898,24 +1264,41 @@ export default function MoveApp({
                     model={migration}
                     vault={book.vault}
                     eth={eth}
+                    batch={batch}
                   />
                 )}
-                {complete.map((product) => (
-                  <section key={product.id} className={m.done} role="status">
-                    <Mark state="done" />
-                    <div>
-                      <h2>Moved from {product.name}</h2>
-                      <p>
-                        {usdc(product.credited)} USDC from the previous vault is
-                        now in {book.vault.title}.
-                        {(whole(product.amount) ?? 0n) > 0n
-                          ? ` ${usdc(product.amount, (whole(product.amount) ?? 0n) < 10000n ? 6 : 2)} USDC of what you withdrew was not deposited.`
-                          : ""}
-                      </p>
-                      <TxLinks rows={product.txs} />
-                    </div>
-                  </section>
-                ))}
+                {complete.map((product) => {
+                  const left = whole(product.left) ?? 0n;
+                  const min = whole(product.minDeposit) ?? 0n;
+                  const keptPart = left > 0n && left >= min && whole(kept?.[product.id]) != null;
+                  return (
+                    <section key={product.id} className={m.done} role="status">
+                      <Mark state={keptPart ? "next" : "done"} index="·" />
+                      <div>
+                        <h2>
+                          {keptPart ? `Move from ${product.name} stopped` : `Moved from ${product.name}`}
+                        </h2>
+                        <p>
+                          {usdc(product.credited)} USDC from the previous vault
+                          is in {book.vault.title}.
+                          {left > 0n
+                            ? keptPart
+                              ? ` ${usdc(left)} USDC that you withdrew is in your wallet, by your choice, and is not deposited.`
+                              : ` ${usdc(left, left < 10000n ? 6 : 2)} USDC of what you withdrew was not deposited: less than the vault’s minimum deposit.`
+                            : ""}
+                        </p>
+                        {keptPart && (
+                          <div className={m.actions}>
+                            <button className={m.ghost} onClick={() => resumeMove(owner, product.id)}>
+                              Resume: deposit the {usdc(left)} USDC
+                            </button>
+                          </div>
+                        )}
+                        <TxLinks rows={product.txs} />
+                      </div>
+                    </section>
+                  );
+                })}
                 {others.length > 0 && (
                   <section className={m.others}>
                     <h2>Previous vaults on other networks</h2>
@@ -930,7 +1313,14 @@ export default function MoveApp({
                     </ul>
                   </section>
                 )}
-                {!reading && !active.length && !others.length && (
+                {unread && (
+                  <p className={m.keptLine} role="status">
+                    Some previous vaults could not be read right now, so a
+                    position there may be missing from this page. Nothing is
+                    assumed about it.
+                  </p>
+                )}
+                {!reading && !unread && !active.length && !others.length && (
                   <section className={m.empty}>
                     <h2>
                       {complete.length ? "Nothing left to move" : "Nothing to move"}
@@ -950,6 +1340,7 @@ export default function MoveApp({
                     </div>
                   </section>
                 )}
+                {!reading && <Elsewhere model={migration} />}
               </>
             )}
             <section className={m.questions}>
@@ -967,7 +1358,11 @@ export default function MoveApp({
               </p>
             </section>
           </div>
-          <Destination book={book} onOpen={onOpen} />
+          <Destination
+            book={book}
+            from={shown ? book.byId[shown.id] : seen[0] || null}
+            onOpen={onOpen}
+          />
         </div>
       </main>
     </div>

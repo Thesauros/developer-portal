@@ -40,9 +40,18 @@ export function Ledger({ book, scope, mine, account, batch, limit = 200 }) {
     (row) => filter(row) && (!vaultId || row.vaultId === vaultId),
   );
   const events = groupEvents(rows).length;
+  // Previous vaults record deposits and withdrawals as such; the vault's
+  // requests carry which way the money went.
+  const FLOW = { deposit: "in", withdraw: "out" };
   const sum = (kind) =>
     mineRows
-      .filter((row) => row.kind === kind && row.unit !== "shares")
+      .filter(
+        (row) =>
+          row.unit !== "shares" &&
+          (FLOW[kind] && row.flow !== undefined
+            ? row.flow === FLOW[kind]
+            : row.kind === kind),
+      )
       .reduce((total, row) => total + (row.amount || 0), 0);
   const unreadable = Object.entries(publicFeed.data?.sources?.rebalances || {})
     .filter(([, complete]) => !complete)

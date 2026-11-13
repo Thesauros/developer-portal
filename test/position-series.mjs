@@ -82,3 +82,28 @@ test("an instant exit takes its shares out at once", () => {
   const last = positionSeries(events, ticks, { now: t0 + 6 * DAY }).at(-1);
   assert.ok(Math.abs(last.value - (shares - 20) * priceOn(6)) < 0.01);
 });
+
+test("a falling share price shows as a loss once the shares are collected", () => {
+  const falling = Array.from({ length: 10 }, (_, day) => ({
+    at: t0 + day * DAY,
+    rateBid: wad(1 - day * 0.003),
+  }));
+  const events = [
+    { type: "deposit_requested", requestId: "1", at: t0 + 1000, assets: units(1000) },
+    { type: "deposit_claimed", requestId: "1", at: t0 + 3600000, shares: units(1000) },
+  ];
+  const last = positionSeries(events, falling, { now: t0 + 9 * DAY }).at(-1);
+  assert.ok(Math.abs(last.value - 973) < 0.01, String(last.value));
+  assert.ok(Math.abs(last.earned + 27) < 0.01, String(last.earned));
+});
+
+test("a request and its cancellation in one block are read in order, whatever order they arrive in", () => {
+  const at = t0 + DAY;
+  const events = [
+    { type: "request_cancelled", requestId: "7", at, blockNumber: 10, logIndex: 5 },
+    { type: "deposit_requested", requestId: "7", at, blockNumber: 10, logIndex: 2, assets: units(250) },
+  ];
+  const series = positionSeries(events, ticks, { now: t0 + 3 * DAY });
+  assert.equal(series.at(-1).value, 0);
+  assert.equal(series.at(-1).invested, 0);
+});

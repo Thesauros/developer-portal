@@ -25,7 +25,7 @@ const billions = (value) =>
 const PROTOCOL_LOGO = { Aave: "aave", Compound: "compound", Morpho: "morpho", Fluid: "fluid" };
 
 export const INDEX_DEFINITION =
-  "The lending rate of every blue-chip market Thesauros vaults are approved to use and that holds at least 1 million USD, weighted by how much each market holds.";
+  "It counts every lending market a Thesauros vault is approved to use that holds at least 1 million USD, each weighted by how much it holds.";
 
 // The same periods on every comparison chart.
 export const PERIODS = [
@@ -177,7 +177,7 @@ export function splitFor(local, verdict, from, days) {
 }
 
 export function GapSplit({ local, total, curated, days = 30 }) {
-  const where = local.networks.join(" and ");
+  const where = new Intl.ListFormat("en", { type: "conjunction" }).format(local.networks);
   return (
     <div className={b.gapSplit}>
       <p className={b.gapTitle}>Where the gap comes from, over {days ? `${days} days` : "the whole period"}</p>
@@ -186,10 +186,10 @@ export function GapSplit({ local, total, curated, days = 30 }) {
           <dt>
             Market choice
             <small>
-              the vault’s markets against the blue-chip markets on {where},
+              where Thesauros lent, against the blue-chip markets on {where},
               weighted by size
               {curated != null && curated > 0.5
-                ? `; ${Math.round(curated)}% of it is in curated Morpho vaults, which pay more for more risk`
+                ? `; ${curated >= 99.5 && curated < 100 ? "nearly all" : Math.round(curated) + "%"} of Thesauros money, counting the previous vaults, is in curated Morpho vaults, which pay more for more risk`
                 : ""}
             </small>
           </dt>
@@ -211,7 +211,7 @@ export function GapSplit({ local, total, curated, days = 30 }) {
         {total != null && (
           <div className={b.gapTotal}>
             <dt>
-              Gap to the index
+              Gap to the Market Average
               <small>over the same days; parts are rounded</small>
             </dt>
             <dd>
@@ -231,7 +231,7 @@ export const VIEWS = [
 ];
 export const viewLede = (view, token, start) =>
   view === "rate"
-    ? `Each one’s rate over the 30 days before every day, a year; the right edge is today’s 30-day figure`
+    ? `Yearly rate, averaged over the 30 days before each day`
     : `What 10,000 ${token} earned since ${dateLabel(start, false)}, and the rate it works out to a year`;
 
 export function IndexComparison({ book, compact = false }) {
@@ -275,8 +275,7 @@ export function IndexComparison({ book, compact = false }) {
         <p className={b.verdictLine}>
           {days ? `Over ${days} days` : "Over the whole period"}: Thesauros{" "}
           {pct(verdict.ours)}, the Market Average{" "}
-          {pct(verdict.index)}, <VsIndex diff={verdict.gap} />. The table is
-          over 30 days.
+          {pct(verdict.index)}, <VsIndex diff={verdict.gap} />.
         </p>
       )}
       {!compact && (
@@ -284,14 +283,14 @@ export function IndexComparison({ book, compact = false }) {
         <thead>
           <tr>
             <th />
-            <th className={b.num} title="Thesauros USDC vaults">Thesauros</th>
+            <th className={b.num} title="Every Thesauros USDC vault, weighted by size">Thesauros</th>
             <th className={b.num} title="USDC Market Average">Market Average</th>
             <th className={b.num}>Gap</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <th scope="row">Last 30 days</th>
+            <th scope="row">All vaults, last 30 days</th>
             <td className={b.num}>
               {t.measured.r30?.status === "ok" ? pct(t.measured.r30.rate) : "—"}
             </td>
@@ -301,13 +300,23 @@ export function IndexComparison({ book, compact = false }) {
             </td>
           </tr>
           <tr className={b.secondaryRow}>
-            <th scope="row">Rate now</th>
+            <th scope="row">All vaults, rate now</th>
             <td className={b.num}>{pct(t.rateNow)}</td>
             <td className={b.num}>{pct(index?.rateNow)}</td>
             <td className={b.num}>
               <VsIndex diff={t.vsIndex?.nowDiff} />
             </td>
           </tr>
+          {book.vault?.rateNow != null && (
+            <tr className={b.secondaryRow}>
+              <th scope="row">{book.vault.title} alone, rate now</th>
+              <td className={b.num}>{pct(book.vault.rateNow)}</td>
+              <td className={b.num}>{pct(index?.rateNow)}</td>
+              <td className={b.num}>
+                <VsIndex diff={book.product.record.vs?.nowDiff} />
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
       )}
@@ -379,8 +388,9 @@ export default function IndexPage({ book, navigate }) {
         <div>
           <h1 tabIndex={-1}>Market Average</h1>
           <p className={b.pageLede}>
-            What Thesauros measures itself against, a TVL-weighted blue-chip index, one for each
-            stablecoin. {INDEX_DEFINITION}
+            What the largest lending markets pay, weighted by their size.
+            It is the yardstick Thesauros measures itself against.{" "}
+            {INDEX_DEFINITION}
           </p>
         </div>
       </header>
@@ -449,7 +459,7 @@ export default function IndexPage({ book, navigate }) {
       {symbol === "USDC" && (
         <Section
           id="against"
-          title="Thesauros against the index"
+          title="Thesauros against the Market Average"
           lede="The same calculation on both sides, over the same days."
         >
           <IndexComparison book={book} />
@@ -458,7 +468,7 @@ export default function IndexPage({ book, navigate }) {
 
       <Section
         id="rate"
-        title="What the index earned"
+        title="What the Market Average earned"
         lede="At each daily reading, what the index earned over the week before, a year. Earned, not quoted: a market’s quoted rate can differ from what it paid."
       >
         <RateChart
@@ -474,7 +484,7 @@ export default function IndexPage({ book, navigate }) {
       <Section
         id="members"
         title="What is in it"
-        lede={`As of ${dateLabel(index.to)}. Weight is each market’s share of all the money in the index.`}
+        lede={`As of ${dateLabel(index.to)}. Weight is each market’s share of all the money in the Market Average.`}
         aside={
           <Segmented
             label="Group by"
@@ -652,7 +662,7 @@ export default function IndexPage({ book, navigate }) {
               with a jump the market earns at most the average of its settled
               quotes.
               {index.jumpEffect?.r30 != null && index.jumpEffect.r30 > 0.005
-                ? ` Over the last 30 days this took ${index.jumpEffect.r30.toFixed(2)} pts off the index.`
+                ? ` Over the last 30 days this took ${index.jumpEffect.r30.toFixed(2)} pts off the Market Average.`
                 : ""}
             </dd>
           </div>
@@ -691,7 +701,7 @@ export default function IndexPage({ book, navigate }) {
           <div>
             <dt>Rewards and fees</dt>
             <dd>
-              Neither is in the index. It counts interest only: token rewards
+              Neither is in the Market Average. It counts interest only: token rewards
               some markets pay on top are left out.
             </dd>
           </div>

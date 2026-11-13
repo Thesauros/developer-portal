@@ -74,6 +74,10 @@ function batchEvery(vault) {
 function Header({ vault, product, totals }) {
   const record = product.record;
   const every = batchEvery(vault);
+  const longest = Math.max(0, ...(vault.gaps?.gaps || []).map((gap) => gap.hours));
+  // How much of the money behind the Thesauros record is in this vault today.
+  const all = (vault.tvl ?? 0) + (totals.previousTvl || 0);
+  const here = all > 0 ? ((vault.tvl ?? 0) / all) * 100 : null;
   return (
     <header className={b.vaultHead}>
       <div className={b.vaultName}>
@@ -86,15 +90,14 @@ function Header({ vault, product, totals }) {
           <p className={b.headMeta}>
             <span className={b.quiet}>
               <NetworkMarks networks={vault.networks} size={14} />
-              Lends on {listOf(vault.networks)} · deposit and withdraw on{" "}
-              {vault.depositNetwork}
+              Lends on {listOf(vault.networks)}
             </span>
           </p>
         </div>
       </div>
       <dl className={b.facts}>
         <div>
-          <dt>Rate now</dt>
+          <dt>This vault, rate now</dt>
           <dd>{pct(vault.rateNow)}</dd>
           <small>
             {record.vs?.nowDiff != null ? (
@@ -105,38 +108,46 @@ function Header({ vault, product, totals }) {
           </small>
         </div>
         <div>
-          <dt>Earned, last 30 days</dt>
+          <dt>Thesauros, last 30 days</dt>
           <dd>
             <MeasuredRate measure={record.measure} />
           </dd>
           <small>
-            {record.vs?.r30Diff != null ? (
-              <VsIndex diff={record.vs.r30Diff} suffix=" vs the Market Average" />
-            ) : record.measure?.status === "small" ? (
-              "too small to measure: under 10,000 USD"
-            ) : record.measure?.status === "young" ? (
-              "too new to measure"
-            ) : (
-              "a year, from share prices"
+            {record.vs?.r30Diff != null && (
+              <>
+                <VsIndex diff={record.vs.r30Diff} suffix=" vs the Market Average" />.{" "}
+              </>
             )}
+            {record.own
+              ? "This vault and the ones before it, by size."
+              : here != null && here < 50
+                ? "Every Thesauros USDC vault by size: nearly all of that money is still in the previous vaults."
+                : "Every Thesauros USDC vault, by size."}
           </small>
         </div>
         <div>
-          <dt>In the vault</dt>
+          <dt>In this vault</dt>
           <dd>
             {compact(vault.tvl)} <small>{vault.token}</small>
           </dd>
-          {totals.previousTvl >= 1 && (
-            <small>
-              {compact(totals.previousTvl)} {totals.previousUnit} more in
-              previous vaults
-            </small>
-          )}
+          <small>
+            {totals.previousTvl >= 1
+              ? `${compact(totals.previousTvl)} ${totals.previousUnit} more in previous vaults. `
+              : ""}
+            {vault.batchLimit != null
+              ? `Takes up to ${money(vault.batchLimit, 0)} USDC per batch.`
+              : ""}
+          </small>
         </div>
         <div>
           <dt>Withdraw in</dt>
           <dd>{vault.exit.label}</dd>
-          <small>{every ? `a batch closes every ${every}` : vault.exit.note}</small>
+          <small>
+            {every ? `A batch closes every ${every} when valuations are on time. ` : ""}
+            {longest >= 24
+              ? `Longest wait so far: ${Math.round(longest / 24)} days.`
+              : "No time is promised."}
+          </small>
         </div>
       </dl>
     </header>
@@ -274,6 +285,13 @@ function Performance({ book }) {
     >
       {tab !== "price" ? (
         <>
+          <p className={b.whose}>
+            <strong>{RECORD_NAME}</strong> is every Thesauros USDC vault, chained
+            day by day and weighted by the money each held.{" "}
+            {record.own
+              ? ""
+              : "Nearly all of that money is still in the previous vaults, so this is mostly their record; this vault’s own is under Share price."}
+          </p>
           <div className={b.priceHead}>
             <p className={b.quiet}>
               {viewLede(
@@ -299,14 +317,9 @@ function Performance({ book }) {
             </p>
           )}
           <MeasureNote>
-            {RECORD_NAME} is what Thesauros earned for depositors: this vault
-            and the vaults before it, chained day by day and weighted by the
-            money each held, from share prices.{" "}
-            {record.own
-              ? ""
-              : "Until depositors move, most of that money is in the previous vaults, so most of this line is theirs. "}
-            Market Average: what its markets paid, weighted by size.{" "}
-            {referenceNote(index)} Interest only, before fees.
+            Both lines are worked out the same way: from share prices for
+            Thesauros, from each market’s own interest for the Market Average,
+            weighted by size. {referenceNote(index)} Interest only, before fees.
           </MeasureNote>
           <details className={b.disclosure}>
             <summary>Week by week against the Market Average</summary>
@@ -332,7 +345,9 @@ function Performance({ book }) {
                 <span className={b.change}>
                   {change >= 0 ? "+" : "−"}
                   {Math.abs(change).toFixed(3)}%
-                  {window?.days ? ` over ${Math.round(window.days)} days` : " since launch"}
+                  {days
+                    ? ` over ${Math.round(window?.days ?? Math.max(1, (last.at - first.at) / DAY))} days`
+                    : " since launch"}
                 </span>
               )}
             </p>
@@ -662,13 +677,16 @@ function WhereTheMoneyIs({ vault, index }) {
             </summary>
             <MoneyMap vault={vault} />
           </details>
-          {buffer != null && (
+          {(buffer > 0 || ratio > 0) && (
             <p className={b.footnote}>
-              The vault keeps at least {money(buffer)} {vault.token}
-              {ratio != null ? ` or ${ratio.toFixed(0)}% of its value` : ""} as
-              cash where it takes deposits. At this size that floor is a large
-              part of the vault, which pulls the rate down; it weighs less as
-              the vault grows.
+              The vault keeps{" "}
+              {buffer > 0 && ratio > 0
+                ? `at least ${money(buffer)} ${vault.token} or ${ratio.toFixed(0)}% of its value, whichever is more,`
+                : buffer > 0
+                  ? `at least ${money(buffer)} ${vault.token}`
+                  : `${ratio.toFixed(0)}% of its value`}{" "}
+              as cash on {vault.depositNetwork} to pay withdrawals. Cash earns
+              nothing, which is why the vault’s rate is below its markets’.
             </p>
           )}
           {vault.capital && (vault.capital.pendingDeposits > 0 || vault.capital.owed > 0) && (
@@ -720,10 +738,11 @@ function GettingOut({ vault, feedItems }) {
           <dt>How long it takes</dt>
           <dd>No time promised</dd>
           <small>
-            {batches.length
-              ? `${batches.reduce((sum, batch) => sum + batch.requests, 0)} requests so far, not enough for a typical time. `
+            A batch closes every {batchEvery(vault) || "few hours"} and settles
+            only with a fresh valuation.
+            {vault.gaps?.staleShare != null
+              ? ` Since ${dateLabel(vault.gaps.since, false)} there was no fresh valuation ${vault.gaps.staleShare.toFixed(1)}% of the time.`
               : ""}
-            A batch settles only with a fresh valuation.
           </small>
         </div>
         <div>
@@ -731,10 +750,10 @@ function GettingOut({ vault, feedItems }) {
           <dd>{vault.open.withdrawals ? "Open" : "Paused"}</dd>
           {limits?.maxInstantWithdrawal && (
             <small>
-              The contract also allows an instant exit of up to{" "}
+              The contract also has an instant exit of up to{" "}
               {money(Number(limits.maxInstantWithdrawal) / 1e6, 0)} USDC at a{" "}
-              {(Number(limits.instantFee) / 1e16).toFixed(2)}% fee; that
-              route is not open here.
+              {(Number(limits.instantFee) / 1e16).toFixed(2)}% fee. This app
+              does not use it.
             </small>
           )}
         </div>
@@ -924,6 +943,7 @@ export default function VaultPage({ book, user, batch, navigate, intent }) {
                     request={request}
                     price={batch.feed?.vault?.tick?.rateBid}
                     batch={batch}
+                    closing={batchClosing(vault)}
                   />
                 ))}
               </div>

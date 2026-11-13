@@ -30,6 +30,16 @@ position in a previous vault sees a notice at the top of every page, and the
 notice opens that screen. A bridge fee, or a remainder below the minimum
 deposit, does not keep a move open: the holder can finish with what arrived.
 
+A balance above the per-batch deposit limit moves in parts. The screen says how
+many batches it needs before anything is withdrawn and proposes to take out only
+what the open batch has room for (`prepareTransaction` with `amount`), so the
+rest keeps earning in the previous vault. The holder can stop at the deposit
+step and keep what was withdrawn (`thesauros.move.kept.v1.<owner>` in
+localStorage, passed to `deriveMigration` as `kept`), and resume later. A
+deposit request can be cancelled from the screen until its batch settles. In
+another browser the journal is empty: `importWithdrawal(vaultId, hash)` verifies
+a withdrawal on chain and adds it to the journal there.
+
 ## Contract sequence
 
 The verified legacy implementation has no withdrawal request/claim queue. Full

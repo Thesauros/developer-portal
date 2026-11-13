@@ -379,6 +379,37 @@ test("proxy requires a session, fixed network, same origin and JSON before conta
   assert.equal(calls, 0);
 });
 
+test("proxy accepts the origin visitors use when the server listens under another name", async () => {
+  // Behind a proxy (or on localhost beside 127.0.0.1) the URL the server builds
+  // is not the one in the browser; the Host the browser sent is.
+  const behind = (headers) =>
+    new Request("http://localhost:3000/api/migration/rpc/base", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(call("eth_chainId")),
+    });
+  const status = async (headers) =>
+    (await handleMigrationRpc(behind(headers), options({ env: {} }))).status;
+  // 503 here means the origin check passed: no private RPC in this env.
+  assert.equal(
+    await status({ Origin: "https://app.example.test", Host: "app.example.test" }),
+    503,
+  );
+  assert.equal(
+    await status({
+      Origin: "https://app.example.test",
+      Host: "localhost:3000",
+      "X-Forwarded-Host": "app.example.test",
+    }),
+    503,
+  );
+  assert.equal(
+    await status({ Origin: "https://evil.test", Host: "app.example.test" }),
+    403,
+  );
+  assert.equal(await status({ Origin: "null", Host: "app.example.test" }), 403);
+});
+
 test("proxy bounds streamed payloads independently of Content-Length", async () => {
   let calls = 0;
   const fetcher = async () => {

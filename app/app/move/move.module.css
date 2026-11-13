@@ -72,6 +72,25 @@
 .noticeReady .noticeAction:hover {
   background: #0a7a3c;
 }
+/* Waiting on the vault, nothing asked of the person. */
+.noticeCalm {
+  --amber-wash: #eef3fb;
+  --amber-rule: rgba(25, 106, 255, 0.2);
+  color: #18304d;
+}
+.noticeCalm strong {
+  color: #0b1b2b;
+}
+.noticeCalm .noticeMark {
+  background: rgba(25, 106, 255, 0.1);
+  color: #196aff;
+}
+.noticeCalm .noticeAction {
+  background: #0b1b2b;
+}
+.noticeCalm .noticeAction:hover {
+  background: #1d3350;
+}
 /* A guest cannot be told apart from someone who never used the old vaults. */
 .noticeQuiet {
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -269,7 +288,7 @@
 }
 .tally {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-top: 22px;
   padding-top: 18px;
@@ -291,6 +310,105 @@
   font-size: 12.5px;
   font-weight: 400;
   letter-spacing: 0;
+}
+.tally small {
+  display: block;
+  min-height: 16px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.tally div[data-empty] dd {
+  color: var(--ink-4);
+  font-weight: 400;
+}
+
+/* A large move at today's limit, said before anything is withdrawn. */
+.plan {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1px solid rgba(138, 75, 0, 0.22);
+  border-radius: 14px;
+  background: var(--amber-wash);
+}
+.plan strong {
+  color: #2a1900;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+.plan p {
+  color: #3a2300 !important;
+  font-size: 14.5px !important;
+}
+/* How to bridge, as three short instructions. */
+.how {
+  display: grid;
+  gap: 10px;
+  counter-reset: how;
+}
+.how li {
+  position: relative;
+  padding-left: 28px;
+  color: var(--ink-2);
+  font-size: 14.5px;
+  line-height: 1.5;
+  counter-increment: how;
+}
+.how li::before {
+  content: counter(how);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--well);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.how strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.keptLine {
+  margin: 16px 28px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--well);
+  color: var(--ink-2);
+  font-size: 13.5px;
+}
+.stop {
+  display: grid;
+  gap: 12px;
+  margin: 0 28px;
+  padding: 16px 0;
+  border-top: 1px solid var(--rule-soft);
+}
+.stop p {
+  max-width: 60ch;
+  color: var(--ink-2);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.stop p strong {
+  color: var(--ink);
+}
+.elsewhere {
+  padding: 14px 4px 0;
+  border-top: 1px solid var(--rule);
+}
+.hashRow select {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
 }
 
 .steps {
@@ -571,6 +689,7 @@
 /* The amount. */
 .amount {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
 .amount label {
@@ -1009,9 +1128,6 @@
   .destination small {
     grid-column: 1;
   }
-  .know {
-    display: none;
-  }
 }
 @media (max-width: 640px) {
   .top {
@@ -1047,13 +1163,32 @@
     width: 28px;
   }
   .tally {
-    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 12px;
   }
   .tally dd {
+    font-size: 18px;
+  }
+  .keptLine {
+    margin: 14px 18px 0;
+  }
+  .stop {
+    margin: 0 18px;
+  }
+  .brand {
     font-size: 16px;
   }
-  .tally dd::after {
-    display: block;
+  .app .back {
+    font-size: 13.5px;
+    white-space: nowrap;
+  }
+  .top .primary {
+    min-height: 38px;
+    padding: 0 14px;
+    font-size: 13.5px;
+  }
+  .topRight {
+    gap: 10px;
   }
   .steps {
     padding: 4px 18px;
@@ -1103,4 +1238,100 @@
   .destination dl {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.seen {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  max-width: 420px;
+}
+.seen li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  color: var(--ink-2);
+}
+.seen strong {
+  margin-left: auto;
+  color: var(--ink);
+  font-weight: 500;
+}
+.empty > .keptLine {
+  margin: 0;
+}
+.column > .keptLine {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  /* A visitor who never used the old vaults should barely notice it. */
+  .notice.noticeQuiet {
+    gap: 0 8px;
+    padding: 8px 8px 8px 14px;
+  }
+  .notice.noticeQuiet .noticeAction {
+    min-height: 28px;
+    padding: 0;
+    font-size: 13px;
+  }
+  .noticeQuiet p {
+    font-size: 13px;
+  }
+  .noticeQuiet p strong {
+    font-weight: 500;
+  }
+  .noticeQuiet .hideOnPhone {
+    display: none;
+  }
+}
+
+/* Previous vault and new vault, side by side, on the dark card. */
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.compare th,
+.compare td {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  text-align: left;
+  vertical-align: top;
+  font-weight: 400;
+}
+.compare thead th {
+  padding-top: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+}
+.compare tbody th {
+  width: 30%;
+  padding-right: 10px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.compare td {
+  width: 35%;
+  padding-right: 10px;
+  color: rgba(255, 255, 255, 0.82);
+}
+.compare td:last-child {
+  padding-right: 0;
+  color: #fff;
+  font-weight: 500;
+}
+.destination .destinationNote {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 13.5px;
+}
+.destination .destinationNote:empty {
+  display: none;
+}
+.destination dl > div {
+  grid-template-columns: 110px minmax(0, 1fr);
+}
+.destination dt {
+  grid-row: auto;
 }

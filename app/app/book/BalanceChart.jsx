@@ -128,8 +128,8 @@ export default function BalanceChart({ points, mode = "balance", height = 240 })
         <span>
           <i className={c.keyBand} /> Earned{" "}
           <strong>
-            {shown.earned >= 0 ? "+" : "−"}
-            {money(Math.abs(shown.earned), digits)}
+            {Math.abs(shown.earned) < 0.00005 ? "" : shown.earned > 0 ? "+" : "−"}
+            {Math.abs(shown.earned) < 0.00005 ? "0.00" : money(Math.abs(shown.earned), digits)}
           </strong>
         </span>
       </p>
