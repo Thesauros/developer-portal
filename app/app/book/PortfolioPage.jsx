@@ -164,7 +164,9 @@ function Start({ book, navigate }) {
             <dt>Rate now</dt>
             <dd>{pct(vault.rateNow)}</dd>
             <small>
-              {record.vs?.nowDiff != null ? (
+              {vault.rateNow == null ? (
+                "being read from the markets"
+              ) : record.vs?.nowDiff != null ? (
                 <VsIndex diff={record.vs.nowDiff} suffix=" vs Market Average" />
               ) : (
                 "a year, before fees"

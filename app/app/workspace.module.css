@@ -17,7 +17,9 @@
 .shell * {
   box-sizing: border-box;
 }
-.shell :where(h1, h2, h3, p, dl, dd) {
+/* Zero specificity: a component's own margin always wins, whatever order the
+   style files load in. */
+:where(.shell) :where(h1, h2, h3, p, dl, dd) {
   margin: 0;
 }
 :where(.shell) :where(a) {

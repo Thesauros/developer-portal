@@ -2,16 +2,15 @@
 import { useMemo, useState } from "react";
 import { DAY } from "../../../lib/vault-metrics.mjs";
 import { chainList } from "../../../lib/chains.mjs";
-import { groupConstituents } from "../../../lib/blue-chip-index.mjs";
+import { groupConstituents, weeklyGaps } from "../../../lib/blue-chip-index.mjs";
 import { marketColor } from "../../../lib/vault-book.mjs";
-import { commonStart, COMPARE_COLORS, ComparisonChart, RateChart, windowOf } from "./charts";
+import { commonStart, COMPARE_COLORS, ComparisonChart, GapChart, RateChart, windowOf } from "./charts";
 import {
   dateLabel,
   pct,
   Section,
   Segmented,
   VsIndex,
-  MeasureNote,
 } from "./parts";
 import b from "./book.module.css";
 
@@ -234,7 +233,8 @@ export const viewLede = (view, token, start) =>
     ? `Yearly rate, averaged over the 30 days before each day`
     : `What 10,000 ${token} earned since ${dateLabel(start, false)}, and the rate it works out to a year`;
 
-export function IndexComparison({ book, compact = false }) {
+export function IndexComparison({ book }) {
+  const compact = false;
   const [days, setDays] = useState(DEFAULT_DAYS);
   const [view, setView] = useState("rate");
   const index = book.index;
@@ -253,6 +253,7 @@ export function IndexComparison({ book, compact = false }) {
   const verdict = windowVerdict(lines, from);
   const t = book.totals;
   const split = splitFor(t.local, verdict, commonStart(lines, from), days);
+  const gaps = useMemo(() => weeklyGaps(ours || [], index, from), [ours, index, from]);
   return (
     <div className={b.versus}>
       <div className={b.versusChart}>
@@ -320,36 +321,30 @@ export function IndexComparison({ book, compact = false }) {
         </tbody>
       </table>
       )}
-      {split?.selection != null && split?.place != null &&
-        (compact ? (
-          <details className={`${b.disclosure} ${b.gapDisclosure}`}>
-            <summary>
-              {verdict
-                ? `${verdict.gap >= 0 ? "+" : "−"}${Math.abs(verdict.gap).toFixed(2)} pts against the USDC Market Average over ${days ? days + " days" : "the whole period"}`
-                : `Against the USDC Market Average`}
-              <small>Why</small>
-            </summary>
-            <GapSplit
-              local={split}
-              total={split.total}
-              days={days}
-              curated={curatedShare(book.vaults)}
-            />
-          </details>
-        ) : (
-          <GapSplit
-            local={split}
-            total={split.total}
-            days={days}
-            curated={curatedShare(book.vaults)}
-          />
-        ))}
-      <MeasureNote>
+      {split?.selection != null && split?.place != null && (
+        <GapSplit
+          local={split}
+          total={split.total}
+          days={days}
+          curated={curatedShare(book.vaults)}
+        />
+      )}
+      {gaps.length > 1 && (
+        <figure className={b.figure}>
+          <figcaption>
+            <strong>Week by week</strong>
+            Each bar is that week’s part of the gap, in points; together they
+            add up to the gap over the period.
+          </figcaption>
+          <GapChart points={gaps} label="Thesauros" />
+        </figure>
+      )}
+      <p className={b.footnote}>
         Thesauros: every Thesauros USDC vault, the current one and the ones
         before it, chained day by day and weighted by the money each held, from
         share prices. Market Average: what its markets paid, weighted by size.{" "}
         {referenceNote(index)} Interest only, before fees.
-      </MeasureNote>
+      </p>
     </div>
   );
 }

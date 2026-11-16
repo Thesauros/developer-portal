@@ -199,6 +199,29 @@ function AccountMenu({ label, items, icon = false }) {
   );
 }
 
+// Scroll to a section once the page has drawn it: the page it belongs to may
+// still be rendering when the link is followed.
+function landOn(id) {
+  let tries = 0;
+  const align = () =>
+    document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "instant" });
+  const land = () => {
+    if (!document.getElementById(id)) {
+      if (tries++ < 40) setTimeout(land, 50);
+      return;
+    }
+    align();
+    // Tables and charts above it arrive a moment later and push it down:
+    // settle on it again, unless the reader has started scrolling.
+    let moved = false;
+    const stop = () => (moved = true);
+    window.addEventListener("wheel", stop, { once: true, passive: true });
+    window.addEventListener("touchmove", stop, { once: true, passive: true });
+    for (const wait of [300, 900, 1800]) setTimeout(() => moved || align(), wait);
+  };
+  setTimeout(land, 0);
+}
+
 export default function ProductApp({ mode = "individual", user }) {
   const institution = user?.kind === "institution";
   const { disconnectAsync } = useDisconnect();
@@ -278,12 +301,15 @@ export default function ProductApp({ mode = "individual", user }) {
         ? { action: options.action, at: Date.now() }
         : null,
     );
-    history_push("/app/" + mode + path);
+    history_push("/app/" + mode + path + (options?.section ? "#" + options.section : ""));
     setRoute({ view: target });
     window.scrollTo({ top: 0, behavior: "instant" });
     requestAnimationFrame(() =>
       mainRef.current?.querySelector("h1")?.focus({ preventScroll: true }),
     );
+    // A link to one section of another page lands on that section, once the
+    // page has drawn it.
+    if (options?.section) landOn(options.section);
   }
   function history_push(path) {
     if (location.pathname + location.search !== path)
@@ -320,6 +346,8 @@ export default function ProductApp({ mode = "individual", user }) {
           ? { view: "earn" }
           : { view: parsed.view },
       );
+      // An address that names a section opens on it.
+      if (/^[a-z-]+$/.test(hash) && location.pathname !== "/app/" + mode) landOn(hash);
     };
     sync();
     window.addEventListener("popstate", sync);

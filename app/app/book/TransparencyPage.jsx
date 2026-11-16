@@ -6,6 +6,7 @@ import { marketingHref } from "../../../lib/site-links.mjs";
 import { LedgerRows } from "./ledger";
 import { Ledger } from "./ActivityPage";
 import { vaultNamer } from "./activity";
+import { VaultContracts, VaultMarkets, VaultRisks } from "./VaultDetail";
 import {
   compact,
   dateLabel,
@@ -467,11 +468,7 @@ function Security({ book }) {
           </small>
         </div>
       </dl>
-      <details className={b.disclosure}>
-        <summary>
-          Each contract, its review and who controls it
-          <small>{vaults.length} vaults</small>
-        </summary>
+      <h3 className={b.subhead}>Each vault, its review and who controls it</h3>
         <div className={b.tableWrap}>
           <table className={`${b.table} ${b.stack}`}>
             <thead>
@@ -508,11 +505,12 @@ function Security({ book }) {
             </tbody>
           </table>
         </div>
-      </details>
       <p className={b.footnote}>
         Full reports and vault controls are in the{" "}
         <a href={marketingHref("/security")}>security overview</a>.
       </p>
+      <h3 className={b.subhead}>Contracts behind {book.vault.title}</h3>
+      <VaultContracts vault={book.vault} />
     </Section>
   );
 }
@@ -557,8 +555,10 @@ export default function TransparencyPage({ book, navigate }) {
         {[
           ["capital", "Capital"],
           ["exposure", "Exposure"],
+          ["markets", "Markets"],
           ["results", "Results"],
           ["operations", "Operating record"],
+          ["risks", "Risks"],
           ["security", "Audits and control"],
           ["fees", "Fees"],
           ["record", "Every move"],
@@ -570,8 +570,22 @@ export default function TransparencyPage({ book, navigate }) {
       </nav>
       <Capital book={book} navigate={navigate} />
       <Exposure book={book} />
+      <Section
+        id="markets"
+        title={`${book.vault.title}, market by market`}
+        lede="Every market the vault lends to or is approved to use, with its rate, share and limit. Each market’s rate times its share adds up to the vault’s rate."
+      >
+        <VaultMarkets vault={book.vault} index={book.product.index} />
+      </Section>
       <Results book={book} navigate={navigate} />
       <Operations book={book} name={name} />
+      <Section
+        id="risks"
+        title="What can go wrong"
+        lede="Yield comes with risk. No Thesauros vault is insured or guaranteed."
+      >
+        <VaultRisks vault={book.vault} />
+      </Section>
       <Security book={book} />
       <Fees />
       <Section

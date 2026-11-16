@@ -163,8 +163,9 @@
 }
 .startFacts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  /* Each fact as wide as its own caption, so none wraps while another has room. */
+  grid-template-columns: repeat(3, max-content);
+  gap: 16px 32px;
   margin: 22px 0;
   padding: 18px 0;
   border-top: 1px solid var(--rule-soft);

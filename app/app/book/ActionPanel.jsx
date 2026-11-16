@@ -77,14 +77,20 @@ function Plate({ vault, user }) {
 }
 
 // What a depositor has to know first, in one breath; the full list is one
-// link away, under "What can go wrong".
-function Notice({ vault }) {
+// click away, in Transparency.
+export function Notice({ vault, navigate }) {
   if (!vault.notice) return null;
   return (
     <p className={b.noticeLine}>
       <strong>Before you deposit:</strong> these contracts have no external
       audit yet, one team key can upgrade them, and Thesauros publishes the
-      vault’s valuation itself. <a href="#risks">All risks</a>
+      vault’s valuation itself.{" "}
+      <button
+        className={b.linkButton}
+        onClick={() => navigate("transparency", null, { section: "risks" })}
+      >
+        All risks
+      </button>
     </p>
   );
 }
@@ -558,7 +564,7 @@ export default function ActionPanel({ vault, user, batch, wallet, navigate, inte
             wallet={wallet}
           />
         )}
-        {action === "deposit" && vault.open.deposits && <Notice vault={vault} />}
+        {action === "deposit" && vault.open.deposits && <Notice vault={vault} navigate={navigate} />}
       </aside>
       <div className={b.actionBar}>
         {user?.walletAddress ? (

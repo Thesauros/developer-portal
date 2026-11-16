@@ -540,8 +540,8 @@ export default function DeveloperCenter({ user, navigate }) {
               .
             </p>
           )}
-          <details className={b.disclosure}>
-            <summary>Response conventions and reference coverage</summary>
+          <div className={b.conventions}>
+            <h3>Response conventions</h3>
             <p>
               Single resources use <code>{"{ object, data }"}</code>.
               Collections use <code>{'{ object: "list", data, meta }'}</code>.
@@ -557,7 +557,7 @@ export default function DeveloperCenter({ user, navigate }) {
             <a href={documentationHref("/api/partner-models/")}>
               Read the response models
             </a>
-          </details>
+          </div>
         </Section>
       )}
 

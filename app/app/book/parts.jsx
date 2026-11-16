@@ -305,13 +305,3 @@ export function usePublicResource(path, { refreshMs = 0, enabled = true } = {}) 
   return state;
 }
 
-// Method under a chart, folded: the page shows the numbers, the definitions are
-// one click away.
-export function MeasureNote({ children, label = "How this is measured" }) {
-  return (
-    <details className={b.measureNote}>
-      <summary>{label}</summary>
-      <div>{children}</div>
-    </details>
-  );
-}

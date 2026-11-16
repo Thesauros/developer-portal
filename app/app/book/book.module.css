@@ -31,32 +31,34 @@
 .app *::after {
   box-sizing: border-box;
 }
-.app :where(h1, h2, h3, h4, p, dl, dd, ul, ol) {
+/* The resets carry no specificity, so a component's own rule always wins,
+   whatever order the style files load in. */
+:where(.app) :where(h1, h2, h3, h4, p, dl, dd, ul, ol) {
   margin: 0;
   padding: 0;
 }
-.app :where(ul, ol) {
+:where(.app) :where(ul, ol) {
   list-style: none;
 }
-.app :where(button, input, select) {
+:where(.app) :where(button, input, select) {
   font: inherit;
   color: inherit;
 }
-.app :where(button) {
+:where(.app) :where(button) {
   cursor: pointer;
 }
-.app :where(button):disabled {
+:where(.app) :where(button):disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
-.app :where(a) {
+:where(.app) :where(a) {
   color: var(--blue-deep);
   text-decoration: none;
 }
-.app :where(a):hover {
+:where(.app) :where(a):hover {
   text-decoration: underline;
 }
-.app :where(button, a, input, select, summary, [tabindex]):focus-visible {
+:where(.app) :where(button, a, input, select, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
@@ -3352,4 +3354,236 @@
 /* Code under a list of facts keeps its distance. */
 .codeBlock {
   margin-top: 14px;
+}
+
+/* ---- Detail shown in the open (Transparency, Market Average) ---- */
+.sumLine {
+  margin-top: 16px;
+  color: var(--ink-2);
+  font-size: 14.5px;
+}
+.sumLine span {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.sumLine strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.figure {
+  margin: 32px 0 0;
+}
+.figure figcaption {
+  max-width: 68ch;
+  margin-bottom: 14px;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.figure figcaption strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.subhead {
+  margin: 32px 0 12px;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.conventions {
+  max-width: 72ch;
+  margin-top: 20px;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.conventions h3 {
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+}
+.conventions p {
+  margin-bottom: 8px;
+}
+/* ---- Earn: the short page ---- */
+.lentTable td,
+.lentTable th {
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+.lentTable .market {
+  flex-wrap: wrap;
+}
+.onNetwork {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 0 8px;
+  border-top: 1px solid var(--rule);
+}
+.more span {
+  margin-right: 8px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.more button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 14px;
+  transition: border-color 150ms ease;
+}
+.more button:hover {
+  border-color: var(--ink-4);
+}
+.sheetLayoutOnly {
+  display: none;
+}
+@media (max-width: 1279px) {
+  .sheetLayoutOnly {
+    display: block;
+    margin-bottom: 24px;
+  }
+}
+/* ---- A long page's own contents, always within reach ---- */
+.toc {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  gap: 4px 6px;
+  margin: 0 -10px 8px;
+  padding: 10px;
+  background: #fff;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.toc a {
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.toc a:hover {
+  background: var(--well);
+  color: var(--ink);
+  text-decoration: none;
+}
+.page:has(> .toc) .section {
+  scroll-margin-top: 128px;
+}
+@media (max-width: 1099px) {
+  .toc {
+    top: 56px;
+    flex-wrap: nowrap;
+    margin: 0 -16px 8px;
+    padding: 8px 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .page:has(> .toc) .section {
+    scroll-margin-top: 112px;
+  }
+}
+
+/* A chart's one line of caption, under the section's controls. */
+.chartCaption {
+  margin-bottom: 14px;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.chartCaption strong {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.sectionAside {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* The readout under a chart wraps like text on a narrow screen. */
+.chartRead > span {
+  min-width: 0;
+  white-space: normal;
+}
+/* The bar of the split and the choice under it keep their distance. */
+.allocationBar + .controlsRow {
+  margin-top: 16px;
+}
+.lentTable .market {
+  align-items: baseline;
+  flex-wrap: nowrap;
+}
+.lentTable .market img {
+  align-self: center;
+}
+.lentTable .swatch {
+  flex: none;
+  align-self: center;
+}
+@media (max-width: 760px) {
+  /* Four facts as two rows of two. */
+  .vaultHead .facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 16px;
+  }
+  .vaultHead .facts > div {
+    max-width: none;
+  }
+  .vaultHead .facts small,
+  .vaultHead .facts small * {
+    white-space: normal;
+  }
+  .sectionAside {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 560px) {
+  /* On a phone the table keeps rate and share; the total is in the header. */
+  .wideOnly {
+    display: none;
+  }
+}
+
+/* The vault's four facts: one row on a wide screen, two rows of two below
+   that, never three and one. */
+@media (min-width: 761px) {
+  .vaultHead .facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 40px;
+    max-width: 720px;
+  }
+  .vaultHead .facts > div {
+    max-width: none;
+  }
+}
+@media (min-width: 1280px) {
+  .vaultHead .facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    max-width: none;
+  }
+}
+/* Where the left menu and the sheet layout meet, the deposit bar starts after
+   the menu instead of covering its foot. */
+@media (min-width: 1100px) and (max-width: 1279px) {
+  .actionBar {
+    left: 240px;
+  }
 }

@@ -631,8 +631,7 @@ function Move({ product, model, vault, eth, batch }) {
                 <ol className={m.how}>
                   <li>
                     <strong>Open the bridge inside your wallet.</strong>{" "}
-                    MetaMask, Rabby, Coinbase Wallet and others have one. Do
-                    not search for a bridge: fake bridge sites are a common way
+                    Do not search for a bridge: fake bridge sites are a common way
                     to lose money.
                   </li>
                   <li>

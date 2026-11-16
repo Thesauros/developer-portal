@@ -61,7 +61,7 @@ export default function WhatIf({ book, navigate }) {
     <Section
       id="what-if"
       title="What if you had deposited"
-      lede={`From ${dateLabel(result.from, false)} to ${dateLabel(result.to, false)}, worked out from real share prices and from the Market Average over the same days. Past results; rates change.`}
+      lede={`From ${dateLabel(result.from, false)} to ${dateLabel(result.to, false)}, from real share prices. Past results; rates change.`}
       aside={
         <div className={b.controls}>
           <label className={b.inlineField}>
@@ -92,7 +92,7 @@ export default function WhatIf({ book, navigate }) {
           <tbody>
             <tr>
               <td data-cell="vault">
-                <strong>Thesauros USDC</strong>
+                <strong>Thesauros</strong>
               </td>
               <td data-label="Gain">{bar(result.gain, "var(--blue)")}</td>
               <td className={b.num} data-label="Value now">
@@ -108,7 +108,7 @@ export default function WhatIf({ book, navigate }) {
             <tr className={b.comparisonRow}>
               <td data-cell="vault">
                 <button className={b.rowLink} onClick={() => navigate("index")}>
-                  USDC Market Average
+                  Market Average
                 </button>
               </td>
               <td data-label="Gain">{bar(result.indexGain, "#5f7183")}</td>
@@ -123,10 +123,8 @@ export default function WhatIf({ book, navigate }) {
         </table>
       </div>
       <p className={b.footnote}>
-        Thesauros USDC is the record of every Thesauros USDC vault, weighted by
-        the money each held. No fee is charged today; the planned fee is shown
-        for comparison. The Market Average is a measure, not something you can
-        deposit into. Network costs are not included.
+        No fee is charged today. The Market Average is a measure, not something
+        you can deposit into.
       </p>
     </Section>
   );
