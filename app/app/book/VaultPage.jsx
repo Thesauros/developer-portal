@@ -30,8 +30,8 @@ import b from "./book.module.css";
 // Earn is the page a deposit is decided on: what the vault pays and against
 // what, where the money is lent, the terms, and the form. Everything that
 // proves those figures (every market and its limit, the map by network, the
-// operating record, the risks in full, the contracts) is in Transparency, in
-// the open. Nothing on this page is folded away.
+// results by vault, the contracts, every move) is in Transparency, in the
+// open. Nothing on this page is folded away.
 
 const listOf = (items) =>
   items.length < 2
@@ -425,10 +425,9 @@ function More({ navigate }) {
   return (
     <nav className={b.more} aria-label="More about this vault">
       <span>In Transparency</span>
-      <button onClick={to("risks")}>Risks in full</button>
       <button onClick={to("markets")}>Markets and the map by network</button>
-      <button onClick={to("operations")}>Operating record</button>
-      <button onClick={to("security")}>Audits, control and contracts</button>
+      <button onClick={to("results")}>Results by vault</button>
+      <button onClick={to("contracts")}>Contracts</button>
       <button onClick={to("record")}>Every move</button>
     </nav>
   );
@@ -464,7 +463,7 @@ export default function VaultPage({ book, user, batch, navigate, intent }) {
           <Terms vault={vault} />
           {/* Beside the form on a wide screen; here where the form is a sheet. */}
           <div className={b.sheetLayoutOnly}>
-            <Notice vault={vault} navigate={navigate} />
+            <Notice vault={vault} />
           </div>
           <More navigate={navigate} />
         </div>

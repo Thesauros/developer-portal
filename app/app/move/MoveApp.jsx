@@ -1128,7 +1128,7 @@ function Destination({ book, from, onOpen }) {
         and Thesauros publishes the vault’s valuation itself.
       </p>
       <button className={m.textLink} onClick={() => onOpen("earn")}>
-        All risks and everything else about the new vault
+        Everything about the new vault
       </button>
     </aside>
   );

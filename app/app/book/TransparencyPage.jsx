@@ -1,12 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
 import { CASH_COLOR, exposure } from "../../../lib/vault-book.mjs";
-import { AUDITS, PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
-import { marketingHref } from "../../../lib/site-links.mjs";
-import { LedgerRows } from "./ledger";
+import { PLANNED_PERFORMANCE_FEE } from "../../../lib/vault-facts.mjs";
 import { Ledger } from "./ActivityPage";
-import { vaultNamer } from "./activity";
-import { VaultContracts, VaultMarkets, VaultRisks } from "./VaultDetail";
+import { VaultContracts, VaultMarkets } from "./VaultDetail";
 import {
   compact,
   dateLabel,
@@ -17,7 +14,6 @@ import {
   Segmented,
   short,
   NetworkMarks,
-  usePublicResource,
   VaultTitle,
   VsIndex,
 } from "./parts";
@@ -399,122 +395,6 @@ function Results({ book, navigate }) {
   );
 }
 
-function Operations({ book, name }) {
-  const [showGaps, setShowGaps] = useState(false);
-  const feed = usePublicResource("/api/vaults/feed", { refreshMs: 120000 });
-  const gaps = (feed.data?.items || []).filter((item) => item.kind === "gap");
-  const batch = book.vault;
-  return (
-    <Section
-      id="operations"
-      title="Operating record"
-      lede="Periods when the vault could not settle. Every other move is in the record at the end of this page."
-    >
-      {batch?.gaps?.staleShare != null && (
-        <p className={b.compare}>
-          Since {dateLabel(batch.gaps.since)}, the vault’s valuation was out
-          of date <strong>{batch.gaps.staleShare.toFixed(1)}%</strong> of the
-          time. While it is, batches do not settle. The record is exact because
-          every valuation is published on chain.
-        </p>
-      )}
-      {gaps.length ? (
-        <>
-          <LedgerRows rows={showGaps ? gaps : gaps.slice(0, 2)} vaultName={name} />
-          {!showGaps && gaps.length > 2 && (
-            <button
-              className={`${b.linkButton} ${b.moreButton}`}
-              onClick={() => setShowGaps(true)}
-            >
-              Show all {gaps.length} gaps
-            </button>
-          )}
-        </>
-      ) : (
-        <p className={b.quiet}>
-          {feed.loading ? "Loading…" : "No gaps recorded."}
-        </p>
-      )}
-    </Section>
-  );
-}
-
-function Security({ book }) {
-  const vaults = book.vaults.filter(
-    (item) => !item.previous || (item.tvl ?? 0) >= 0.005,
-  );
-  return (
-    <Section
-      id="security"
-      title="Audits and control"
-      lede="Who has reviewed the code, and who can change it."
-    >
-      <dl className={b.terms}>
-        <div>
-          <dt>{book.vault.title}</dt>
-          <dd>{book.vault.audit.label}</dd>
-          <small>
-            One team key can upgrade its contracts. Changes to lending markets
-            and their limits wait 24 hours in a timelock.
-          </small>
-        </div>
-        <div>
-          <dt>Previous vaults</dt>
-          <dd>Reviewed by Hexens</dd>
-          <small>
-            {AUDITS.map((audit) => audit.date).join(" and ")}. The one on
-            Ethereum runs a later build than the one reviewed. Vault
-            administrators can upgrade the code, change fees and pause.
-          </small>
-        </div>
-      </dl>
-      <h3 className={b.subhead}>Each vault, its review and who controls it</h3>
-        <div className={b.tableWrap}>
-          <table className={`${b.table} ${b.stack}`}>
-            <thead>
-              <tr>
-                <th>Vault</th>
-                <th>Reviewed by</th>
-                <th>Who can change it</th>
-                <th>Contract</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vaults.map((vault) => (
-                <tr key={vault.id}>
-                  <td data-cell="vault">
-                    <VaultTitle vault={vault} size={22} />
-                  </td>
-                  <td data-label="Reviewed by">{vault.audit.label}</td>
-                  <td data-label="Who can change it">
-                    {vault.previous
-                      ? "Vault administrators"
-                      : "One team key; market changes wait 24 hours"}
-                  </td>
-                  <td data-label="Contract">
-                    <a
-                      href={vault.explorer + "/address/" + vault.address}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {short(vault.address)} ↗
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      <p className={b.footnote}>
-        Full reports and vault controls are in the{" "}
-        <a href={marketingHref("/security")}>security overview</a>.
-      </p>
-      <h3 className={b.subhead}>Contracts behind {book.vault.title}</h3>
-      <VaultContracts vault={book.vault} />
-    </Section>
-  );
-}
-
 function Fees() {
   return (
     <Section id="fees" title="Fees">
@@ -538,16 +418,14 @@ function Fees() {
 }
 
 export default function TransparencyPage({ book, navigate }) {
-  const name = useMemo(() => vaultNamer(book), [book]);
   return (
     <div className={b.page}>
       <header className={b.pageHead}>
         <div>
           <h1 tabIndex={-1}>Transparency</h1>
           <p className={b.pageLede}>
-            How much is here, where it is, what it has earned, what has gone
-            wrong and who is in control. For anyone deciding whether to trust
-            Thesauros with money.
+            How much is here, where it is lent, what it has earned and every
+            move the vaults made, read from the contracts.
           </p>
         </div>
       </header>
@@ -557,9 +435,7 @@ export default function TransparencyPage({ book, navigate }) {
           ["exposure", "Exposure"],
           ["markets", "Markets"],
           ["results", "Results"],
-          ["operations", "Operating record"],
-          ["risks", "Risks"],
-          ["security", "Audits and control"],
+          ["contracts", "Contracts"],
           ["fees", "Fees"],
           ["record", "Every move"],
         ].map(([id, label]) => (
@@ -578,15 +454,13 @@ export default function TransparencyPage({ book, navigate }) {
         <VaultMarkets vault={book.vault} index={book.product.index} />
       </Section>
       <Results book={book} navigate={navigate} />
-      <Operations book={book} name={name} />
       <Section
-        id="risks"
-        title="What can go wrong"
-        lede="Yield comes with risk. No Thesauros vault is insured or guaranteed."
+        id="contracts"
+        title="Contracts"
+        lede={`Where ${book.vault.title} lives, and every contract behind it.`}
       >
-        <VaultRisks vault={book.vault} />
+        <VaultContracts vault={book.vault} />
       </Section>
-      <Security book={book} />
       <Fees />
       <Section
         id="record"

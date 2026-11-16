@@ -7,8 +7,8 @@ import { clock, compact, money, pct, Segmented, short, Tier } from "./parts";
 import b from "./book.module.css";
 
 // The detail behind the vault's page: every market with its limit, how the
-// rate adds up, the map by network, the risks in full and the contracts. It
-// lives in Transparency, in the open; Earn keeps only what a deposit needs.
+// rate adds up, the map by network and the contracts. It lives in
+// Transparency, in the open; Earn keeps only what a deposit needs.
 
 const listOf = (items) =>
   items.length < 2
@@ -339,20 +339,6 @@ export function VaultMarkets({ vault, index }) {
         Core means Aave and Compound; Satellite means curated Morpho vaults.
       </p>
     </>
-  );
-}
-
-// Everything that can go wrong, in full.
-export function VaultRisks({ vault }) {
-  return (
-    <dl className={b.risks}>
-      {vault.risks.map((risk) => (
-        <div key={risk.title}>
-          <dt>{risk.title}</dt>
-          <dd>{risk.text}</dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 

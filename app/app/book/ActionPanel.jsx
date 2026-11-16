@@ -8,6 +8,7 @@ import { requestStage, REQUEST_STEPS } from "../../../lib/crosschain-feed.mjs";
 import { sharesForAmount } from "../../../lib/vault-metrics.mjs";
 import { ConnectAction } from "../wallet/WalletAccess";
 import { dateLabel, hourOnly, money, pct, Segmented } from "./parts";
+import { documentationHref } from "../../../lib/site-links.mjs";
 import b from "./book.module.css";
 
 const DRAFT = "thesauros.draft";
@@ -76,21 +77,16 @@ function Plate({ vault, user }) {
   );
 }
 
-// What a depositor has to know first, in one breath; the full list is one
-// click away, in Transparency.
-export function Notice({ vault, navigate }) {
+// What a depositor has to know first, in one breath; the full list is in the
+// documentation.
+export function Notice({ vault }) {
   if (!vault.notice) return null;
   return (
     <p className={b.noticeLine}>
       <strong>Before you deposit:</strong> these contracts have no external
       audit yet, one team key can upgrade them, and Thesauros publishes the
       vault’s valuation itself.{" "}
-      <button
-        className={b.linkButton}
-        onClick={() => navigate("transparency", null, { section: "risks" })}
-      >
-        All risks
-      </button>
+      <a href={documentationHref("/security/risks/")}>All risks</a>
     </p>
   );
 }
@@ -564,7 +560,7 @@ export default function ActionPanel({ vault, user, batch, wallet, navigate, inte
             wallet={wallet}
           />
         )}
-        {action === "deposit" && vault.open.deposits && <Notice vault={vault} navigate={navigate} />}
+        {action === "deposit" && vault.open.deposits && <Notice vault={vault} />}
       </aside>
       <div className={b.actionBar}>
         {user?.walletAddress ? (

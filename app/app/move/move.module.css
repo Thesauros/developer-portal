@@ -4,9 +4,11 @@
 
 /* The strip at the top of every page of the app. */
 .notice {
-  --amber: #8a4b00;
-  --amber-wash: #fff5e4;
-  --amber-rule: rgba(138, 75, 0, 0.22);
+  --amber: #7a5200;
+  /* A clear yellow: the one warm surface on a page of white and blue, so a
+     holder of a previous vault cannot miss it. */
+  --amber-wash: #fff1b8;
+  --amber-rule: #e6c34a;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -16,7 +18,7 @@
   border: 1px solid var(--amber-rule);
   border-radius: 14px;
   background: var(--amber-wash);
-  color: #3a2300;
+  color: #3a2c00;
 }
 .notice p {
   margin: 0;
@@ -34,8 +36,8 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: rgba(138, 75, 0, 0.1);
-  color: var(--amber);
+  background: #f6cf4d;
+  color: #3a2c00;
 }
 .notice .noticeAction {
   display: inline-flex;
@@ -95,18 +97,22 @@
 .noticeQuiet {
   grid-template-columns: minmax(0, 1fr) auto auto;
   padding: 10px 10px 10px 16px;
-  border-color: var(--rule, rgba(11, 27, 43, 0.12));
-  background: var(--well, #f3f6fb);
-  color: var(--ink-2, #41535f);
+  /* The same yellow, a step lighter: it asks, it does not warn. */
+  border-color: #ecd47a;
+  background: #fff7d1;
+  color: #4a3a05;
 }
 .noticeQuiet strong {
-  color: var(--ink, #0b1b2b);
+  color: #2a1f00;
 }
 .notice.noticeQuiet .noticeAction {
   min-height: 34px;
   padding: 0 4px;
   background: none;
-  color: var(--blue-deep, #0f56db);
+  color: #2a1f00;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .notice.noticeQuiet .noticeAction:hover {
   background: none;
@@ -1365,4 +1371,12 @@
   .move > .partDone {
     margin: 16px 18px 0;
   }
+}
+
+/* On the yellow strip the close mark is ink, not grey. */
+.noticeQuiet .noticeClose {
+  color: #5a4810;
+}
+.noticeQuiet .noticeClose:hover {
+  background: rgba(58, 44, 0, 0.08);
 }
