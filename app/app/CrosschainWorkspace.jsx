@@ -70,8 +70,7 @@ export default function CrosschainWorkspace({
   const [pending, setPending] = useState(null),
     [recoveryHash, setRecoveryHash] = useState("");
   const [storageReady, setStorageReady] = useState(false);
-  const [requestIds, setRequestIds] = useState([]),
-    [manualId, setManualId] = useState("");
+  const [requestIds, setRequestIds] = useState([]);
   const key =
     "thesauros.crosschain." +
     crosschain.vault.toLowerCase() +
@@ -138,21 +137,6 @@ export default function CrosschainWorkspace({
     localStorage.setItem(key + ".requests", JSON.stringify(combined));
     setRequestIds(combined);
   }
-  async function trackManualRequest(event) {
-    event.preventDefault();
-    if (!/^(?:0|[1-9]\d{0,77})$/.test(manualId)) {
-      setMessage("Enter a valid unsigned request ID.");
-      return;
-    }
-    try {
-      await read("user?requests=" + manualId);
-      trackIds([manualId]);
-      setManualId("");
-    } catch (failure) {
-      setMessage(failure.message);
-    }
-  }
-
   function savePending(value) {
     // A storage failure must stop signing; otherwise a reload could duplicate a request.
     if (value) localStorage.setItem(key, JSON.stringify(value));
@@ -704,24 +688,11 @@ export default function CrosschainWorkspace({
       <section className={s.card}>
         <h3>Your epoch requests</h3>
         <p>
-          Requests are recovered from the local EpochVault event index and
-          verified on chain. You can also add a request ID from a receipt while
-          the index catches up.
+          Your deposit and withdrawal requests appear here automatically.
           {feed?.user?.coverage &&
             !feed.user.coverage.complete &&
-            " Event indexing is in progress; this list may be incomplete."}
+            " Recent requests may take a moment to appear."}
         </p>
-        <form onSubmit={trackManualRequest}>
-          <label>
-            Request ID
-            <input
-              value={manualId}
-              inputMode="numeric"
-              onChange={(event) => setManualId(event.target.value)}
-            />
-          </label>
-          <button disabled={!owner || !manualId || busy}>Track request</button>
-        </form>
         {!feed?.user ? (
           <p>Account requests are unavailable.</p>
         ) : !feed.user.requests?.length ? (
@@ -735,7 +706,6 @@ export default function CrosschainWorkspace({
             {feed.user.requests.map((request) => (
               <article className={s.network} key={request.id}>
                 <h4>
-                  #{request.id} ·{" "}
                   {request.kind === "deposit" ? "Deposit" : "Withdrawal"} ·
                   Epoch {request.epoch}
                 </h4>
