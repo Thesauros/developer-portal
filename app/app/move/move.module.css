@@ -1380,3 +1380,29 @@
 .noticeQuiet .noticeClose:hover {
   background: rgba(58, 44, 0, 0.08);
 }
+
+/* What the new vault does, on the dark card: short lines, one blue mark each. */
+.gains {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 2px;
+  padding: 0;
+  list-style: none;
+}
+.gains li {
+  position: relative;
+  padding-left: 18px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.gains li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6ea3ff;
+}

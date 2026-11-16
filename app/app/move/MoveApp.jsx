@@ -1058,23 +1058,17 @@ function WithdrawOnly({ vault, account, owner }) {
   );
 }
 
-// What the holder is choosing between, side by side: where the money is now
-// and where it would go. No figure is left out because it is unflattering.
+// What the holder is moving into, and beside it what they have now: what the
+// new vault does, in a few lines. Its terms and limits are on its own page.
 function Destination({ book, from, onOpen }) {
   const vault = book.vault;
-  const closing = batchClosing(vault);
   const hours = batchHours(vault);
   const every = hours ? `every ${hours.min} to ${hours.max} hours` : "every few hours";
+  const networks = vault.networks.join(" and ");
   const rows = [
     ["Rate now", from ? pct(from.rateNow) : null, pct(vault.rateNow)],
-    ["Lends on", from?.place, vault.networks.join(" and ")],
-    ["Code review", from?.audit?.label, vault.audit.label],
+    ["Lends on", from?.place, networks],
     ["Getting out", from ? "One transaction" : null, `In batches, ${every}`],
-    [
-      "New deposits",
-      from ? "Closed" : null,
-      vault.batchLimit != null ? `Up to ${money(vault.batchLimit, 0)} USDC per batch` : "Open",
-    ],
   ];
   return (
     <aside className={m.destination} aria-label="The previous vault and the new one">
@@ -1116,17 +1110,18 @@ function Destination({ book, from, onOpen }) {
           ))}
         </dl>
       )}
-      <p className={m.destinationNote}>
-        {from
-          ? "Your money keeps earning in the previous vault until you move it. When and how much is your choice."
-          : closing && !closing.late
-            ? closing.text
-            : ""}
-      </p>
-      <p className={m.destinationNote}>
-        The new vault’s contracts are younger: one team key can upgrade them,
-        and Thesauros publishes the vault’s valuation itself.
-      </p>
+      <ul className={m.gains}>
+        <li>One deposit works on {networks} at once.</li>
+        <li>Thesauros moves the money between lending markets as rates change.</li>
+        <li>No fee is charged today.</li>
+        <li>Every move is on chain and shown in Transparency.</li>
+      </ul>
+      {from && (
+        <p className={m.destinationNote}>
+          Your money keeps earning in the previous vault until you move it.
+          When and how much is your choice.
+        </p>
+      )}
       <button className={m.textLink} onClick={() => onOpen("earn")}>
         Everything about the new vault
       </button>
