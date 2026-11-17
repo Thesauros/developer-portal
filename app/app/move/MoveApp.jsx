@@ -641,8 +641,7 @@ function Move({ product, model, vault, eth, batch }) {
                   </li>
                   <li>
                     <strong>Check the fee before you confirm,</strong> and send
-                    a small amount first if this is new to you. Routes over
-                    Circle’s CCTP usually cost the least.
+                    a small amount first if this is new to you.
                   </li>
                 </ol>
                 <div className={m.bridge}>
