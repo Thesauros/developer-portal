@@ -7,14 +7,31 @@ export async function checkApplication(
   const options = () => ({
     headers: { Host: "app-v2-dev.thesauros.io", "X-Forwarded-Proto": "https" },
     signal: AbortSignal.timeout(5000),
+    redirect: "error",
+    cache: "no-store",
   });
-  const page = await fetcher(local + entry, options());
+  let page = await fetcher(local + entry, {
+    ...options(),
+    redirect: "manual",
+  });
+  let guest = false;
+  if (!legacy && [307, 308].includes(page.status)) {
+    if (page.headers.get("Location") !== "/app/individual")
+      throw new Error("Unexpected application entry redirect");
+    page = await fetcher(local + "/app/individual", options());
+    guest = true;
+  }
   if (page.status !== 200) throw new Error("Sign-in page is not healthy");
   const html = await page.text();
   if (
     !html.includes("Sign in with your wallet") &&
     !html.includes("Your wallet.") &&
-    !(legacy && html.includes("Welcome back."))
+    !(legacy && html.includes("Welcome back.")) &&
+    !(
+      guest &&
+      /<title>Thesauros · Earn<\/title>/.test(html) &&
+      html.includes("Opening your workspace")
+    )
   )
     throw new Error("Sign-in page content is missing");
   const asset = html.match(/src="([^" ]*\/_next\/static\/[^" ]+\.js)"/);

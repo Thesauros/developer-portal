@@ -8,7 +8,7 @@ const keys = createRemoteJWKSet(new URL(issuer + "/.well-known/jwks"), {
 const repository = "Thesauros/developer-portal";
 const repositoryId = "1330248577";
 const ownerId = "222436395";
-const ref = "refs/heads/v2";
+const ref = "refs/heads/migration";
 
 export function deploymentClaims(payload) {
   const subjects = [
@@ -32,7 +32,11 @@ export function deploymentClaims(payload) {
   ) {
     throw new Error("This workflow is not authorized to deploy");
   }
-  return { id: payload.run_id + "-" + payload.run_attempt, sha: payload.sha };
+  return {
+    id: payload.run_id + "-" + payload.run_attempt,
+    sha: payload.sha,
+    branch: "migration",
+  };
 }
 
 export async function verifyDeploymentToken(token, keySet = keys) {

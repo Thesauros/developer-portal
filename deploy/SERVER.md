@@ -1,108 +1,123 @@
 # app-v2-dev.thesauros.io deployment
 
-Every push to `v2` runs the `Account app` workflow. After its tests and build
-succeed, `Deploy app-v2-dev` deploys that commit to
-<https://app-v2-dev.thesauros.io/app/>. Other branches and pull requests do not
-deploy. The workflow can also be run manually with `v2` selected.
+A push to `migration` runs the `Account app` workflow. After tests, the production
+build, route checks and deployment tests pass, `Deploy app-v2-dev` requests the
+same commit on <https://app-v2-dev.thesauros.io/app/>. Pull requests and other
+branches never deploy. Manual dispatch is allowed only with `migration` selected.
 
-## Authentication
+## Authentication and transport
 
-The deployment job uses a short-lived GitHub OIDC token. No SSH private key,
-database secret or deployment password is stored in GitHub Actions.
+The deploy job alone receives `id-token: write`. It obtains a short-lived GitHub
+OIDC token; GitHub stores no application secrets or deployment password. The
+server verifies GitHub's RS256 signature, issuer, audience, token age and validity,
+immutable repository/owner IDs, exact repository, `refs/heads/migration`, exact
+`web.yml` workflow at the same SHA, push/dispatch event and GitHub-hosted runner.
+Forks, PRs, tags, `v2`, other branches and other workflows are rejected.
 
-The server validates GitHub's signature, expiration and audience, then checks
-the repository and owner IDs, `refs/heads/v2`, the exact `web.yml` workflow,
-commit, event and GitHub-hosted runner. Requests from forks, pull requests,
-other branches and other workflows are rejected. Both GitHub subject formats
-are supported; immutable repository and owner IDs are always checked.
-
-The endpoint is `POST /__deploy/v2`; authenticated `GET` requests report that
-workflow run's status. A repeated request cannot redeploy the same run. OIDC
-tokens and private application settings are not written to deployment logs.
+`POST /__deploy/v2` starts a run; authenticated `GET` reports that run's state.
+The existing endpoint name identifies the app-v2-dev transport, not permission
+to deploy the obsolete Git branch `v2`. Keep this path and OIDC audience together;
+no nginx change is needed. Responses bind both branch and SHA. Repeated requests
+for the same run/attempt cannot start another release. Failed runs can be retried
+with a new GitHub workflow attempt. Tokens and private runtime values are never
+returned in status responses or written to logs.
 
 ## Release process
 
-1. Fetch `v2` and confirm that the requested commit is still its latest commit.
-2. Extract that commit into a new directory with its own dependencies.
-3. Install dependencies, initialize an isolated build database and build Next.js.
-4. Check again for a newer push; superseded builds skip activation.
-5. Create a consistent SQLite backup, then run the account schema initializer.
-6. Start a candidate on `127.0.0.1:18881` and check the sign-in page, JavaScript,
-   session endpoint and unauthenticated workspace protection.
-7. Switch only the portal's PM2 process, verify it again and save the process
-   list. A failed activation restores and checks the previous application.
+Both automated and manual releases use `release-migration.mjs`. The HTTP service
+runs it with Node 24 under a 20-minute process timeout, without an outer `flock`.
+The runner itself exclusively holds `/var/lib/thesauros-portal-v2/deploy.lock`.
 
-The running checkout and its dependencies are not modified during the build.
-Deployments are serialized by GitHub concurrency and a server-side file lock.
-The five newest release directories and the previous active release are kept.
-The initial checkout is never pruned. Logs and database backups are retained.
+1. Verify the allowed repository and exact remote `migration` head; fetch that
+   ref into the source cache and verify the immutable commit again.
+2. Extract the commit into a new release. Preserve runtime settings, accounts
+   and history outside releases; use isolated account/history databases to build.
+3. Install dependencies, initialize the isolated schema and build Next.js. An
+   ordinary build error fails. Only exit 1 with the exact fresh security/build
+   receipt emitted by Next during this attempt permits one identical retry in
+   the same directory. The advisory remains visible; no bypass flag or dependency
+   change is applied. A failed retry also fails the release.
+4. Recheck the remote head after build and immediately before activation. A
+   moved branch fails closed; it cannot activate a stale candidate.
+5. Back up accounts consistently with SQLite's backup API, then initialize the
+   additive schema. Validate the contract identity of the persistent history.
+6. Check a candidate on `127.0.0.1:18881`: wallet entry or the public Earn shell,
+   expected entry redirect, served JavaScript, null guest session, protected
+   account API, and `/api/version` with the exact branch/SHA.
+7. Switch PM2 `developer-portal-v2` on port 18880; verify localhost and the real
+   HTTPS domain. Start exactly one dedicated migration history worker from the
+   same release, and require a fresh successful cursor update.
+8. Save PM2 and `current.json` only after web and worker health pass. On failure,
+   restore the previous web release and dedicated worker/state. Preserve every
+   older release, all indexed history and newer account writes.
 
-Database migrations must remain compatible with the previous application.
-Rollback restores the application, not the database: automatically restoring
-a snapshot would discard account writes made after that snapshot. SQLite
-backups are available for an operator-controlled database recovery.
+Complete history backfill is not required for activation; incomplete coverage
+remains explicit in the API. The other cross-chain site's indexer, Docker ops,
+allocator, governance timers and `/var/lib/xc-watchdog/run.lock` are untouched.
+The source checkout and its dependencies are not changed by deployment. Account
+schema changes must remain compatible with the preceding application; rollback
+never restores a database snapshot over newer writes.
 
 ## Server locations
 
-| Item                          | Location                                             |
-| ----------------------------- | ---------------------------------------------------- |
-| Git checkout                  | `/root/developer-portal-v2`                          |
-| Runtime settings              | `/var/lib/thesauros-portal-v2/runtime.env` (0600)    |
-| Accounts                      | `/var/lib/thesauros-portal-v2/accounts.sqlite`       |
-| Releases                      | `/var/lib/thesauros-portal-v2/releases/`             |
-| Active commit and directory   | `/var/lib/thesauros-portal-v2/current.json`          |
-| PM2 application configuration | `/var/lib/thesauros-portal-v2/pm2-current.json`      |
-| Database backups              | `/var/lib/thesauros-portal-v2/backups/`              |
-| Per-run status and logs       | `/var/lib/thesauros-portal-v2/deployments/`          |
-| Installed deployment service  | `/opt/thesauros-portal-deploy/`                      |
-| Public-source cache           | `/root/private-state/live-cache`                     |
-| Nginx configuration           | `/etc/nginx/sites-available/app-v2-dev.thesauros.io` |
+| Item                              | Location                                             |
+| --------------------------------- | ---------------------------------------------------- |
+| Source cache (fetch/archive only) | `/root/developer-portal-v2`                          |
+| Private runtime settings          | `/var/lib/thesauros-portal-v2/runtime.env` (0600)    |
+| Accounts                          | `/var/lib/thesauros-portal-v2/accounts.sqlite`       |
+| Cross-chain event history         | `/var/lib/thesauros-portal-v2/history.sqlite`        |
+| Immutable releases                | `/var/lib/thesauros-portal-v2/releases/`             |
+| Active branch, SHA and directory  | `/var/lib/thesauros-portal-v2/current.json`          |
+| Per-run status and logs           | `/var/lib/thesauros-portal-v2/deployments/`          |
+| Database backups                  | `/var/lib/thesauros-portal-v2/backups/`              |
+| Installed deployment service      | `/opt/thesauros-portal-deploy/`                      |
+| Nginx configuration               | `/etc/nginx/sites-available/app-v2-dev.thesauros.io` |
 
-The app uses the built-in developer sandbox and persistent local SQLite.
-Individual uses wallet sign-in; Institution shows Coming soon. External Partner API credentials are not
-configured. Private settings and account data are outside Git and all releases.
-The original checkout's `.env.local` belongs to the initial manual deployment;
-automated releases use `runtime.env` instead.
+Node is pinned to `/opt/node-v24.21.0-linux-x64/bin/node`. The deployment service
+listens only on `127.0.0.1:18882`. PM2 web process `developer-portal-v2` listens on
+`127.0.0.1:18880`; `developer-portal-migration-indexer` uses the same release and
+history database. Existing systemd, PM2 startup and TLS renewal remain in place.
 
-Node.js is pinned to `/opt/node-v24.21.0-linux-x64/bin/node`. PM2 process
-`developer-portal-v2` listens on `127.0.0.1:18880`. The separate deployment
-service listens on `127.0.0.1:18882`. Both are configured to start on boot.
-TLS renewal is provided by `certbot.timer`.
+## Updating the installed automation
+
+Repository pushes do not update the trusted deployment service itself. After
+review and tests, and after confirming no deployment is running, back up the
+installed automation and install **all five** runtime modules together:
 
 ```bash
-pm2 status developer-portal-v2
-pm2 logs developer-portal-v2 --lines 50
-pm2 restart /var/lib/thesauros-portal-v2/pm2-current.json --only developer-portal-v2 --update-env
-pm2 save
-systemctl status thesauros-portal-deploy
-journalctl -u thesauros-portal-deploy --since today
+install -m 0644 deploy/automation/{server,oidc,release,release-migration,health}.mjs /opt/thesauros-portal-deploy/
+install -m 0644 deploy/automation/{package.json,package-lock.json} /opt/thesauros-portal-deploy/
+cd /opt/thesauros-portal-deploy
+/opt/node-v24.21.0-linux-x64/bin/node /opt/node-v24.21.0-linux-x64/lib/node_modules/npm/bin/npm-cli.js ci --omit=dev --ignore-scripts
+systemctl restart thesauros-portal-deploy
+curl --fail http://127.0.0.1:18882/health
 ```
 
-The service's reviewed implementation is versioned in `deploy/automation/`.
-To update the deployment service itself, install its `.mjs` files and package
-files into `/opt/thesauros-portal-deploy`, run `npm ci --omit=dev --ignore-scripts`
-there with Node.js 24, and restart the service after any active deployment has
-finished. Application pushes do not replace the running deployment service.
+The root-only service needs existing repository read access, the pinned Node/PM2,
+production runtime/SQLite paths and permissions to manage only the portal's
+managed processes. No new service environment variables, OIDC client secret,
+nginx endpoint, public DNS or GitHub secret is required. Its environment contains
+only PATH, NODE_ENV and NEXT_TELEMETRY_DISABLED; private application settings are
+read by the release runner from the existing runtime file.
 
-Nginx must pass paths to Next unchanged, including `/app/*`, `/api/*`,
-`/_next/*` and `/brand/*`. Next owns the native routes and legacy redirects.
-The root redirects to `/app`; documentation and contact links use their public sites.
-The dev host sends `X-Robots-Tag: noindex, nofollow`.
+Before committing, run deployment tests with Node 24:
 
-## Migrating from the prefixed deployment
+```bash
+node --test deploy/automation/*.test.mjs test/deploy-migration.mjs
+```
 
-Before activating the native-route release, replace the old nginx path mapping
-with pass-through routing (see `deploy/nginx-local.conf`; retain the server
-name, TLS and deployment-service location in the real vhost). Check `nginx -t`.
-Update the installed deployment `.mjs` files together, including `health.mjs`,
-and restart that service after any active deployment finishes. Updating the
-repository alone does not update `/opt/thesauros-portal-deploy/`.
+After a successful Git workflow compare `git ls-remote --heads origin
+refs/heads/migration`, public `/api/version`, and `current.json`; branch and full
+SHA must match. Confirm both PM2 processes use the recorded release and verify
+`/app/individual` and its current assets through the real domain. The public
+endpoint exposes only `{branch, sha}` with `Cache-Control: no-store`.
 
-The new application exposes `/app/individual` itself. An old proxy mapping to
-`/developers/customer/individual` would trigger a loop through the legacy
-redirect. Update the proxy and release together; keep the previous nginx
-configuration available if rolling back the application.
+Manual deployment remains available from a reviewed checkout:
 
-The updated health checker recognizes native wallet pages and can still verify
-a previous release using `/developers/customer`, with either the former email
-entry or wallet entry. No authentication database migration is introduced here.
+```bash
+/opt/node-v24.21.0-linux-x64/bin/node deploy/automation/release-migration.mjs FULL_COMMIT_SHA
+```
+
+Do not wrap this command in another `flock` for the same lock. See
+[MIGRATION-DEPLOYMENT.md](../docs/MIGRATION-DEPLOYMENT.md) for history coverage,
+contract identity and backup details.

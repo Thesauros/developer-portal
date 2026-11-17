@@ -1,8 +1,8 @@
-// Manual release for the explicitly authorized migration branch and domain.
-// This does not change GitHub OIDC policy or the installed deployment service.
+// Shared manual/OIDC release for the authorized migration branch and domain.
 import { checkApplication } from "./health.mjs";
 import { activateRelease, processConfig } from "./release.mjs";
 import { spawn, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   openSync,
   closeSync,
@@ -17,6 +17,7 @@ import {
   chmodSync,
   realpathSync,
   linkSync,
+  lstatSync,
 } from "node:fs";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -83,12 +84,63 @@ function run(command, args, options = {}) {
       ...options,
     });
     child.once("error", reject);
-    child.once("exit", (code) =>
-      code === 0
-        ? resolve()
-        : reject(new Error(`${command} exited with ${code}`)),
-    );
+    child.once("exit", (code) => {
+      if (code === 0) return resolve();
+      const error = new Error(`${command} exited with ${code}`);
+      error.exitCode = code;
+      reject(error);
+    });
   });
+}
+
+export function hasFreshBuildNudge(release, startedAt, now = Date.now()) {
+  try {
+    const { version } = JSON.parse(
+      readFileSync(join(release, "node_modules/next/package.json"), "utf8"),
+    );
+    if (typeof version !== "string") return false;
+    const identity = createHash("sha256")
+      .update(`${realpathSync(release)}\0${version}\0build\0security`)
+      .digest("hex");
+    const receipt = join(
+      release,
+      ".next/cache/next-agentic-upgrade-retries",
+      identity + ".json",
+    );
+    if (!lstatSync(receipt).isFile()) return false;
+    const { issuedAt } = JSON.parse(readFileSync(receipt, "utf8"));
+    return (
+      Number.isFinite(issuedAt) &&
+      issuedAt >= startedAt &&
+      issuedAt <= now &&
+      now - issuedAt < 240_000
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function buildMigration(
+  release,
+  options,
+  execute = run,
+  now = Date.now,
+) {
+  const args = ["--kill-after=15s", "15m", node, npm, "run", "build"];
+  const startedAt = now();
+  try {
+    await execute("/usr/bin/timeout", args, options);
+  } catch (error) {
+    // Next's security advisory issues a short-lived, cwd/version-specific
+    // receipt for one supported identical retry. Ordinary build errors, old
+    // receipts, other commands/versions and timeouts must never trigger it.
+    if (error.exitCode !== 1 || !hasFreshBuildNudge(release, startedAt, now()))
+      throw error;
+    console.warn(
+      "Next security advisory recorded; retrying this identical build once.",
+    );
+    await execute("/usr/bin/timeout", args, options);
+  }
 }
 
 function git(args) {
@@ -501,11 +553,7 @@ async function deployLocked(sha) {
     buildOptions,
   );
   await run(node, ["scripts/init-auth.mjs"], buildOptions);
-  await run(
-    "/usr/bin/timeout",
-    ["--kill-after=15s", "15m", node, npm, "run", "build"],
-    buildOptions,
-  );
+  await buildMigration(release, buildOptions);
   assertRemoteCommit(sha);
   const buildId = readFileSync(join(release, ".next/BUILD_ID"), "utf8").trim();
   if (!buildId) throw new Error("The production build has no build ID");

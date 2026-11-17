@@ -278,3 +278,107 @@ test("history failure rolls web back and restores the previous worker or its abs
     ]);
   }
 });
+
+test("a security build receipt allows one identical retry and nothing broader", async () => {
+  const { buildMigration } =
+    await import("../deploy/automation/release-migration.mjs");
+  const { mkdirSync } = await import("node:fs");
+  const { createHash } = await import("node:crypto");
+  const dir = mkdtempSync(join(tmpdir(), "migration-nudge-"));
+  const clock = 1_800_000_000_000;
+  mkdirSync(join(dir, "node_modules/next"), { recursive: true });
+  writeFileSync(
+    join(dir, "node_modules/next/package.json"),
+    JSON.stringify({ version: "16.4.3" }),
+  );
+  const receipts = join(dir, ".next/cache/next-agentic-upgrade-retries");
+  mkdirSync(receipts, { recursive: true });
+  const id = (
+    cwd = dir,
+    version = "16.4.3",
+    command = "build",
+    kind = "security",
+  ) =>
+    createHash("sha256")
+      .update(`${cwd}\0${version}\0${command}\0${kind}`)
+      .digest("hex");
+  const options = { cwd: dir, env: { EXAMPLE: "same build settings" } };
+  const failure = Object.assign(new Error("build failed"), { exitCode: 1 });
+  try {
+    let calls = 0;
+    await buildMigration(
+      dir,
+      options,
+      async () => {
+        calls++;
+      },
+      () => clock,
+    );
+    assert.equal(calls, 1);
+    for (const scenario of [
+      "valid",
+      "missing",
+      "foreign",
+      "version",
+      "command",
+      "kind",
+      "malformed",
+      "future",
+      "expired",
+      "old",
+      "timeout",
+      "second failure",
+    ]) {
+      rmSync(receipts, { recursive: true, force: true });
+      mkdirSync(receipts);
+      const seen = [];
+      const execute = async (...args) => {
+        seen.push(args);
+        if (seen.length === 1) {
+          let filename = id();
+          if (scenario === "foreign") filename = id(dir + "other");
+          if (scenario === "version") filename = id(dir, "16.4.4");
+          if (scenario === "command") filename = id(dir, "16.4.3", "dev");
+          if (scenario === "kind")
+            filename = id(dir, "16.4.3", "build", "latest");
+          const issuedAt =
+            scenario === "future"
+              ? clock + 100
+              : scenario === "expired"
+                ? clock - 300_000
+                : scenario === "old"
+                  ? clock - 1
+                  : clock;
+          if (scenario !== "missing")
+            writeFileSync(
+              join(receipts, filename + ".json"),
+              scenario === "malformed"
+                ? "invalid"
+                : JSON.stringify({ issuedAt }),
+            );
+          throw scenario === "timeout"
+            ? Object.assign(new Error("timeout"), { exitCode: 124 })
+            : failure;
+        }
+        if (scenario === "second failure") throw failure;
+      };
+      if (scenario === "valid")
+        await buildMigration(dir, options, execute, () => clock);
+      else
+        await assert.rejects(
+          buildMigration(dir, options, execute, () => clock),
+        );
+      assert.equal(
+        seen.length,
+        ["valid", "second failure"].includes(scenario) ? 2 : 1,
+        scenario,
+      );
+      if (seen.length === 2) {
+        assert.deepEqual(seen[0], seen[1]);
+        assert.equal(seen[0][2], options);
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

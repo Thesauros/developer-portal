@@ -34,10 +34,10 @@ jobs:
           npm ci --prefix deploy/automation --ignore-scripts
           npm test --prefix deploy/automation
 
-  deploy-v2:
+  deploy-migration:
     name: Deploy app-v2-dev
     needs: build
-    if: github.ref == 'refs/heads/v2' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/migration' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:

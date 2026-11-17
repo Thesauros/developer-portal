@@ -12,11 +12,11 @@ const claims = {
   repository: "Thesauros/developer-portal",
   repository_id: "1330248577",
   repository_owner_id: "222436395",
-  ref: "refs/heads/v2",
+  ref: "refs/heads/migration",
   ref_type: "branch",
-  sub: "repo:Thesauros@222436395/developer-portal@1330248577:ref:refs/heads/v2",
+  sub: "repo:Thesauros@222436395/developer-portal@1330248577:ref:refs/heads/migration",
   workflow_ref:
-    "Thesauros/developer-portal/.github/workflows/web.yml@refs/heads/v2",
+    "Thesauros/developer-portal/.github/workflows/web.yml@refs/heads/migration",
   sha: "a".repeat(40),
   workflow_sha: "a".repeat(40),
   event_name: "push",
@@ -40,16 +40,17 @@ async function token(overrides = {}, signingKey = privateKey) {
     .sign(signingKey);
 }
 
-test("accepts a signed v2 deployment, including GitHub immutable subjects", async () => {
+test("accepts a signed migration deployment, including GitHub immutable subjects", async () => {
   assert.deepEqual(await verifyDeploymentToken(await token(), publicKey), {
     id: "123456-1",
     sha: "a".repeat(40),
+    branch: "migration",
   });
   assert.doesNotThrow(() =>
     deploymentClaims({
       ...claims,
       event_name: "workflow_dispatch",
-      sub: "repo:Thesauros/developer-portal:ref:refs/heads/v2",
+      sub: "repo:Thesauros/developer-portal:ref:refs/heads/migration",
     }),
   );
 });
@@ -75,13 +76,16 @@ test("rejects forks, renamed repositories, other branches, PRs and other workflo
     { repository_id: "2" },
     { repository_owner_id: "3" },
     { ref: "refs/heads/master" },
+    { ref: "refs/heads/v2" },
+    { ref: "refs/heads/dev" },
+    { ref: "refs/tags/migration" },
     { ref_type: "tag" },
     { event_name: "pull_request" },
     { event_name: "pull_request_target" },
     { event_name: "dynamic" },
     {
       workflow_ref:
-        "Thesauros/developer-portal/.github/workflows/security.yml@refs/heads/v2",
+        "Thesauros/developer-portal/.github/workflows/security.yml@refs/heads/migration",
     },
     { workflow_sha: "b".repeat(40) },
     { runner_environment: "self-hosted" },

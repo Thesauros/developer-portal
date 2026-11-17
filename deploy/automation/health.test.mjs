@@ -23,6 +23,52 @@ test("checks the wallet interface on native routes", async () => {
 test("can verify the previous prefixed email release during rollback", async () => {
   await checkApplication(origin, { legacy: true, fetcher: fixture(true) });
 });
+test("checks the public Earn shell after the exact individual redirect", async () => {
+  await checkApplication(origin, {
+    fetcher: fixture(false, {
+      "/app": new Response(null, {
+        status: 307,
+        headers: { Location: "/app/individual" },
+      }),
+      "/app/individual": new Response(
+        '<title>Thesauros · Earn</title>Opening your workspace<script src="/_next/static/test.js"></script>',
+      ),
+    }),
+  });
+});
+test("public entry rejects unrelated redirects and incomplete guest shells", async () => {
+  for (const location of [
+    "https://other.invalid/app/individual",
+    "/app/institution",
+    "/login",
+  ])
+    await assert.rejects(
+      checkApplication(origin, {
+        fetcher: fixture(false, {
+          "/app": new Response(null, {
+            status: 307,
+            headers: { Location: location },
+          }),
+        }),
+      }),
+      /Unexpected application entry redirect/,
+    );
+  for (const html of [
+    "<title>Thesauros · Earn</title>",
+    'Opening your workspace<script src="/_next/static/test.js"></script>',
+  ])
+    await assert.rejects(
+      checkApplication(origin, {
+        fetcher: fixture(false, {
+          "/app": new Response(null, {
+            status: 307,
+            headers: { Location: "/app/individual" },
+          }),
+          "/app/individual": new Response(html),
+        }),
+      }),
+    );
+});
 test("rejects a missing native route, broken assets and an unprotected ledger", async () => {
   for (const overrides of [
     { "/app": new Response("", { status: 404 }) },

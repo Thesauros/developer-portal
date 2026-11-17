@@ -3,6 +3,12 @@ import { appendFileSync } from "node:fs";
 
 const endpoint = "https://app-v2-dev.thesauros.io/__deploy/v2";
 const deadline = Date.now() + 22 * 60_000;
+if (
+  process.env.GITHUB_REF !== "refs/heads/migration" ||
+  !["push", "workflow_dispatch"].includes(process.env.GITHUB_EVENT_NAME) ||
+  !/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA || "")
+)
+  throw new Error("Only the migration branch can request this deployment");
 
 async function request(method) {
   const url = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
@@ -13,6 +19,7 @@ async function request(method) {
       Authorization: "Bearer " + process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
     },
     signal: AbortSignal.timeout(30_000),
+    redirect: "error",
   });
   if (!tokenResponse.ok)
     throw new Error("GitHub OIDC request failed: HTTP " + tokenResponse.status);
@@ -23,12 +30,13 @@ async function request(method) {
     method,
     headers: { Authorization: "Bearer " + token },
     signal: AbortSignal.timeout(30_000),
+    redirect: "error",
   });
   const result = await response.json();
   if (response.status === 409) return { status: "busy" };
   if (!response.ok)
     throw new Error("Deployment request failed: HTTP " + response.status);
-  if (result.sha !== process.env.GITHUB_SHA)
+  if (result.sha !== process.env.GITHUB_SHA || result.branch !== "migration")
     throw new Error("Deployment commit does not match this workflow");
   return result;
 }
@@ -45,7 +53,7 @@ while (Date.now() < deadline) {
     const summary =
       result.status === "succeeded"
         ? `Deployed ${result.sha} to https://app-v2-dev.thesauros.io/app/`
-        : `Skipped ${result.sha}: a newer commit is already on v2.`;
+        : `Skipped ${result.sha}: a newer commit is already on migration.`;
     console.log(summary);
     if (process.env.GITHUB_STEP_SUMMARY)
       appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n");
