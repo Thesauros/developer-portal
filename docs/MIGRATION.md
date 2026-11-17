@@ -86,10 +86,13 @@ deposit receipt. Ordinary new-vault actions remain available independently of
 legacy balances, with shared pending-operation and wallet-lock protection.
 
 Every signing request has a persisted reserved nonce and runs under a wallet-wide
-Web Lock. A reload during signing can retry exactly the same operation with that
-nonce, after fresh checks. Confirmed same-nonce replacements/cancellations can be
-recovered by hash. Unknown results never trigger a new nonce automatically.
-Modern Web Locks support and durable browser storage are required to sign safely.
+lock (`lib/wallet-lock.mjs`): a Web Lock where the browser offers one, and a
+renewed lease in browser storage where it does not (Web Locks exist only on a
+secure origin, so a preview served over plain HTTP uses the lease). A reload
+during signing can retry exactly the same operation with that nonce, after fresh
+checks. Confirmed same-nonce replacements/cancellations can be recovered by
+hash. Unknown results never trigger a new nonce automatically. Durable browser
+storage is required to sign safely.
 Clearing browser storage or moving to another browser does not preserve local
 signing intents; retain explorer links. No funds are stored by the app.
 

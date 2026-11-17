@@ -22,6 +22,11 @@ import {
 import { migrationKey, parseMigration } from "../../../lib/migration-state.mjs";
 import { retryMigrationIntent } from "../../../lib/migration-retry.mjs";
 import { migrationDestination } from "../../../lib/migration-destination.mjs";
+import {
+  LOCK_BUSY,
+  LOCK_UNAVAILABLE,
+  underWalletLock as lockWallet,
+} from "../../../lib/wallet-lock.mjs";
 // The network deposits and withdrawals of the batch vault are signed on.
 const HUB = (
   crosschain.networks.find((network) => network.role === "hub") ||
@@ -158,23 +163,20 @@ export default function useBatchVault(user, enabled = true, migration = null) {
   // One wallet signs one thing at a time, across tabs and across the move from
   // a previous vault.
   async function underWalletLock(task) {
-    if (!owner || !navigator.locks) {
-      setMessage(
-        "Use a current browser to sign transactions safely: this one cannot lock the wallet across tabs.",
-      );
+    if (!owner) {
+      setMessage("Connect the wallet you used to sign in.");
       return false;
     }
-    return navigator.locks.request(
-      migrationKey(owner),
-      { ifAvailable: true },
-      async (lock) => {
-        if (!lock) {
-          setMessage("Another tab is preparing a transaction for this wallet.");
-          return false;
-        }
-        return task();
-      },
-    );
+    const result = await lockWallet(migrationKey(owner), task);
+    if (result === LOCK_BUSY) {
+      setMessage("Another tab is preparing a transaction for this wallet.");
+      return false;
+    }
+    if (result === LOCK_UNAVAILABLE) {
+      setMessage("Allow browser storage before submitting a transaction.");
+      return false;
+    }
+    return result;
   }
   function moveHasUnresolved() {
     const saved = parseMigration(

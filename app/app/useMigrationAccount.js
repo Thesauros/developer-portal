@@ -23,6 +23,7 @@ import {
 } from "../../lib/migration-legacy.mjs";
 import { confirmMigrationOperation } from "../../lib/migration-receipts.mjs";
 import { retryMigrationIntent } from "../../lib/migration-retry.mjs";
+import { LOCK_UNAVAILABLE, underWalletLock } from "../../lib/wallet-lock.mjs";
 import {
   MIGRATION_VAULT_IDS,
   migrationKey,
@@ -282,15 +283,9 @@ export default function useMigrationAccount(destination, { kept = {} } = {}) {
         }
       }
     };
-    if (navigator.locks)
-      await navigator.locks.request(key, { ifAvailable: true }, (lock) =>
-        lock ? run() : undefined,
-      );
-    else {
-      setStorageError(
-        "Safe signing requires a browser with Web Locks support. Open the app in an up-to-date Chrome, Safari or Firefox browser.",
-      );
-    }
+    // Another tab at work on this wallet: nothing to do here until it is done.
+    if ((await underWalletLock(key, run)) === LOCK_UNAVAILABLE)
+      setStorageError("Allow browser storage before signing a transaction.");
   }
 
   async function settle(vault, pending, hash) {
