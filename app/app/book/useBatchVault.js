@@ -140,20 +140,6 @@ export default function useBatchVault(user, enabled = true, migration = null) {
     localStorage.setItem(key + ".requests", JSON.stringify(combined));
     setRequestIds(combined);
   }
-  async function trackManualRequest(id) {
-    if (!/^(?:0|[1-9]\d{0,77})$/.test(id)) {
-      setMessage("Enter a valid unsigned request ID.");
-      return false;
-    }
-    try {
-      await read("user?requests=" + id);
-      trackIds([id]);
-      return true;
-    } catch (failure) {
-      setMessage(failure.message);
-      return false;
-    }
-  }
   function savePending(value) {
     // A storage failure must stop signing; otherwise a reload could duplicate a request.
     if (value) localStorage.setItem(key, JSON.stringify(value));
@@ -546,7 +532,6 @@ export default function useBatchVault(user, enabled = true, migration = null) {
     retrySaved: Number.isSafeInteger(pending?.nonce) ? retrySaved : null,
     migrationBlocked,
     refresh,
-    trackManualRequest,
     clearMessage: () => {
       setMessage("");
       setSucceeded(false);
