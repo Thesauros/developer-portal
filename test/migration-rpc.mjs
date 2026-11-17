@@ -11,6 +11,7 @@ import {
   validateMigrationRpc,
 } from "../lib/migration-rpc.mjs";
 import {
+  patientTransport,
   privateRpcTransport,
   privateRpcUrls,
   vaultRpcUrls,
@@ -544,4 +545,55 @@ test("direct server private transport scrubs both nested errors and transport me
     assert.equal(error.cause, undefined);
     return true;
   });
+});
+
+test("a rationed public endpoint is asked again after a pause, and no other failure is", async () => {
+  const chain = vaults.find((vault) => vault.id === "monad").chain;
+  const answer = (id) => Response.json({ jsonrpc: "2.0", id, result: "0x8f" });
+  const refusal = () => new Response("Rate limit exceeded", { status: 429 });
+  const run = async (responses) => {
+    const pauses = [];
+    let asked = 0;
+    const transport = patientTransport(
+      "https://rpc.monad.example",
+      {
+        retryCount: 0,
+        fetchFn: async (_, init) =>
+          responses[asked++](JSON.parse(init.body).id),
+      },
+      { sleep: async (ms) => pauses.push(ms) },
+    );
+    const client = transport({ chain, retryCount: 0 });
+    let result, failure;
+    try {
+      result = await client.request({ method: "eth_chainId" });
+    } catch (error) {
+      failure = error;
+    }
+    return { result, failure, asked, pauses };
+  };
+  // Refused twice, then answered: the read succeeds after both pauses.
+  let outcome = await run([refusal, refusal, answer]);
+  assert.equal(outcome.result, "0x8f");
+  assert.deepEqual(outcome.pauses, [400, 900]);
+  // Still refused after the last pause: the refusal reaches the caller, so the
+  // next endpoint is tried.
+  outcome = await run([refusal, refusal, refusal, answer]);
+  assert.equal(outcome.failure.status, 429);
+  assert.equal(outcome.asked, 3);
+  // An endpoint that is down is not waited on.
+  outcome = await run([() => new Response("down", { status: 503 }), answer]);
+  assert.equal(outcome.failure.status, 503);
+  assert.equal(outcome.asked, 1);
+  assert.deepEqual(outcome.pauses, []);
+});
+
+test("Monad reads travel as single calls grouped in a contract call, the other networks as JSON-RPC batches", () => {
+  for (const vault of vaults)
+    assert.equal(
+      vault.groupReads,
+      vault.id === "monad" ? "multicall" : "batch",
+      vault.id,
+    );
+  assert.ok(vaults.find((vault) => vault.id === "monad").chain.contracts.multicall3);
 });
