@@ -19,7 +19,7 @@ export default function Login({ next = "", mode = "individual" }) {
       <p className={s.intro}>
         {mode === "institution"
           ? "Explore Thesauros vaults, review protocol activity and find the integration resources for your product. Try the Earn flow from the same workspace."
-          : "Deposit USDC into Earn, follow your position and withdraw to your wallet. A separate Sandbox is available to try with test funds."}
+          : "Deposit USDC into Earn, follow your position and withdraw to your wallet."}
       </p>
       {ready ? (
         <WalletAccess next={next} mode={mode} />

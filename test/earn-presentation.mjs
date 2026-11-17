@@ -3,6 +3,8 @@ import {
   allocationSummary,
   balanceLabel,
   amountFeedback,
+  marketComparison,
+  totalUnit,
 } from "../lib/earn-presentation.mjs";
 const provider = (address, name, assets) => ({ address, name, assets });
 const rows = [
@@ -77,6 +79,31 @@ assert.equal(
   amountFeedback({ amount: "1.234567", mode: "withdraw", position, all: true }),
   "",
 );
+// The table and the detail view read one comparison, and a loss stays visible.
+{
+  const day = (t, v) => ({ t, v });
+  const below = marketComparison(
+    [day(1, 4), day(2, 4)],
+    [day(1, 4.5), day(2, 4.7)],
+  );
+  assert.equal(below.apr30d, 4);
+  assert.ok(Math.abs(below.marketSpread30d + 0.6) < 1e-9);
+  assert.equal(below.singleMarket, false);
+  const one = marketComparison(
+    [day(1, 4), day(2, 5)],
+    [day(1, 4), day(2, 5)],
+  );
+  assert.equal(one.singleMarket, true);
+  assert.equal(one.marketSpread30d, null);
+  const none = marketComparison([], [day(1, 4)]);
+  assert.equal(none.apr30d, null);
+  assert.equal(none.marketSpread30d, null);
+  assert.equal(totalUnit([{ token: "USDC" }, { token: "USDC" }]), "USDC");
+  assert.equal(totalUnit([{ token: "USDC" }, { token: "USDT0" }]), "USD");
+  assert.equal(totalUnit([{ token: "USDT0" }]), "USDT0");
+  assert.equal(totalUnit([]), "USDC");
+}
+
 console.log(
   "Earn presentation: grouped allocations preserve balances and missing data; input feedback preserves exact USDC precision.",
 );

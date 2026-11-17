@@ -79,12 +79,12 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 44px;
-  padding: 9px 12px;
-  background: #f4f7fa;
+  min-height: 40px;
+  padding: 8px 14px;
+  background: #f3f6fb;
   border: 1px solid transparent;
-  border-radius: 9px;
-  color: #53667a;
+  border-radius: 999px;
+  color: #41535f;
   text-align: left;
   font-size: 14px;
 }
@@ -93,13 +93,13 @@
   font-variant-numeric: tabular-nums;
 }
 .dialog .progress button[aria-current="step"] {
-  background: #e8f0f7;
-  border-color: #b0c7db;
-  color: #173e64;
-  font-weight: 600;
+  background: #eaf1ff;
+  border-color: #196aff;
+  color: #0f56db;
+  font-weight: 500;
 }
 .progress button:hover {
-  background: #e9f0f6;
+  background: #eaf1ff;
 }
 .content {
   display: grid;
@@ -113,14 +113,13 @@
   flex-direction: column;
   justify-content: center;
   padding: 34px;
-  color: #d9e5f0;
-  background: #102f4f;
+  color: #eaf1ff;
+  background: #196aff;
 }
 .visualLabel {
   display: block;
-  color: #bbcede;
-  font-size: 12px;
-  letter-spacing: 0.15em;
+  color: #d6e4ff;
+  font-size: 13px;
   margin-bottom: 24px;
 }
 .diagram {
@@ -134,24 +133,24 @@
   gap: 13px;
   position: relative;
   padding: 18px 15px;
-  border: 1px solid #617c9666;
-  border-radius: 13px;
-  background: #ffffff09;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
 }
 .diagramCard + .diagramCard::before {
   content: "";
   position: absolute;
   width: 1px;
   height: 15px;
-  background: #708da7;
+  background: rgba(255, 255, 255, 0.45);
   bottom: 100%;
   left: 35px;
 }
 .diagramMain {
-  color: #193b5b;
-  background: #eef4fa;
-  border-color: #eef4fa;
-  box-shadow: 0 8px 25px #04152c29;
+  color: #0b1b2b;
+  background: #fff;
+  border-color: #fff;
+  box-shadow: 0 8px 25px rgba(11, 27, 43, 0.18);
 }
 .icon {
   display: grid;
@@ -160,10 +159,10 @@
   height: 38px;
   flex-shrink: 0;
   border-radius: 10px;
-  background: #ffffff0b;
+  background: rgba(255, 255, 255, 0.12);
 }
 .diagramMain .icon {
-  background: #dbe7f1;
+  background: #eaf1ff;
 }
 .icon svg {
   width: 25px;
@@ -180,27 +179,27 @@
 }
 .diagramCard div > span {
   display: block;
-  color: #bbcddf;
+  color: #d6e4ff;
   font-size: 12px;
   line-height: 1.5;
   margin-top: 4px;
 }
 .diagramMain div > span {
-  color: #4c657d;
+  color: #5f7183;
 }
 .cardNumber {
   margin-left: auto;
   font-size: 11px;
-  color: #b6ccdf;
+  color: #d6e4ff;
 }
 .diagramMain .cardNumber {
-  color: #527089;
+  color: #5f7183;
 }
 .visual > p {
   font-size: 13px;
   line-height: 1.6;
   margin: 24px 0 0;
-  color: #c6d6e5;
+  color: #eaf1ff;
 }
 .copy {
   padding: 38px 36px 34px;
@@ -237,14 +236,14 @@
   font-size: 14px !important;
   font-weight: 550 !important;
   min-height: 44px;
-  border: 1px solid #c8d8e5;
-  border-radius: 8px;
-  background: #f1f6fa;
-  padding: 10px 16px;
+  border: 1px solid rgba(11, 27, 43, 0.12);
+  border-radius: 999px;
+  background: #fff;
+  padding: 10px 18px;
   margin-top: 3px;
 }
 .contextAction:hover {
-  background: #e4eef6;
+  background: #f3f6fb;
 }
 .finalActions {
   display: flex;
@@ -284,18 +283,18 @@
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 14px !important;
-  padding: 10px 18px;
+  padding: 10px 20px;
 }
 .dialog .primary {
   color: #fff;
-  background: #183f63;
-  border: 1px solid #183f63;
+  background: #196aff;
+  border: 1px solid #196aff;
   font-weight: 500 !important;
 }
 .primary:hover {
-  background: #102e4c;
+  background: #0f56db;
 }
 .dialog .back {
   color: #294d6b;

@@ -1,0 +1,799 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useAccount, useSwitchChain } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { createWalletClient, custom, formatUnits } from "viem";
+import {
+  vaults,
+  getVault,
+  displayAmount,
+  tokenAmount,
+  friendlyTransactionError,
+} from "../../../lib/vault-contracts.mjs";
+import { vaultClients } from "../../../lib/vault-rpc.mjs";
+import {
+  prepareTransaction,
+  executeTransaction,
+} from "../../../lib/vault-transactions.mjs";
+import { documentationHref } from "../../../lib/site-links.mjs";
+import { historyKey } from "../../../lib/transaction-history.mjs";
+import { balanceLabel, amountFeedback } from "../../../lib/earn-presentation.mjs";
+import t from "./transaction.module.css";
+import b from "./book.module.css";
+
+// One module for the form: the rules it kept from the former workspace styles.
+const p = t;
+const e = t;
+
+const WalletFunding = dynamic(() => import("../WalletFunding"));
+const activeSubmissions = new Set();
+const short = (value) =>
+  value ? value.slice(0, 6) + "…" + value.slice(-4) : "—";
+function ExplorerLink({ vault, hash, children }) {
+  return (
+    <a
+      href={
+        vault.explorer + (hash ? "/tx/" + hash : "/address/" + vault.address)
+      }
+      target="_blank"
+      rel="noreferrer"
+    >
+      {children}
+    </a>
+  );
+}
+
+export function TransactionPanel({
+  vault,
+  position,
+  account,
+  owner,
+  mode,
+  setMode,
+  setLocked,
+  pending,
+  onFunding,
+  // Inside a vault page the page provides the tabs and the vault's details.
+  embedded = false,
+  initialAmount = "",
+}) {
+  const { address, connector, chainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
+  const { openConnectModal } = useConnectModal();
+  const [amount, setAmount] = useState(initialAmount);
+  const seededAmount = useRef(!!initialAmount);
+  const [all, setAll] = useState(false);
+  const [review, setReview] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState("");
+  const [message, setMessage] = useState(null);
+  const [sentHash, setSentHash] = useState(null);
+  const [replacementHash, setReplacementHash] = useState("");
+  const [resolving, setResolving] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const uncertaintyKey =
+    "thesauros.earn.uncertain." + owner.toLowerCase() + "." + vault.id;
+  useEffect(() => {
+    try {
+      setUncertain(localStorage.getItem(uncertaintyKey) === "1");
+    } catch {
+      /* Wallet activity still available. */
+    }
+    const sync = (event) => {
+      if (event.key === uncertaintyKey) setUncertain(event.newValue === "1");
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, [uncertaintyKey]);
+  function markUncertain(value) {
+    setUncertain(value);
+    try {
+      value
+        ? localStorage.setItem(uncertaintyKey, "1")
+        : localStorage.removeItem(uncertaintyKey);
+    } catch {
+      /* Preserve the current in-memory lock. */
+    }
+  }
+  const actionLock = useRef(false);
+  const revision = useRef(0);
+  const ready = position?.status === "ready";
+  const sameWallet = address?.toLowerCase() === owner?.toLowerCase();
+  const sameNetwork = chainId === vault.chainId;
+  const paused =
+    ready &&
+    (mode === "deposit" ? position.depositPaused : position.withdrawPaused);
+  const balance = ready
+    ? mode === "deposit"
+      ? position.cash
+      : position.positionAssets
+    : null;
+  const feedback = amountFeedback({ amount, mode, position, all });
+  const needsFunds =
+    ready &&
+    mode === "deposit" &&
+    !paused &&
+    BigInt(position.cash) < BigInt(position.minAssets);
+  const noPosition =
+    ready && mode === "withdraw" && BigInt(position.shares) === 0n;
+  useEffect(() => {
+    revision.current++;
+    setReview(null);
+    setMessage(null);
+    // The first run on mount must not clear an amount carried through sign-in.
+    if (!seededAmount.current) setAmount("");
+    seededAmount.current = false;
+    setAll(false);
+  }, [mode]);
+  useEffect(() => {
+    setReview(null);
+    revision.current++;
+  }, [address, chainId]);
+  useEffect(() => {
+    setLocked(busy);
+    return () => setLocked(false);
+  }, [busy, setLocked]);
+  function edit(value) {
+    setAmount(value);
+    setAll(false);
+    setReview(null);
+    setMessage(null);
+  }
+  async function reviewAmount() {
+    if (
+      actionLock.current ||
+      uncertain ||
+      pending ||
+      feedback ||
+      needsFunds ||
+      noPosition
+    )
+      return;
+    actionLock.current = true;
+    setBusy(true);
+    setMessage(null);
+    setStage("Checking the vault…");
+    const version = revision.current;
+    try {
+      const result = await prepareTransaction({
+        publicClient: vaultClients[vault.id],
+        vaultId: vault.id,
+        owner,
+        kind: mode,
+        amount,
+        all,
+      });
+      if (version === revision.current) setReview(result);
+    } catch (error) {
+      setMessage({ type: "error", text: friendlyTransactionError(error) });
+    } finally {
+      setBusy(false);
+      actionLock.current = false;
+      setStage("");
+    }
+  }
+  async function submit(action) {
+    if (actionLock.current || !review || uncertain || pending) return;
+    if (
+      review.kind !== mode ||
+      review.vaultId !== vault.id ||
+      review.owner.toLowerCase() !== owner.toLowerCase()
+    ) {
+      setReview(null);
+      return;
+    }
+    if (activeSubmissions.has(uncertaintyKey)) {
+      setMessage({
+        type: "pending",
+        text: "A wallet request is already in progress for this vault. Complete it in your wallet first.",
+      });
+      return;
+    }
+    try {
+      if (localStorage.getItem(uncertaintyKey) === "1") {
+        setUncertain(true);
+        return;
+      }
+    } catch {
+      /* In-memory lock still applies. */
+    }
+    activeSubmissions.add(uncertaintyKey);
+    markUncertain(true);
+    actionLock.current = true;
+    setBusy(true);
+    setMessage(null);
+    setSentHash(null);
+    setStage("Check your wallet to continue");
+    let hash;
+    let broadcastInput;
+    let submittedAmount = tokenAmount(review.rawAmount);
+    try {
+      if (!sameWallet || !connector || !sameNetwork)
+        throw Object.assign(
+          new Error("Reconnect the signed-in wallet on " + vault.name + "."),
+          { userFacing: true },
+        );
+      const provider = await connector.getProvider();
+      const walletClient = createWalletClient({
+        account: owner,
+        chain: vault.chain,
+        transport: custom(provider),
+      });
+      const record = (txHash, input, replacedHash) =>
+        account.recordTransaction({
+          hash: txHash,
+          vaultId: vault.id,
+          kind: action === "approve" ? "approve" : mode,
+          amount: submittedAmount,
+          amountEstimated: mode === "withdraw" && all,
+          status: "pending",
+          createdAt: Date.now(),
+          input,
+          replacedHash,
+        });
+      const result = await executeTransaction({
+        publicClient: vaultClients[vault.id],
+        walletClient,
+        prepared: review,
+        action,
+        onHash: (txHash, context) => {
+          hash = txHash;
+          setSentHash(txHash);
+          setStage("Submitted · waiting for confirmation");
+          broadcastInput = context?.input || broadcastInput;
+          if (context?.prepared)
+            submittedAmount = tokenAmount(context.prepared.rawAmount);
+          record(txHash, broadcastInput);
+          const intendedInput = broadcastInput;
+          vaultClients[vault.id]
+            .getTransaction({ hash: txHash })
+            .then((transaction) => {
+              if (
+                transaction.from.toLowerCase() === owner.toLowerCase() &&
+                transaction.input.toLowerCase() === intendedInput?.toLowerCase()
+              ) {
+                account.recordTransaction({
+                  hash: txHash,
+                  vaultId: vault.id,
+                  kind: action === "approve" ? "approve" : mode,
+                  amount: submittedAmount,
+                  status: "pending",
+                  createdAt: Date.now(),
+                  input: intendedInput,
+                  nonce: transaction.nonce,
+                });
+              }
+            })
+            .catch(() => {});
+          setUncertain(false);
+          try {
+            const saved = JSON.parse(
+              localStorage.getItem(historyKey(owner)) || "null",
+            );
+            if (
+              saved?.transactions?.some(
+                (tx) => tx.hash === txHash.toLowerCase(),
+              )
+            )
+              localStorage.removeItem(uncertaintyKey);
+          } catch {
+            /* Keep durable submission intent if the receipt could not be saved. */
+          }
+        },
+        onReplacement: (info) => {
+          const nextHash = info.transaction?.hash || info.hash;
+          if (nextHash) {
+            record(nextHash, broadcastInput, hash);
+            hash = nextHash;
+            setSentHash(nextHash);
+          }
+        },
+      });
+      hash = result.hash;
+      submittedAmount = tokenAmount(
+        result.actualAmount ?? result.prepared.rawAmount,
+      );
+      account.recordTransaction({
+        hash,
+        vaultId: vault.id,
+        kind: action === "approve" ? "approve" : mode,
+        amount: submittedAmount,
+        amountEstimated:
+          mode === "withdraw" && all && result.actualAmount == null,
+        status: "success",
+        createdAt: Date.now(),
+        input: broadcastInput,
+      });
+      setMessage({
+        type: "success",
+        text:
+          action === "approve"
+            ? `${vault.symbol} approval confirmed. Review and confirm your deposit next.`
+            : mode === "deposit"
+              ? "Deposit confirmed onchain. Your position is refreshing."
+              : `Withdrawal confirmed onchain. ${vault.symbol} has returned to your wallet.`,
+      });
+      setReview(null);
+      if (action !== "approve") {
+        setAmount("");
+        setAll(false);
+      }
+      account.refresh();
+    } catch (error) {
+      hash = error.hash || hash;
+      if (!hash) markUncertain(error.status === "pending");
+      if (hash)
+        account.recordTransaction({
+          hash,
+          vaultId: vault.id,
+          kind: action === "approve" ? "approve" : mode,
+          amount: submittedAmount,
+          status:
+            error.status === "reverted"
+              ? "reverted"
+              : error.status === "approval_missing"
+                ? "success"
+                : ["cancelled", "replaced"].includes(error.status)
+                  ? "cancelled"
+                  : "pending",
+          createdAt: Date.now(),
+          input: broadcastInput,
+        });
+      setMessage({
+        type:
+          hash && !["reverted", "cancelled", "replaced"].includes(error.status)
+            ? "pending"
+            : "error",
+        text: hash
+          ? error.userFacing
+            ? error.message
+            : "Confirmation is still pending. Check the transaction before trying again."
+          : friendlyTransactionError(error),
+      });
+      setReview(null);
+    } finally {
+      setBusy(false);
+      actionLock.current = false;
+      setStage("");
+      activeSubmissions.delete(uncertaintyKey);
+    }
+  }
+  async function switchNetwork() {
+    setMessage(null);
+    try {
+      await switchChainAsync({ chainId: vault.chainId });
+    } catch {
+      setMessage({
+        type: "error",
+        text:
+          "Network switch was not completed. Select " +
+          vault.name +
+          " in your wallet to continue.",
+      });
+    }
+  }
+  return (
+    <section
+      className={embedded ? p.transactionEmbedded : p.transactionPanel}
+      aria-label={"Manage your " + vault.symbol}
+    >
+      {!embedded && (
+        <>
+          <div className={p.modeTabs} aria-label="Transaction type">
+            {["deposit", "withdraw"].map((value) => (
+              <button
+                key={value}
+                className={p.tab}
+                aria-pressed={mode === value}
+                disabled={busy || !!pending}
+                onClick={() => setMode(value)}
+              >
+                {value === "deposit" ? "Deposit" : "Withdraw"}
+              </button>
+            ))}
+          </div>
+          <div>
+            <h2>
+              {mode === "deposit"
+                ? `Deposit ${vault.symbol}`
+                : "Back to your wallet."}
+            </h2>
+            <p className={p.sectionCopy}>
+              {mode === "deposit"
+                ? "Deposit into Thesauros on " + vault.name + "."
+                : "Redeem your position on " + vault.name + "."}
+            </p>
+          </div>
+        </>
+      )}
+      {needsFunds && !busy && !pending && !uncertain && !review ? (
+        <div className={e.nextStep}>
+          <span className={e.nextStepLabel}>Before you deposit</span>
+          <h3>
+            Add {vault.symbol} on {vault.name}.
+          </h3>
+          <p>
+            Your wallet has {displayAmount(position.cash)} {vault.symbol} here.
+            Add enough for the {tokenAmount(position.minAssets)} {vault.symbol}{" "}
+            minimum, and keep {vault.gasToken} for network fees.
+          </p>
+        </div>
+      ) : noPosition && !busy && !pending ? (
+        <div className={e.nextStep}>
+          <h3>You have no balance here yet.</h3>
+          <p>
+            Once you deposit, you can withdraw part or all of that position
+            here.
+          </p>
+          <button className={p.textButton} onClick={() => setMode("deposit")}>
+            Make a deposit
+          </button>
+        </div>
+      ) : embedded ? (
+        <>
+          <label className={b.field}>
+            <span>Amount</span>
+            <span className={b.amount}>
+              <input
+                id="earn-amount"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="0.00"
+                value={amount}
+                onChange={(ev) => edit(ev.target.value)}
+                disabled={busy || !!pending}
+                aria-describedby="earn-available"
+                aria-invalid={!!feedback}
+              />
+              {vault.symbol}
+              <button
+                type="button"
+                className={b.max}
+                disabled={
+                  !ready || busy || !!pending || BigInt(balance || 0) === 0n
+                }
+                onClick={() => {
+                  setAmount(tokenAmount(balance));
+                  setAll(mode === "withdraw");
+                  setReview(null);
+                  setMessage(null);
+                }}
+              >
+                Max
+              </button>
+            </span>
+          </label>
+          <p
+            id="earn-available"
+            className={feedback ? b.hintBad : b.hint}
+            role="status"
+          >
+            {feedback ||
+              (mode === "deposit"
+                ? `${displayAmount(balance)} ${vault.symbol} in your wallet on ${vault.name}.`
+                : `${displayAmount(balance)} ${vault.symbol} in this vault.`)}
+          </p>
+        </>
+      ) : (
+        <div>
+          <label className={p.formLabel} htmlFor="earn-amount">
+            {mode === "deposit" ? "Deposit amount" : "Withdrawal amount"}
+          </label>
+          <div className={p.amountField}>
+            <input
+              className={p.amountInput}
+              id="earn-amount"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="0.00"
+              value={amount}
+              onChange={(ev) => edit(ev.target.value)}
+              disabled={busy || !!pending}
+              aria-describedby={
+                feedback
+                  ? "earn-available earn-amount-feedback"
+                  : "earn-available"
+              }
+              aria-invalid={!!feedback}
+            />
+            <span>{vault.symbol}</span>
+          </div>
+          <div id="earn-available" className={p.amountBalance}>
+            <span>
+              {mode === "deposit" ? "Available" : "Position value"}:{" "}
+              {displayAmount(balance, 6)} {vault.symbol}
+            </span>
+            <button
+              disabled={
+                !ready || busy || !!pending || BigInt(balance || 0) === 0n
+              }
+              onClick={() => {
+                setAmount(tokenAmount(balance));
+                setAll(mode === "withdraw");
+                setReview(null);
+                setMessage(null);
+              }}
+            >
+              {mode === "deposit" ? "Max" : "Withdraw all"}
+            </button>
+          </div>
+          {feedback && (
+            <p
+              id="earn-amount-feedback"
+              className={e.inputFeedback}
+              role="status"
+            >
+              {feedback}
+            </p>
+          )}
+        </div>
+      )}
+      {(!embedded || review) && (
+      <dl className={p.transactionDetails}>
+        {!embedded && (
+          <div>
+            <dt>Network</dt>
+            <dd>{vault.name}</dd>
+          </div>
+        )}
+        <div>
+          <dt>{mode === "deposit" ? "Minimum deposit" : "Receiving wallet"}</dt>
+          <dd>
+            {mode === "deposit"
+              ? displayAmount(ready ? position.minAssets : null) +
+                " " +
+                vault.symbol
+              : short(owner)}
+          </dd>
+        </div>
+        <div>
+          <dt>Network fee</dt>
+          <dd>Paid in {vault.gasToken}, shown in your wallet</dd>
+        </div>
+        {review && (
+          <div>
+            <dt>
+              {mode === "deposit"
+                ? "Estimated vault shares"
+                : "Shares to redeem"}
+            </dt>
+            <dd>
+              {displayAmount(review.shares, 6)}
+              {all ? " · all shares" : ""}
+            </dd>
+          </div>
+        )}
+        {!embedded && (
+          <div>
+            <dt>Vault</dt>
+            <dd>
+              <ExplorerLink vault={vault}>{short(vault.address)}</ExplorerLink>
+            </dd>
+          </div>
+        )}
+      </dl>
+      )}
+      {review && (
+        <div className={embedded ? b.review : e.review}>
+          <span className={embedded ? undefined : p.eyebrow}>
+            Review your {mode === "withdraw" ? "withdrawal" : mode}
+          </span>
+          <strong>
+            {tokenAmount(review.rawAmount)} {vault.symbol}
+          </strong>
+          <p>
+            {mode === "deposit"
+              ? review.needsApproval
+                ? `First approve exactly this amount of ${vault.symbol}. A separate wallet confirmation makes the deposit.`
+                : `${vault.symbol} is approved. Confirm the deposit in your wallet to receive vault shares.`
+              : all
+                ? `Redeem all your vault shares. The final ${vault.symbol} amount is set when the transaction is included.`
+                : `${vault.symbol} will return to the same wallet. The vault checks available liquidity when you confirm.`}
+          </p>
+          <p>
+            Rates and share previews can change.{" "}
+            {mode === "deposit" &&
+              "This contract does not enforce a minimum share amount."}
+          </p>
+        </div>
+      )}
+      {paused && (
+        <p className={p.stateMessage} role="status">
+          {mode === "deposit" ? "Deposits" : "Withdrawals"} are currently paused
+          for this vault.
+        </p>
+      )}
+      {uncertain && !busy && (
+        <div className={`${p.stateMessage} ${p.pending}`} role="status">
+          <strong>Check your wallet activity.</strong>
+          <p>
+            Your wallet did not return a transaction hash. Confirm whether it
+            sent the last request before trying again.
+          </p>
+          <p>
+            <a
+              href={vault.explorer + "/address/" + owner}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open account history
+            </a>
+          </p>
+          <button className={p.textButton} onClick={() => markUncertain(false)}>
+            I checked my wallet activity
+          </button>
+        </div>
+      )}
+      {account.historyError && (
+        <p className={p.stateMessage} role="status">
+          {account.historyError}
+        </p>
+      )}
+      {pending && !busy && (
+        <div className={`${p.stateMessage} ${p.pending}`} role="status">
+          <strong>A transaction is awaiting confirmation.</strong>
+          <ExplorerLink vault={vault} hash={pending.hash}>
+            Check transaction
+          </ExplorerLink>
+          <p>
+            Keep this vault clear of another request until its status is known.
+          </p>
+          <details className={e.conditions}>
+            <summary>Replaced or cancelled in your wallet?</summary>
+            <p>
+              Paste the new transaction hash from your wallet. We check the
+              account and transaction nonce before updating this request.
+            </p>
+            <label className={p.formLabel} htmlFor="replacement-hash">
+              Replacement transaction hash
+            </label>
+            <input
+              id="replacement-hash"
+              className={e.hashInput}
+              value={replacementHash}
+              onChange={(event) => setReplacementHash(event.target.value)}
+              autoComplete="off"
+              placeholder="0x…"
+            />
+            <button
+              className={p.textButton}
+              disabled={resolving || !/^0x[\da-f]{64}$/i.test(replacementHash)}
+              onClick={async () => {
+                setResolving(true);
+                setMessage(null);
+                try {
+                  const resolved = await account.resolveTransaction(
+                    pending,
+                    replacementHash,
+                  );
+                  setMessage({
+                    type: "success",
+                    text:
+                      "Replacement verified. Your transaction status has been updated." +
+                      (resolved.verificationNote
+                        ? " " + resolved.verificationNote
+                        : ""),
+                  });
+                  setReplacementHash("");
+                } catch (error) {
+                  setMessage({
+                    type: "error",
+                    text:
+                      error.message ||
+                      "Could not verify the replacement. Check your wallet activity.",
+                  });
+                } finally {
+                  setResolving(false);
+                }
+              }}
+            >
+              {resolving ? "Verifying…" : "Verify replacement"}
+            </button>
+          </details>
+        </div>
+      )}
+      {message && (
+        <div
+          className={`${p.stateMessage} ${p[message.type]}`}
+          role={message.type === "error" ? "alert" : "status"}
+        >
+          {message.text}
+          {sentHash && (
+            <p>
+              <ExplorerLink vault={vault} hash={sentHash}>
+                View transaction
+              </ExplorerLink>
+            </p>
+          )}
+        </div>
+      )}
+      <div className={p.transactionFooter}>
+        {needsFunds && !busy && !pending && !uncertain && !review ? (
+          <button className={embedded ? b.primary : p.primaryButton} onClick={onFunding}>
+            Add {vault.symbol} to your wallet
+          </button>
+        ) : noPosition && !busy && !pending ? (
+          <button className={embedded ? b.primary : p.primaryButton} disabled>
+            No position to withdraw
+          </button>
+        ) : !sameWallet ? (
+          <button className={embedded ? b.primary : p.primaryButton} onClick={openConnectModal}>
+            Reconnect wallet
+          </button>
+        ) : !sameNetwork ? (
+          <button
+            className={embedded ? b.primary : p.primaryButton}
+            onClick={switchNetwork}
+            disabled={busy}
+          >
+            Switch to {vault.name}
+          </button>
+        ) : busy ? (
+          <button className={embedded ? b.primary : p.primaryButton} disabled>
+            {stage}
+          </button>
+        ) : review ? (
+          <>
+            <button
+              className={embedded ? b.primary : p.primaryButton}
+              disabled={!!pending || paused || uncertain}
+              onClick={() =>
+                submit(
+                  review.needsApproval && mode === "deposit"
+                    ? "approve"
+                    : "submit",
+                )
+              }
+            >
+              {review.needsApproval && mode === "deposit"
+                ? `1. Approve ${vault.symbol}`
+                : "Confirm " + (mode === "withdraw" ? "withdrawal" : mode)}
+            </button>
+            <button
+              className={embedded ? b.linkButton : p.textButton}
+              onClick={() => setReview(null)}
+            >
+              Edit amount
+            </button>
+          </>
+        ) : (
+          <button
+            className={embedded ? b.primary : p.primaryButton}
+            disabled={
+              !ready ||
+              !amount ||
+              !!pending ||
+              paused ||
+              uncertain ||
+              !!feedback
+            }
+            onClick={reviewAmount}
+          >
+            Review {mode === "withdraw" ? "withdrawal" : mode}
+          </button>
+        )}
+        {!embedded && (
+          <p className={p.dataNote}>
+            Real {vault.symbol} on {vault.name}. Every transfer needs your wallet
+            confirmation.
+          </p>
+        )}
+      </div>
+      {!embedded && (
+      <details className={e.conditions}>
+        <summary>What to know before depositing</summary>
+        <p>
+          Your funds are exposed to lending-market and smart-contract risk.
+          Vault administrators can upgrade the implementation, change fees and
+          pause deposits or withdrawals. Withdrawals depend on available
+          liquidity.
+        </p>
+        <a href={documentationHref("/security/controls/")}>
+          Read about vault controls
+        </a>
+      </details>
+      )}
+    </section>
+  );
+}

@@ -1,0 +1,426 @@
+/* The instant deposit and withdrawal form inside the vault panel. Pruned to
+   the rules it uses from the former Earn workspace styles (2026-11-08). */
+.eyebrow {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--p-muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+}
+.primaryButton,
+.textButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 11px 19px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--p-navy);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.primaryButton {
+  background: var(--p-blue);
+}
+.primaryButton:hover:not(:disabled) {
+  background: #0b58e0;
+}
+.textButton {
+  padding: 10px 3px;
+  color: var(--p-navy);
+  background: transparent;
+}
+.textButton:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.primaryButton svg,
+.textButton svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+.sectionCopy {
+  color: var(--p-muted);
+  margin-top: 5px !important;
+  font-size: 14px;
+}
+.dataNote {
+  color: var(--p-muted);
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.dataNote a {
+  color: #285a89;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.transactionPanel {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+  padding: 27px;
+  border: 1px solid #d7dfe7;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 34px #173b5906;
+}
+.transactionEmbedded {
+  --p-ink: #0b1b2b;
+  --p-muted: #5f7183;
+  --p-line: rgba(11, 27, 43, 0.12);
+  --p-paper: #ffffff;
+  --p-bone: #f3f6fb;
+  --p-navy: #0b1b2b;
+  --p-blue: #196aff;
+  --p-blue-soft: #eaf1ff;
+  --p-green: #0a7a3c;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  font-size: 14px;
+}
+.transactionEmbedded :where(h3, p, dl, dd) {
+  margin: 0;
+}
+.transactionEmbedded .transactionFooter {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+}
+.transactionEmbedded .transactionDetails {
+  padding: 12px 0;
+  font-size: 13px;
+}
+.transactionPanel h2 {
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.25;
+}
+.modeTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #f0f3f6;
+}
+.tab {
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--p-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.tab[aria-selected="true"],
+.tab[aria-pressed="true"] {
+  background: #fff;
+  color: var(--p-ink);
+  box-shadow: 0 1px 4px #1b304014;
+}
+.formLabel {
+  display: block;
+  margin-bottom: 9px;
+  color: #455a6d;
+  font-size: 14px;
+  font-weight: 500;
+}
+.transactionPanel select {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 12px;
+  border: 1px solid #cbd7e1;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--p-ink);
+  font-size: 16px;
+}
+.amountField {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #bdccd9;
+  border-radius: 12px;
+  background: #fafbfc;
+}
+.amountField:focus-within {
+  border-color: #3266b7;
+  box-shadow: 0 0 0 2px #3266b71a;
+}
+.amountInput {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 56px;
+  padding: 11px 14px;
+  border: 1px solid #bdccd9;
+  border-radius: 10px;
+  background: #fafbfc;
+  color: var(--p-ink);
+  font-size: 30px !important;
+  font-weight: 450;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.amountInput::placeholder {
+  color: #8d9aaa;
+  opacity: 1;
+}
+.amountField .amountInput {
+  min-height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.amountField .amountInput:focus-visible {
+  outline-offset: 3px;
+}
+.amountField > :where(span, button) {
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+.amountField > button {
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: #e9eff7;
+  color: #285780;
+  font-weight: 500;
+  cursor: pointer;
+}
+.amountBalance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin-top: 9px;
+  color: var(--p-muted);
+  font-size: 14px;
+}
+.amountBalance button {
+  min-height: 32px;
+  padding: 5px 0 5px 8px;
+  border: 0;
+  background: transparent;
+  color: #285780;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.transactionDetails {
+  display: grid;
+  gap: 13px;
+  padding: 18px 0;
+  border-top: 1px solid var(--p-line);
+  border-bottom: 1px solid var(--p-line);
+}
+.transactionDetails > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 15px;
+  font-size: 14px;
+}
+.transactionDetails :where(dt, div > span:first-child) {
+  color: var(--p-muted);
+}
+.transactionDetails :where(dd, strong) {
+  max-width: 63%;
+  color: var(--p-ink);
+  text-align: right;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.transactionDetails a {
+  color: #285a89;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.transactionFooter {
+  display: grid;
+  gap: 10px;
+}
+.transactionFooter .primaryButton {
+  width: 100%;
+  min-height: 48px;
+  background: var(--p-blue);
+}
+.transactionFooter .primaryButton:hover:not(:disabled) {
+  background: #194bbd;
+}
+.transactionFooter .dataNote {
+  text-align: center;
+}
+.stateMessage {
+  padding: 14px 16px;
+  border: 1px solid #dce4ec;
+  border-radius: 10px;
+  color: #475e73;
+  background: #f3f6f9;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.stateMessage strong {
+  display: block;
+  margin-bottom: 3px;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 500;
+}
+.stateMessage a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pending {
+  color: #274c7e;
+  background: #edf3ff;
+  border-color: #d4e2fa;
+}
+@media (max-width: 1240px) {
+.transactionPanel {
+    padding: 23px;
+  }
+}
+@media (max-width: 1060px) {
+.transactionPanel {
+    position: static;
+  }
+}
+@media (max-width: 560px) {
+.transactionPanel {
+    padding: 23px;
+    border-radius: 16px;
+  }
+.transactionPanel h2 {
+    font-size: 22px;
+  }
+}
+@media (max-width: 380px) {
+.transactionPanel {
+    padding: 20px;
+  }
+.amountField {
+    padding: 13px;
+    gap: 7px;
+  }
+.amountInput {
+    font-size: 28px !important;
+  }
+.primaryButton {
+    padding-inline: 15px;
+  }
+}
+
+
+.review {
+  padding: 17px;
+  background: #f0f4fa;
+  border-radius: 10px;
+}
+.review > strong {
+  display: block;
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.review p {
+  font-size: 14px;
+  margin-top: 9px !important;
+  color: #4a6276;
+  line-height: 1.6;
+}
+.conditions {
+  font-size: 14px;
+  color: #50667a;
+  border-top: 1px solid #e1e6eb;
+  padding-top: 15px;
+}
+.conditions summary {
+  cursor: pointer;
+  min-height: 24px;
+}
+.conditions p {
+  margin: 10px 0 !important;
+  line-height: 1.7;
+}
+.conditions a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+.hashInput {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #bbcadb;
+  border-radius: 8px;
+  font-size: 16px;
+  color: #14314e;
+  background: #fff;
+}
+.nextStep {
+  padding: 18px;
+  border-radius: 12px;
+  background: #f0f4f8;
+  color: #425f75;
+}
+.nextStepLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+}
+.nextStep h3 {
+  margin: 0;
+  color: #163952;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+}
+.nextStep p {
+  margin-top: 9px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.nextStep button {
+  margin-top: 8px;
+  text-align: left;
+}
+.inputFeedback {
+  margin-top: 10px !important;
+  color: #9d433a;
+  font-size: 14px;
+  line-height: 1.6;
+}
+@media (max-width: 380px) {
+.nextStep {
+    padding: 16px;
+  }
+}
+

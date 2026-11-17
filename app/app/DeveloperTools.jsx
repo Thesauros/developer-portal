@@ -58,13 +58,11 @@ export default function DeveloperTools({
       <div className={s.integrationIntro}>
         <div>
           <span className={s.eyebrow}>Your integration</span>
-          <h2>
-            From your first request
-            <br /> to your customer's first deposit.
-          </h2>
+          <h2>Try request shapes on sample data.</h2>
           <p>
-            Build and inspect the flow in the API sandbox. Keep your
-            implementation tools beside your market and vault data.
+            The sandbox models an instant deposit and an instant withdrawal.
+            The live vault does not work this way: plan for a request, a wait
+            and a claim.
           </p>
         </div>
         <div>
@@ -93,7 +91,7 @@ export default function DeveloperTools({
         <span className={s.pill}>API sandbox</span>
         <span>
           Shared sample API data. Credentials and operations here are for
-          integration testing.
+          integration testing. Nothing here reads or moves real funds.
         </span>
       </div>
       <div className={platform.shell + " " + s.embedded}>

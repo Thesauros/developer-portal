@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { normalizeNetwork, selectMarkets, number } from "../lib/live-data.mjs";
+import { normalizeNetwork, number } from "../lib/live-data.mjs";
 const source = new URL("./fixtures/live-data/", import.meta.url);
 const read = (name) =>
   JSON.parse(readFileSync(new URL(name + ".json", source), "utf8"));
@@ -43,12 +43,7 @@ assert.equal(number(null), null);
 assert.equal(number(""), null);
 assert.equal(number("0"), 0);
 assert.equal(number("Infinity"), null);
-const pools = selectMarkets(read("pools"));
-assert.ok(pools.length > 0);
-assert.ok(pools.every((p) => p.tvlUsd > 1000000));
-assert.ok(pools.some((p) => p.name === "Aave"));
-assert.ok(pools.every((p) => Number.isFinite(p.apy)));
-assert.ok(!pools.some((p) => p.tvlUsd === base.vaults[0].assets));
+
 console.log(
   "PASS: live financial units, null/error handling, source scope, empty history and event identity.",
 );
@@ -526,6 +521,8 @@ assert.equal(
   null,
   "unknown original observation time never becomes the time of a partial refresh",
 );
+// The blue-chip window lists every market, not the largest few per network.
+
 console.log(
   "PASS: omitted snapshot retention, original rate/provider context and timestamps, explicit failures, new contract identity, cold omissions and recovery.",
 );

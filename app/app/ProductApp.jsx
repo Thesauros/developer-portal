@@ -1,57 +1,76 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useDisconnect } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { documentationHref, marketingHref } from "../../lib/site-links.mjs";
 import { workspaceDestination } from "./destination.mjs";
-import { useLive, Markets } from "./LivePanels";
-import NetworkFilter from "./NetworkFilter";
-import { crosschainAccountViews } from "../../lib/crosschain-feed.mjs";
-import InstitutionSettings from "./cabinet/InstitutionSettings";
+import useEarnAccount from "./useEarnAccount";
+import useInsights from "./book/useInsights";
+import InstitutionSettings from "./book/InstitutionSettings";
 import BrandLoading from "../ui/BrandLoading";
-import useMigrationAccount from "./useMigrationAccount";
-import MigrationPanel from "./MigrationPanel";
+import { buildBook, PRODUCT } from "../../lib/vault-book.mjs";
+import { crosschain } from "../../lib/crosschain-config.mjs";
 import { migrationDestination } from "../../lib/migration-destination.mjs";
-import s from "./workspace.module.css";
+import useBatchVault from "./book/useBatchVault";
+import useMigrationAccount from "./useMigrationAccount";
+import { usePublicResource } from "./book/parts";
+import { ConnectAction } from "./wallet/WalletAccess";
+import PortfolioPage from "./book/PortfolioPage";
+import VaultPage from "./book/VaultPage";
+import ActivityPage from "./book/ActivityPage";
+import TransparencyPage from "./book/TransparencyPage";
+import IndexPage from "./book/IndexPage";
+import MoveNotice, { moveSummary } from "./move/MoveNotice";
+import { useKept } from "./move/kept";
+import { vaultGuide } from "./vault-guide";
+import shell from "./workspace.module.css";
+import b from "./book/book.module.css";
+
 const loading = () => <BrandLoading />;
-const TestAccount = dynamic(() => import("./TestAccount"), { loading });
 const AccountSettings = dynamic(() => import("./AccountSettings"), { loading });
 const QuickGuide = dynamic(() => import("./QuickGuide"));
-const PlatformGuide = dynamic(() => import("./PlatformGuide"));
 const DeveloperCenter = dynamic(() => import("./DeveloperCenter"), { loading });
-const CrosschainWorkspace = dynamic(() => import("./CrosschainWorkspace"), {
-  loading,
-});
-const labels = {
-  crosschain: "Cross-chain",
+
+const MoveApp = dynamic(() => import("./move/MoveApp"), { loading });
+
+// Deposits follow the contract: open unless it is paused. A deployment can
+// still close them here, for example while the contracts are being changed.
+// Withdrawing, collecting and cancelling always work.
+const depositsOpen = process.env.NEXT_PUBLIC_THESAUROS_DEPOSITS !== "closed";
+
+// The sidebar on a desktop, the dock on a phone. Same sections, same order.
+const MAIN = ["overview", "earn", "activity", "transparency"];
+const TOOLS = ["index", "developers"];
+const LABELS = {
   overview: "Portfolio",
-  vaults: "Vaults",
+  earn: "Earn",
   activity: "Activity",
-  earn: "Deposit & withdraw",
-  markets: "Market rates",
-  test: "Sandbox",
+  transparency: "Transparency",
+  index: "Market Average",
   developers: "Developers",
   settings: "Account",
+  move: "Move to the new vault",
 };
-const descriptions = {
-  crosschain: "USDC across Base and Arbitrum, with epoch settlement on Base.",
-  vaults:
-    "The cross-chain USDC vault, its accepted NAV and allocation across Base and Arbitrum.",
-  activity:
-    "Your cross-chain requests, claims and cancellations, indexed from EpochVault events.",
-  earn: "Request deposits and withdrawals on Base, then claim after epoch settlement.",
-  markets: "Stablecoin lending rates across DeFi, for comparison.",
-  test: "Practise with simulated USDC. Nothing moves onchain.",
+const PATHS = {
+  overview: "",
+  earn: "/earn",
+  index: "/market-average",
+  activity: "/activity",
+  transparency: "/transparency",
+  developers: "/developers",
+  settings: "/account",
+  move: "/move",
 };
-
-const icons = {
-  crosschain: (
-    <>
-      <circle cx="6" cy="7" r="3" />
-      <circle cx="18" cy="17" r="3" />
-      <path d="M9 7h8v7M15 17H7v-7" />
-    </>
-  ),
+// Where an old link or a section name leads now.
+const LEGACY = {
+  vaults: "earn",
+  vault: "earn",
+  single: "earn",
+  crosschain: "earn",
+  markets: "index",
+  bluechips: "index",
+};
+const ICONS = {
   overview: (
     <>
       <rect x="3" y="3" width="7" height="8" rx="1.5" />
@@ -60,21 +79,13 @@ const icons = {
       <rect x="14" y="12" width="7" height="9" rx="1.5" />
     </>
   ),
-  vaults: (
+  earn: (
     <>
       <rect x="3" y="4" width="18" height="16" rx="3" />
       <circle cx="12" cy="12" r="4" />
       <path d="M12 8v8m-4-4h8" />
     </>
   ),
-  earn: (
-    <>
-      <rect x="3" y="5" width="18" height="15" rx="3" />
-      <path d="M3 8h18M15 12h6v5h-6a2.5 2.5 0 0 1 0-5Z" />
-      <circle cx="16" cy="14.5" r=".6" />
-    </>
-  ),
-  markets: <path d="M4 20V5m0 15h17M8 16v-5m5 5V5m5 11V9" />,
   activity: (
     <>
       <path d="M8 6h12M8 12h12M8 18h12" />
@@ -83,6 +94,13 @@ const icons = {
       <circle cx="3" cy="18" r=".8" />
     </>
   ),
+  transparency: (
+    <>
+      <path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6l7-3Z" />
+      <path d="M9 12l2 2 4-4" />
+    </>
+  ),
+  index: <path d="M4 20h16M5 16l4-5 4 3 6-8" />,
   developers: (
     <>
       <rect x="3" y="3" width="7" height="7" rx="1.5" />
@@ -91,9 +109,6 @@ const icons = {
       <path d="M17.5 14v7M14 17.5h7" />
     </>
   ),
-  test: (
-    <path d="M9 3h6m-5 0v6l-5 8a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-8V3M8 14h8" />
-  ),
   settings: (
     <>
       <circle cx="12" cy="8" r="4" />
@@ -101,109 +116,253 @@ const icons = {
     </>
   ),
 };
+const Glyph = ({ id }) => (
+  <svg
+    className={b.navGlyph}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {ICONS[id]}
+  </svg>
+);
+function parseRoute(pathname, mode) {
+  const prefix = "/app/" + mode;
+  const parts = pathname.startsWith(prefix)
+    ? pathname.slice(prefix.length).split("/").filter(Boolean)
+    : [];
+  if (!parts.length) return { view: "overview" };
+  if (parts[0] === "earn") return { view: "earn" };
+  // Addresses from before there was one product: each opens it.
+  if (parts[0] === "vaults") {
+    if (parts[1] === "markets") return { view: "index" };
+    return { view: "earn", stale: true };
+  }
+  // The Market Average; its old address still opens it.
+  if (parts[0] === "market-average" || parts[0] === "blue-chip-index") return { view: "index" };
+  if (parts[0] === "account") return { view: "settings" };
+  if (["activity", "transparency", "developers", "move"].includes(parts[0]))
+    return { view: parts[0] };
+  return { view: "overview" };
+}
+
+function AccountMenu({ label, items, icon = false }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (event.type === "pointerdown" && box.current?.contains(event.target))
+        return;
+      setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [open]);
+  return (
+    <div className={b.account} ref={box}>
+      <button
+        className={icon ? b.menuIcon : b.accountButton}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={icon ? label : undefined}
+        onClick={() => setOpen(!open)}
+      >
+        {icon ? (
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              d="M4 7h16M4 12h16M4 17h16"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        ) : (
+          label
+        )}
+      </button>
+      {open && (
+        <div className={b.accountMenu} role="menu" onClick={() => setOpen(false)}>
+          {items}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Scroll to a section once the page has drawn it: the page it belongs to may
+// still be rendering when the link is followed.
+function landOn(id) {
+  let tries = 0;
+  const align = () =>
+    document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "instant" });
+  const land = () => {
+    if (!document.getElementById(id)) {
+      if (tries++ < 40) setTimeout(land, 50);
+      return;
+    }
+    align();
+    // Tables and charts above it arrive a moment later and push it down:
+    // settle on it again, unless the reader has started scrolling.
+    let moved = false;
+    const stop = () => (moved = true);
+    window.addEventListener("wheel", stop, { once: true, passive: true });
+    window.addEventListener("touchmove", stop, { once: true, passive: true });
+    for (const wait of [300, 900, 1800]) setTimeout(() => moved || align(), wait);
+  };
+  setTimeout(land, 0);
+}
+
 export default function ProductApp({ mode = "individual", user }) {
+  const institution = user?.kind === "institution";
   const { disconnectAsync } = useDisconnect();
-  const migration = useMigrationAccount(migrationDestination);
-  const legacyPanelVisible = migration.legacyProducts.some(
-    (product) => product.positionStatus !== "loading",
-  );
-  const legacyChecking = migration.legacyProducts.some(
-    (product) => product.positionStatus === "loading",
-  );
-  const [tab, setTab] = useState("overview"),
-    [menu, setMenu] = useState(false);
-  const [selection, setSelection] = useState(null);
-  // The guide opens on request only; the workspace explains itself.
-  const [guide, setGuide] = useState(null);
-  function closeGuide() {
-    setGuide(null);
-  }
+  const owner = user?.walletAddress;
+  const account = useEarnAccount(owner);
+  // The move from a previous vault is read and signed by the wallet connected
+  // in the browser. It runs only when that is the wallet of this account;
+  // otherwise positions still show, from the account's own reads, and the move
+  // asks for that wallet to be connected.
+  const connected = useAccount();
+  const walletHere =
+    !!owner &&
+    connected.status === "connected" &&
+    connected.address?.toLowerCase() === owner.toLowerCase();
+  const kept = useKept(owner);
+  const migration = useMigrationAccount(walletHere ? migrationDestination : null, { kept });
+  const batch = useBatchVault(user, true, migration);
+  const market = useInsights("market", "30d", true);
+  const mine = useInsights("account", "", !!owner);
+  const history = usePublicResource("/api/vaults/history", {
+    refreshMs: 300000,
+  });
+  const [route, setRoute] = useState({ view: user ? "overview" : "earn" });
+  const [intent, setIntent] = useState(null);
+  const [guide, setGuide] = useState(false);
   const guideOpener = useRef(null);
-  function openGuide(event) {
-    guideOpener.current = event?.currentTarget || document.activeElement;
-    setGuide("platform");
-  }
   const [signingOut, setSigningOut] = useState(false),
     [error, setError] = useState("");
-  const sidebar = useRef(null),
-    menuButton = useRef(null),
-    heading = useRef(null);
-  const markets = useLive("markets", tab === "markets");
-  const networkOptions = [
-    ...new Set((markets.data?.data || []).map((m) => m.chain)),
-  ].sort();
-  const current = tab.split("/")[0];
-  const dataPage = current === "markets";
-  const institution = user.kind === "institution";
-  const displayName = institution
-    ? user.company || user.email
-    : user.walletAddress
-      ? `${user.walletAddress.slice(0, 6)}…${user.walletAddress.slice(-4)}`
-      : user.name;
-  function navigate(id) {
-    if (id === "build") id = "developers";
-    if (!labels[id]) return;
-    if (id !== tab) history.pushState(null, "", "#" + id);
-    setTab(id);
-    setMenu(false);
+  const mainRef = useRef(null);
+
+  // A confirmed transaction refreshes vault figures and history straight away.
+  const confirmedCount = (account.transactions || []).filter(
+    (tx) => tx.status === "success",
+  ).length;
+  const seenConfirmed = useRef(null);
+  useEffect(() => {
+    if (seenConfirmed.current === null) {
+      seenConfirmed.current = confirmedCount;
+      return;
+    }
+    if (confirmedCount > seenConfirmed.current) {
+      market.refresh();
+      if (owner) mine.refresh(true);
+    }
+    seenConfirmed.current = confirmedCount;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmedCount]);
+
+  const book = useMemo(
+    () =>
+      buildBook({
+        market: market.data,
+        chainRows: account.vaults,
+        mine: mine.data,
+        samples: history.data?.samples || {},
+        ticks: history.data?.ticks || [],
+        batch: batch.feed,
+        index: history.data?.index || null,
+        indexes: history.data?.indexes || null,
+        markets: history.data?.markets || null,
+        networkIndexes: history.data?.networkIndexes || null,
+        depositsOpen,
+      }),
+    [market.data, account.vaults, mine.data, history.data, batch.feed],
+  );
+  const move = useMemo(
+    () => moveSummary(migration, book.account.previous),
+    [migration, book.account.previous],
+  );
+
+  function navigate(view, id, options) {
+    const target = LEGACY[view] || view;
+    const path = PATHS[target];
+    if (path === undefined) return;
+    setIntent(
+      target === "earn" && options?.action
+        ? { action: options.action, at: Date.now() }
+        : null,
+    );
+    history_push("/app/" + mode + path + (options?.section ? "#" + options.section : ""));
+    setRoute({ view: target });
     window.scrollTo({ top: 0, behavior: "instant" });
     requestAnimationFrame(() =>
-      heading.current?.focus({ preventScroll: true }),
+      mainRef.current?.querySelector("h1")?.focus({ preventScroll: true }),
     );
+    // A link to one section of another page lands on that section, once the
+    // page has drawn it.
+    if (options?.section) landOn(options.section);
+  }
+  function history_push(path) {
+    if (location.pathname + location.search !== path)
+      window.history.pushState(null, "", path);
   }
   useEffect(() => {
     const sync = () => {
-      const id =
-        workspaceDestination(mode, { hash: location.hash }).split("#")[1] ||
-        "overview";
-      setTab(labels[id] ? id : "overview");
-      setMenu(false);
+      // Links from before the app had real addresses still work.
+      const hash = location.hash.replace(/^#/, "");
+      if (
+        hash &&
+        !document.getElementById(hash) &&
+        /^[a-z/]+$/.test(hash) &&
+        location.pathname === "/app/" + mode
+      ) {
+        const id =
+          workspaceDestination(mode, { hash: location.hash }).split("#")[1] ||
+          "overview";
+        const target = LEGACY[id] || id;
+        if (PATHS[target] !== undefined) {
+          window.history.replaceState(
+            null,
+            "",
+            "/app/" + mode + PATHS[target],
+          );
+        }
+      }
+      const parsed = parseRoute(location.pathname, mode);
+      // An old vault address becomes the product's own.
+      if (parsed.stale)
+        window.history.replaceState(null, "", "/app/" + mode + PATHS.earn);
+      setRoute(
+        !user && parsed.view === "overview" && location.pathname === "/app/" + mode
+          ? { view: "earn" }
+          : { view: parsed.view },
+      );
+      // An address that names a section opens on it.
+      if (/^[a-z-]+$/.test(hash) && location.pathname !== "/app/" + mode) landOn(hash);
     };
     sync();
-    window.addEventListener("hashchange", sync);
     window.addEventListener("popstate", sync);
+    window.addEventListener("hashchange", sync);
     return () => {
-      window.removeEventListener("hashchange", sync);
       window.removeEventListener("popstate", sync);
+      window.removeEventListener("hashchange", sync);
     };
-  }, [mode]);
-  useEffect(() => {
-    if (!menu) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const controls = () => [
-      ...sidebar.current.querySelectorAll("a[href], button:not([disabled])"),
-    ];
-    controls()[0]?.focus();
-    const keys = (event) => {
-      if (event.key === "Escape") {
-        setMenu(false);
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = controls(),
-        first = items[0],
-        last = items.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    const resized = () => {
-      if (window.innerWidth > 900) setMenu(false);
-    };
-    window.addEventListener("keydown", keys);
-    window.addEventListener("resize", resized);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", keys);
-      window.removeEventListener("resize", resized);
-      menuButton.current?.focus();
-    };
-  }, [menu]);
+  }, [mode, user]);
+
+  const displayName = institution
+    ? user.company || user.email
+    : owner
+      ? `${owner.slice(0, 6)}…${owner.slice(-4)}`
+      : null;
   async function signOut() {
     setSigningOut(true);
     setError("");
@@ -225,199 +384,286 @@ export default function ProductApp({ mode = "individual", user }) {
       setSigningOut(false);
     }
   }
-  function refresh() {
-    markets.refresh();
+  function openGuide(event) {
+    guideOpener.current = event?.currentTarget || document.activeElement;
+    setGuide(true);
   }
-  const refreshing = markets.loading;
-  const toolbar = (
-    <div className={s.toolbar}>
-      <NetworkFilter
-        options={networkOptions}
-        value={selection}
-        onChange={setSelection}
-      />
-      <button
-        className={s.secondaryButton}
-        onClick={refresh}
-        disabled={refreshing}
-      >
-        {refreshing ? "Refreshing…" : "Refresh"}
-      </button>
-    </div>
+  const section = route.view;
+  // Activity is a wallet's own history; without one, the public record is in
+  // Transparency and the menu does not offer an empty page.
+  const signedIn = !!user?.walletAddress;
+  // A guest has no portfolio: Earn is their first page, at the app's address.
+  const main = signedIn
+    ? MAIN
+    : MAIN.filter((id) => id !== "activity" && (user || id !== "overview"));
+  const dock = signedIn ? MAIN : [...main, "index"];
+  const wallet = book.account.wallet;
+  // The browser tab names the page, as the server does on a fresh load.
+  useEffect(() => {
+    const page =
+      route.view === "overview" && institution
+        ? "Treasury"
+        : route.view === "overview" && !user
+          ? "Earn"
+          : LABELS[route.view];
+    document.title = "Thesauros · " + (page || "Earn");
+  }, [route.view, institution, user]);
+  const label = (id) =>
+    id === "overview" && institution ? "Treasury" : LABELS[id];
+  // Real links: they can be opened in a new tab, copied and reloaded; a plain
+  // click stays in the app.
+  const nav = (id, compact = false) => (
+    <a
+      key={id}
+      href={"/app/" + mode + PATHS[id]}
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+        event.preventDefault();
+        navigate(id);
+      }}
+      aria-current={section === id ? "page" : undefined}
+      data-nav={id}
+    >
+      <Glyph id={id} />
+      <span>{compact && id === "index" ? "Market avg" : label(id)}</span>
+    </a>
   );
-  function navigationButton(id, compact = false) {
-    return (
-      <button
-        key={id}
-        onClick={() => navigate(id)}
-        aria-current={current === id ? "page" : undefined}
-      >
-        <svg
-          className={s.navGlyph}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          {icons[id]}
-        </svg>
-        <span>{compact && id === "earn" ? "Move" : labels[id]}</span>
-        {id === "test" && <span className={s.navBadge}>Test</span>}
+  const menuItems = (
+    <>
+      {/* What the dock already shows is not repeated here. */}
+      {[...TOOLS, "settings"].filter((id) => !dock.includes(id)).map((id) => (
+        <button key={id} role="menuitem" onClick={() => navigate(id)}>
+          {label(id)}
+        </button>
+      ))}
+      <button role="menuitem" onClick={openGuide}>
+        How it works
       </button>
+      <a role="menuitem" href={marketingHref("/contact")}>
+        Contact support
+      </a>
+      {user ? (
+        <button role="menuitem" onClick={signOut} disabled={signingOut}>
+          {signingOut ? "Signing out…" : "Sign out"}
+        </button>
+      ) : (
+        <a role="menuitem" href="/app/institution">
+          Institution sign in
+        </a>
+      )}
+    </>
+  );
+  // Moving from a previous vault is its own small app: one job, no menu.
+  if (route.view === "move")
+    return (
+      <MoveApp
+        mode={mode}
+        user={user}
+        book={book}
+        migration={migration}
+        walletHere={walletHere}
+        kept={kept}
+        account={account}
+        batch={batch}
+        displayName={displayName}
+        onBack={() => navigate(user ? "overview" : "earn")}
+        onOpen={(view, options) => navigate(view, null, options)}
+      />
     );
-  }
   return (
-    <div className={s.shell}>
+    <div
+      className={`${shell.shell} ${b.app} ${route.view === "earn" ? b.onVault : ""}`}
+    >
       <a
-        className={s.skip}
+        className={b.skip}
         href="#account-main"
         onClick={(event) => {
           event.preventDefault();
-          heading.current?.focus();
+          mainRef.current?.querySelector("h1")?.focus();
         }}
       >
-        Skip to workspace
+        Skip to content
       </a>
-      <header className={s.header} inert={menu || undefined}>
-        <a className={s.brand} href={marketingHref("/")}>
-          <img src="/brand/mark.svg" width="27" height="27" alt="" />
+      <header className={b.top}>
+        <a className={b.brand} href={marketingHref("/")}>
+          <img src="/brand/mark.svg" width="26" height="26" alt="" />
           Thesauros
         </a>
-        <nav aria-label="Help and account">
-          {mode === "institution" && (
-            <span className={s.modeTag}>Institution</span>
+        <div className={b.topRight}>
+          {institution && <span className={b.modeTag}>Institution</span>}
+          <a className={b.topLink} href={documentationHref("/")}>
+            Docs
+          </a>
+          {!user && (
+            <a className={b.topLink} href="/app/institution">
+              Institution sign in
+            </a>
           )}
-          <a href={documentationHref("/")}>Docs</a>
-          <button
-            className={s.accountButton}
-            onClick={() => navigate("settings")}
-            aria-label="Account settings"
-          >
-            {displayName}
-          </button>
-          <button
-            ref={menuButton}
-            className={s.menuButton}
-            onClick={() => setMenu(!menu)}
-            aria-expanded={menu}
-            aria-controls="account-navigation"
-          >
-            Menu
-          </button>
-        </nav>
+          {!user && <ConnectAction className={b.primary} />}
+          {user ? (
+            <AccountMenu label={displayName} items={menuItems} />
+          ) : (
+            <span className={b.phoneOnly}>
+              <AccountMenu label="Menu" items={menuItems} icon />
+            </span>
+          )}
+        </div>
       </header>
-      <div className={s.layout}>
-        <aside
-          ref={sidebar}
-          id="account-navigation"
-          className={`${s.sidebar} ${menu ? s.sidebarOpen : ""}`}
-          role={menu ? "dialog" : undefined}
-          aria-modal={menu || undefined}
-          aria-label={menu ? "Workspace navigation" : undefined}
-        >
-          <button className={s.mobileClose} onClick={() => setMenu(false)}>
-            Close navigation
-          </button>
-          <nav aria-label="Account navigation">
-            <div className={s.navGroup}>
-              {["overview", "vaults", "activity", "earn"].map((id) =>
-                navigationButton(id),
-              )}
-            </div>
-            <div className={s.navGroup}>
-              <span className={s.navGroupLabel}>Tools</span>
-              {["markets", "test", "developers", "settings"].map((id) =>
-                navigationButton(id),
-              )}
+      <div className={b.frame}>
+        <aside className={b.side} aria-label="Sections">
+          <nav aria-label="Main">
+            <div className={b.sideGroup}>{main.map((id) => nav(id))}</div>
+            <div className={b.sideGroup}>
+              <span className={b.sideLabel}>Tools</span>
+              {TOOLS.map((id) => nav(id))}
             </div>
           </nav>
-          <div className={s.sidebarBottom}>
-            <button onClick={openGuide}>How Earn works</button>
+          <div className={b.sideBottom}>
+            <nav aria-label="Account">{nav("settings")}</nav>
+            <button onClick={openGuide}>How it works</button>
             <a href={marketingHref("/contact")}>Contact support</a>
-            <button onClick={signOut} disabled={signingOut}>
-              {signingOut ? "Signing out…" : "Sign out"}
-            </button>
+            {user && (
+              <button onClick={signOut} disabled={signingOut}>
+                {signingOut ? "Signing out…" : "Sign out"}
+              </button>
+            )}
           </div>
         </aside>
-        {menu && (
-          <button
-            className={s.backdrop}
-            onClick={() => setMenu(false)}
-            aria-label="Close navigation"
-            tabIndex={-1}
+      <main id="account-main" className={b.main} ref={mainRef}>
+        {error && (
+          <p className={`${b.banner} ${b.systemBanner}`} role="alert">
+            {error}
+          </p>
+        )}
+        {batch.pending && (
+          <div className={`${b.banner} ${b.systemBanner}`} role="status">
+            <p>
+              A transaction on {PRODUCT.token} {PRODUCT.tag} is still
+              unconfirmed. New actions stay locked until it is checked.
+            </p>
+            <div className={b.requestActions}>
+              {batch.pending.hash && (
+                <a
+                  href={crosschain.explorer + "/tx/" + batch.pending.hash}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View transaction ↗
+                </a>
+              )}
+              <label className={b.field}>
+                <span>
+                  {batch.pending.hash
+                    ? "Replaced it in your wallet? Paste the new hash"
+                    : "Transaction hash from your wallet"}
+                </span>
+                <span className={b.amount}>
+                  <input
+                    placeholder="0x…"
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={batch.recoveryHash}
+                    onChange={(event) =>
+                      batch.setRecoveryHash(event.target.value)
+                    }
+                  />
+                </span>
+              </label>
+              <button
+                className={b.secondary}
+                onClick={batch.recover}
+                disabled={batch.busy}
+              >
+                Check confirmation
+              </button>
+              {batch.retrySaved && (
+                <button
+                  className={b.secondary}
+                  onClick={batch.retrySaved}
+                  disabled={batch.busy}
+                  title="Sends the same request with the same nonce, so it can run only once"
+                >
+                  Reopen in wallet
+                </button>
+              )}
+            </div>
+            {batch.message && <p className={b.hint}>{batch.message}</p>}
+          </div>
+        )}
+        {/* Collecting and cancelling happen on rows that then disappear, so
+            their outcome is said here, on whichever page the person is. */}
+        {batch.message && !batch.busy && ["claim", "cancel"].includes(batch.lastKind) && (
+          <p
+            className={`${b.banner} ${batch.succeeded ? b.doneBanner : b.systemBanner}`}
+            role="status"
+          >
+            <span>{batch.message}</span>
+            <button className={b.linkButton} onClick={batch.clearMessage}>
+              Dismiss
+            </button>
+          </p>
+        )}
+        <MoveNotice
+          summary={move}
+          guest={!user}
+          href={"/app/" + mode + PATHS.move}
+          onOpen={() => navigate("move")}
+        />
+        {route.view === "overview" && (
+          <PortfolioPage
+            book={book}
+            user={user}
+            batch={batch}
+            mine={mine}
+            account={account}
+            move={move}
+            navigate={navigate}
+            institution={institution}
           />
         )}
-        <main id="account-main" className={s.main} inert={menu || undefined}>
-          <div className={s.heading}>
-            <div>
-              <h1 ref={heading} tabIndex={-1}>
-                {current === "overview" && mode === "institution"
-                  ? "Treasury"
-                  : labels[current]}
-              </h1>
-              {descriptions[current] && <p>{descriptions[current]}</p>}
-            </div>
-            {dataPage && toolbar}
-          </div>
-          {error && (
-            <p className={s.warning} role="alert">
-              {error}
-            </p>
-          )}
-          {dataPage && selection?.length === 0 && (
-            <div className={s.selectionNotice}>
-              No networks selected.
-              <button
-                className={s.textButton}
-                onClick={() => setSelection(null)}
-              >
-                Show all networks
-              </button>
-            </div>
-          )}
-          {crosschainAccountViews.includes(current) && legacyPanelVisible && (
-            <MigrationPanel
-              model={{
-                ...migration,
-                products: migration.legacyProducts,
-                storageError: migration.storageError,
-              }}
-            />
-          )}
-          {crosschainAccountViews.includes(current) && (
-            <CrosschainWorkspace
-              key={migration.owner || user.walletAddress || "no-wallet"}
-              user={{
-                ...user,
-                walletAddress: migration.owner || user.walletAddress,
-              }}
-              view={current}
-              navigate={navigate}
-              migrationBlocked={migration.blocksNewRequests}
-              migrationRequestIds={migration.requestIds}
-              recoveryTransactions={migration.pendingTransactions}
-              recoveryBusy={migration.busy}
-              recoveryLoading={migration.loading}
-              recoveryStorageError={
-                legacyPanelVisible ? "" : migration.storageError
-              }
-              legacyChecking={legacyChecking}
-            />
-          )}
-          {current === "markets" && (
-            <Markets feed={markets} networks={selection} />
-          )}
-          {current === "developers" && (
-            <DeveloperCenter user={user} navigate={navigate} />
-          )}
-          {current === "test" && (
-            <TestAccount mode="individual" navigate={navigate} />
-          )}
-          {current === "settings" &&
-            (institution ? (
+        {route.view === "earn" && (
+          <VaultPage
+            book={book}
+            user={user}
+            batch={batch}
+            navigate={navigate}
+            intent={intent}
+          />
+        )}
+        {route.view === "index" && (
+          <IndexPage book={book} navigate={navigate} />
+        )}
+        {route.view === "activity" && (
+          <ActivityPage
+            book={book}
+            user={user}
+            mine={mine}
+            account={account}
+            batch={batch}
+            navigate={navigate}
+          />
+        )}
+        {route.view === "transparency" && (
+          <TransparencyPage book={book} navigate={navigate} />
+        )}
+        {route.view === "developers" && (
+          <DeveloperCenter user={user} navigate={navigate} />
+        )}
+        {route.view === "settings" && (
+          <div className={b.page}>
+            <header className={b.pageHead}>
+              <h1 tabIndex={-1}>Account</h1>
+            </header>
+            {!user ? (
+              <div className={b.guestAccount}>
+                <p>
+                  Sign in with your wallet to see the wallet this account
+                  uses and how you sign in. Your balance is in Portfolio.
+                  Signing in moves no funds and grants no approvals.
+                </p>
+                <ConnectAction className={b.primary} />
+              </div>
+            ) : institution ? (
               <InstitutionSettings
                 user={user}
                 signOut={signOut}
@@ -429,35 +675,36 @@ export default function ProductApp({ mode = "individual", user }) {
                 signOut={signOut}
                 signingOut={signingOut}
               />
-            ))}
-          <footer className={s.footer}>
-            <span>Thesauros</span>
-            <a href={documentationHref("/security/controls/")}>Security</a>
-            <a href={documentationHref("/")}>Documentation</a>
-          </footer>
-        </main>
+            )}
+          </div>
+        )}
+        <footer className={b.footer}>
+          <span>Thesauros</span>
+          <button className={b.linkButton} onClick={openGuide}>
+            How it works
+          </button>
+          <a href={marketingHref("/security")}>Security</a>
+          <a href={documentationHref("/")}>Documentation</a>
+          <a href={marketingHref("/contact")}>Contact</a>
+        </footer>
+      </main>
       </div>
       <nav
-        className={s.mobileDock}
+        className={b.dock}
         aria-label="Quick navigation"
-        inert={menu || undefined}
+        style={{ gridTemplateColumns: `repeat(${dock.length}, minmax(0, 1fr))` }}
       >
-        {["overview", "vaults", "activity", "earn"].map((id) =>
-          navigationButton(id, true),
-        )}
+        {dock.map((id) => nav(id, true))}
       </nav>
-      {guide === "platform" && (
-        <PlatformGuide
-          onClose={closeGuide}
-          navigate={navigate}
-          returnFocusRef={guideOpener}
-        />
-      )}
-      {guide === "earn" && (
+      {guide && (
         <QuickGuide
-          open={true}
-          onClose={closeGuide}
-          navigate={(id) => navigate(id === "overview" ? "earn" : id)}
+          steps={vaultGuide}
+          open
+          onClose={() => setGuide(false)}
+          navigate={(id) => {
+            setGuide(false);
+            navigate(id === "overview" && !user ? "earn" : id);
+          }}
           returnFocusRef={guideOpener}
         />
       )}

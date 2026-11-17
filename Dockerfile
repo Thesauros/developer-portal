@@ -24,6 +24,10 @@ FROM deps AS build
 # NEXT_PUBLIC_* values are inlined at build time, so the data source has to be
 # known here rather than at `docker run`.
 ARG NEXT_PUBLIC_DATA_SOURCE=sandbox
+# Deposits follow the vault contract. Build with NEXT_PUBLIC_THESAUROS_DEPOSITS=closed
+# to close them in the app; withdrawing, collecting and cancelling stay open.
+ARG NEXT_PUBLIC_THESAUROS_DEPOSITS=
+ENV NEXT_PUBLIC_THESAUROS_DEPOSITS=$NEXT_PUBLIC_THESAUROS_DEPOSITS
 ENV NEXT_PUBLIC_DATA_SOURCE=$NEXT_PUBLIC_DATA_SOURCE \
     NEXT_TELEMETRY_DISABLED=1
 COPY . .

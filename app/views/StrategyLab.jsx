@@ -655,8 +655,8 @@ export default function StrategyLab({ apiKey }) {
         </div>
         <p className={s.faint} style={{ fontSize: 12, marginTop: 0 }}>
           {isHistorical
-            ? 'Real daily APY from the DeFiLlama pool charts. One history, so samples are non-overlapping blocks of it — enough to describe the past, not enough to call a p-value.'
-            : 'Seeded simulation around the sandbox venues. Reproducible from (seed, regime) and able to produce as many independent markets as the statistics need — but a model, not evidence about real rates.'}
+            ? 'Real daily rates of the markets Thesauros vaults may use, from their own interest indexes. One history, so samples are non-overlapping blocks of it: enough to describe the past, not enough to call a p-value.'
+            : 'Seeded simulation around the sandbox venues. Reproducible from (seed, regime) and able to produce as many independent markets as the statistics need, but a model, not evidence about real rates.'}
         </p>
 
         <div className={s.quickGrid} style={{ marginTop: 14 }}>
@@ -815,7 +815,7 @@ export default function StrategyLab({ apiKey }) {
           </div>
           <p className={s.faint} style={{ fontSize: 12, marginTop: 0 }}>
             The lab is an API surface, not a toy in the console. This is the exact request the page
-            just made — the same run belongs in CI, where a strategy change that loses 20 bps
+            just made. The same run belongs in CI, where a strategy change that loses 20 bps
             against the baseline fails the build.
           </p>
           <CodeBlock code={curl} lang="bash" file="strategy-lab.sh" showLines={false} />
@@ -877,7 +877,7 @@ function ExperimentResult({ experiment, catalog }) {
           </div>
           <p className={s.faint} style={{ fontSize: 12, marginTop: 0 }}>
             Paired per sample. When the mean and the win rate disagree, the edge is concentrated in
-            a few samples rather than earned consistently — worth knowing before you ship it.
+            a few samples rather than earned consistently, which is worth knowing before you ship it.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 20, marginTop: 6 }}>
             {['net_apy', 'costs_usd', 'rebalances', 'max_drawdown_pct'].map((key) => {
@@ -934,7 +934,7 @@ function ExperimentResult({ experiment, catalog }) {
             .filter((v) => v.example)
             .map((v) => (
               <div key={v.id} style={{ marginTop: 18 }}>
-                <span className={s.fieldLabel}>{v.label} — where the capital sat</span>
+                <span className={s.fieldLabel}>{v.label}: where the capital sat</span>
                 <AllocationBand allocation={v.example.series.allocation} venues={market.venues} />
               </div>
             ))}

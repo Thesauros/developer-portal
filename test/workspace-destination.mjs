@@ -11,7 +11,7 @@ assert.equal(
 );
 assert.equal(
   destination("institution", { pathname: "/monitoring" }),
-  "/app/institution#vaults",
+  "/app/institution#transparency",
 );
 assert.equal(
   destination("institution", { pathname: "/developers", hash: "#reference" }),
@@ -53,4 +53,10 @@ for (const tab of ["crosschain", "vaults", "activity", "earn", "developers"]) {
 }
 console.log(
   "Wallet workspace destinations: 18 checks passed. View selection cannot redirect outside the app.",
+);
+
+assert.equal(
+  destination("individual", { hash: "#test" }),
+  "/app/individual",
+  "Old sandbox links open Portfolio",
 );

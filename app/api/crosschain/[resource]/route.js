@@ -2,9 +2,17 @@ import {
   readCrosschain,
   crosschainPath,
   validateCrosschainResponse,
+  readCrosschainMoves,
+  readCrosschainRates,
 } from "../../../../lib/crosschain-api.mjs";
 import { workspaceSession } from "../../../../lib/auth.mjs";
-import { readIndexedActivity } from "../../../../lib/crosschain-history.mjs";
+import {
+  historyCoverage,
+  openCrosschainHistory,
+  readAcceptedTicks,
+  readIndexedActivity,
+} from "../../../../lib/crosschain-history.mjs";
+import { overLimit, shared } from "../../../../lib/public-guard.mjs";
 import {
   readCrosschainVault,
   readCrosschainAllocation,
@@ -13,6 +21,14 @@ import {
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
+function readPrices() {
+  const store = openCrosschainHistory();
+  try {
+    return { ticks: readAcceptedTicks(store), coverage: historyCoverage(store) };
+  } finally {
+    store.close();
+  }
+}
 export async function GET(request, { params }) {
   const { resource } = await params;
   let owner;
@@ -32,9 +48,23 @@ export async function GET(request, { params }) {
         { status: 400, headers },
       );
     ids = raw ? [...new Set(raw.split(","))] : [];
-  }
+  } else if (overLimit(request))
+    return Response.json(
+      { error: "Too many requests." },
+      { status: 429, headers },
+    );
   try {
-    if (!["vault", "allocation", "user", "activity"].includes(resource))
+    if (
+      ![
+        "vault",
+        "allocation",
+        "user",
+        "activity",
+        "prices",
+        "rates",
+        "moves",
+      ].includes(resource)
+    )
       crosschainPath(resource);
   } catch {
     return Response.json(
@@ -51,32 +81,49 @@ export async function GET(request, { params }) {
       : ids;
     const requestIds = combinedRequestIds.slice(0, 100);
     const value =
-      resource === "vault"
-        ? await readCrosschainVault()
-        : resource === "allocation"
-          ? await readCrosschainAllocation()
-          : resource === "activity"
-            ? history
-            : resource === "user"
-              ? {
-                  ...(await readCrosschainUser(owner, requestIds)),
-                  coverage: history.coverage,
-                  historyScope:
-                    "Indexed EpochVault events plus explicitly tracked request IDs",
-                  truncated:
-                    history.truncated || combinedRequestIds.length > 100,
-                }
-              : await readCrosschain(resource);
+      resource === "rates"
+        ? await readCrosschainRates(
+            new URL(request.url).searchParams.get("period") || "30d",
+          )
+        : resource === "moves"
+          ? await readCrosschainMoves()
+          : resource === "vault"
+            ? await shared("crosschain:vault", 15000, readCrosschainVault)
+            : resource === "prices"
+              ? // Accepted valuations are public; no wallet's events are read here.
+                await shared("crosschain:prices", 60000, readPrices)
+              : resource === "allocation"
+                ? await shared(
+                    "crosschain:allocation",
+                    30000,
+                    readCrosschainAllocation,
+                  )
+                : resource === "activity"
+                  ? history
+                  : resource === "user"
+                    ? {
+                        ...(await readCrosschainUser(owner, requestIds)),
+                        coverage: history.coverage,
+                        historyScope:
+                          "Indexed EpochVault events plus explicitly tracked request IDs",
+                        truncated:
+                          history.truncated || combinedRequestIds.length > 100,
+                      }
+                    : await shared("crosschain:" + resource, 30000, () =>
+                        readCrosschain(resource),
+                      );
     return Response.json(validateCrosschainResponse(resource, value, owner), {
       headers,
     });
   } catch (error) {
+    // An RPC error can carry its URL, and a keyed URL must not reach the page.
+    console.error("crosschain " + resource + ":", error.message);
     return Response.json(
       {
         error:
           error.name === "TimeoutError"
-            ? "The cross-chain API timed out."
-            : error.message,
+            ? "The data source timed out."
+            : "This data is not available right now.",
       },
       { status: 502, headers },
     );

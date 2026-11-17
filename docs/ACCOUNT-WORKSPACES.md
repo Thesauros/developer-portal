@@ -1,12 +1,12 @@
 # Account access
 
-Individual and Institution use RainbowKit/wagmi (the same connection stack as app.thesauros.io), including injected wallets and WalletConnect. A Sign-In with Ethereum message creates an authenticated Better Auth session. No email, password, token approval or blockchain transaction is requested for sign-in.
+Individual and Institution use RainbowKit/wagmi (the same connection stack as app.thesauros.io), including injected wallets and WalletConnect. A Sign-In with Ethereum message creates an authenticated Better Auth session. A wallet sign-in requests no token approval and no blockchain transaction. Institution accounts can also sign in with a work email and password (`app/app/InstitutionLogin.jsx`).
 
 The server checks the configured public origin, supported chain, exact statement and URI, issue/expiry timestamps, signature and one-time nonce. The nonce is bound to an HttpOnly browser cookie. EOA signatures are checked locally; ERC-1271 contract wallets are verified against the configured chain RPC. The session token stays in an HttpOnly cookie.
 
-A wallet maps to one wallet account across the supported sign-in chains (Arbitrum, Base, Ethereum). Test balances persist by authenticated user ID. Switching to another wallet closes the previous session and asks the user to sign in again. Rejected connection/signature requests can be retried in the wallet dialog.
+A wallet maps to one wallet account across the supported sign-in chains (Arbitrum, Base, Ethereum). Switching to another wallet closes the previous session and asks the user to sign in again. Rejected connection/signature requests can be retried in the wallet dialog.
 
-Institution and `/developers` now accept wallet sign-in; `/monitoring` opens protocol activity after sign-in. Individual and Institution are interface choices for the same verified wallet, not company authorization roles. The existing wallet-owned Sandbox is shared between the two views. Legacy company ledgers remain inaccessible through this choice. Both entries open the partner-oriented Overview, Performance, Vaults & operations, Your capital and Developers workspace. A short guide opens once per wallet/browser and can be reopened from the header. Earn remains a separate wallet-confirmed flow; Developers distinguishes the current Partner API catalogue from the built-in sample API Sandbox. Legacy #build and integrations links land in Developers. No public email signup/login or password recovery route remains active. Existing email accounts, recovery records and test workspaces are retained in the database without being silently attached to a wallet.
+Institution and `/developers` accept wallet sign-in; `/monitoring` opens Transparency after Institution sign-in. Individual and Institution are interface choices for the same verified wallet, not company authorization roles. The existing wallet-owned Sandbox is shared between the two views. Legacy company ledgers remain inaccessible through this choice. Both entries open the same sections: Portfolio, Earn, Activity, Transparency, Market Average, Developers and Account. A short guide opens once per wallet/browser and can be reopened from the header. Earn remains a separate wallet-confirmed flow; Developers distinguishes the current Partner API catalogue from the built-in sample API Sandbox. Legacy #build and integrations links land in Developers. Institution accounts can register and sign in with a work email and password, and recover access with their recovery key. Existing email accounts, recovery records and test workspaces are retained in the database without being silently attached to a wallet.
 
 ## Storage and deployment
 
@@ -22,7 +22,7 @@ The web app serves native `/app/*` and `/api/*` routes directly, as described in
 
 `npm test` includes cryptographic login, nonce replay, cross-browser challenge use, wrong signer/domain/URI/statement, expiry, account isolation, cross-chain identity, logout, and disabled email access and legacy company-ledger isolation on both SQLite and local libSQL. Those tests use freshly generated disposable keys and databases; they do not send transactions or use customer wallets.
 
-Sandbox remains a simulation with explicitly supplied test funds. Earn is a separate real USDC deposit/withdrawal flow on Arbitrum and Base, with wallet-confirmed transactions. Signing in alone does not approve spending or move funds.
+The API sandbox is a simulation. Earn is real: deposits and withdrawals are requests in USDC on Base that settle in batches. Signing in alone does not approve spending or move funds.
 
 ### WalletConnect QR compatibility
 
@@ -34,4 +34,4 @@ Overview separates current contract reads from monitor observations and indexed 
 
 History and operations are scoped by chain and vault address. Ambiguous operations remain explicitly network-wide. Missing monitor snapshots may retain their original timestamps; explicit failed reads are not replaced with fresh-looking cached values. A cold monitor outage still permits an observed, supported Earn contract to appear from a successful onchain read. Neither source fabricates history, allocation percentages or missing rates.
 
-Developers includes a source-reviewed Partner API catalogue and seven lazy-loaded sample tools. Wallet sign-in does not grant a partner account, partner credentials or admin scope. Browse/copy actions in the catalogue do not execute requests. Sandbox writes still require a corresponding tool action and are labelled sample data.
+Developers includes a source-reviewed Partner API catalogue and eight lazy-loaded sample tools. Wallet sign-in does not grant a partner account, partner credentials or admin scope. Browse/copy actions in the catalogue do not execute requests. Sandbox writes still require a corresponding tool action and are labelled sample data.

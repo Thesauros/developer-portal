@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import s from "./workspace.module.css";
+import b from "./book/book.module.css";
 export default function AccountSettings({ user, signOut, signingOut }) {
   const [message, setMessage] = useState("");
   const timer = useRef(null);
@@ -31,12 +31,17 @@ export default function AccountSettings({ user, signOut, signingOut }) {
     }
   }
   return (
-    <section className={s.panel}>
-      <h2>Wallet account</h2>
-      <dl className={s.details}>
+    <section className={b.settingsSection}>
+      <header className={b.sectionHead}>
+        <div>
+          <h2>Wallet account</h2>
+          <p className={b.quiet}>You sign in and transact with this wallet.</p>
+        </div>
+      </header>
+      <dl className={b.settingsFacts}>
         <div>
           <dt>Wallet address</dt>
-          <dd className={s.fullAddress}>{user.walletAddress}</dd>
+          <dd className={b.breakAll}>{user.walletAddress}</dd>
         </div>
         <div>
           <dt>Account type</dt>
@@ -47,19 +52,19 @@ export default function AccountSettings({ user, signOut, signingOut }) {
           <dd>Wallet signature</dd>
         </div>
       </dl>
-      <div className={s.buttonRow}>
-        <button className={s.secondaryButton} onClick={copy}>
+      <div className={b.headActions}>
+        <button className={b.secondary} onClick={copy}>
           Copy address
         </button>
         <button
-          className={s.secondaryButton}
+          className={b.secondary}
           onClick={signOut}
           disabled={signingOut}
         >
           {signingOut ? "Signing out…" : "Sign out"}
         </button>
       </div>
-      <p className={s.caption} role="status">
+      <p className={b.footnote} role="status">
         {message}
       </p>
     </section>

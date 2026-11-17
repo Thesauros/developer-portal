@@ -11,9 +11,11 @@ import {
   validateMigrationRpc,
 } from "../lib/migration-rpc.mjs";
 import {
+  patientTransport,
   privateRpcTransport,
   privateRpcUrls,
   vaultRpcUrls,
+  PROXIED_NETWORKS,
 } from "../lib/vault-rpc.mjs";
 
 const owner = "0x1111111111111111111111111111111111111111";
@@ -49,7 +51,16 @@ const request = (payload, extra = {}) =>
 const options = (patch = {}) => ({ network: "base", session, env, ...patch });
 
 test("server uses private HTTPS providers first, browser only knows same-origin proxy and public fallbacks", () => {
-  for (const vault of vaults) {
+  // Only Base and Arbitrum have a proxy; every other network reads public RPCs.
+  for (const vault of vaults.filter(
+    (entry) => !PROXIED_NETWORKS.includes(entry.id),
+  )) {
+    assert.deepEqual(vaultRpcUrls(vault, { browser: true, env }), vault.rpcs);
+    assert.deepEqual(vaultRpcUrls(vault, { browser: false, env }), vault.rpcs);
+  }
+  for (const vault of vaults.filter((entry) =>
+    PROXIED_NETWORKS.includes(entry.id),
+  )) {
     const browser = vaultRpcUrls(vault, { browser: true, env });
     assert.deepEqual(browser, [
       `/api/migration/rpc/${vault.id}`,
@@ -369,6 +380,37 @@ test("proxy requires a session, fixed network, same origin and JSON before conta
   assert.equal(calls, 0);
 });
 
+test("proxy accepts the origin visitors use when the server listens under another name", async () => {
+  // Behind a proxy (or on localhost beside 127.0.0.1) the URL the server builds
+  // is not the one in the browser; the Host the browser sent is.
+  const behind = (headers) =>
+    new Request("http://localhost:3000/api/migration/rpc/base", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(call("eth_chainId")),
+    });
+  const status = async (headers) =>
+    (await handleMigrationRpc(behind(headers), options({ env: {} }))).status;
+  // 503 here means the origin check passed: no private RPC in this env.
+  assert.equal(
+    await status({ Origin: "https://app.example.test", Host: "app.example.test" }),
+    503,
+  );
+  assert.equal(
+    await status({
+      Origin: "https://app.example.test",
+      Host: "localhost:3000",
+      "X-Forwarded-Host": "app.example.test",
+    }),
+    503,
+  );
+  assert.equal(
+    await status({ Origin: "https://evil.test", Host: "app.example.test" }),
+    403,
+  );
+  assert.equal(await status({ Origin: "null", Host: "app.example.test" }), 403);
+});
+
 test("proxy bounds streamed payloads independently of Content-Length", async () => {
   let calls = 0;
   const fetcher = async () => {
@@ -503,4 +545,55 @@ test("direct server private transport scrubs both nested errors and transport me
     assert.equal(error.cause, undefined);
     return true;
   });
+});
+
+test("a rationed public endpoint is asked again after a pause, and no other failure is", async () => {
+  const chain = vaults.find((vault) => vault.id === "monad").chain;
+  const answer = (id) => Response.json({ jsonrpc: "2.0", id, result: "0x8f" });
+  const refusal = () => new Response("Rate limit exceeded", { status: 429 });
+  const run = async (responses) => {
+    const pauses = [];
+    let asked = 0;
+    const transport = patientTransport(
+      "https://rpc.monad.example",
+      {
+        retryCount: 0,
+        fetchFn: async (_, init) =>
+          responses[asked++](JSON.parse(init.body).id),
+      },
+      { sleep: async (ms) => pauses.push(ms) },
+    );
+    const client = transport({ chain, retryCount: 0 });
+    let result, failure;
+    try {
+      result = await client.request({ method: "eth_chainId" });
+    } catch (error) {
+      failure = error;
+    }
+    return { result, failure, asked, pauses };
+  };
+  // Refused twice, then answered: the read succeeds after both pauses.
+  let outcome = await run([refusal, refusal, answer]);
+  assert.equal(outcome.result, "0x8f");
+  assert.deepEqual(outcome.pauses, [400, 900]);
+  // Still refused after the last pause: the refusal reaches the caller, so the
+  // next endpoint is tried.
+  outcome = await run([refusal, refusal, refusal, answer]);
+  assert.equal(outcome.failure.status, 429);
+  assert.equal(outcome.asked, 3);
+  // An endpoint that is down is not waited on.
+  outcome = await run([() => new Response("down", { status: 503 }), answer]);
+  assert.equal(outcome.failure.status, 503);
+  assert.equal(outcome.asked, 1);
+  assert.deepEqual(outcome.pauses, []);
+});
+
+test("Monad reads travel as single calls grouped in a contract call, the other networks as JSON-RPC batches", () => {
+  for (const vault of vaults)
+    assert.equal(
+      vault.groupReads,
+      vault.id === "monad" ? "multicall" : "batch",
+      vault.id,
+    );
+  assert.ok(vaults.find((vault) => vault.id === "monad").chain.contracts.multicall3);
 });

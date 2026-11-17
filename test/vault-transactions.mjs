@@ -8,7 +8,7 @@ import {
   createTransactionEngine,
   prepareTransaction,
 } from "../lib/vault-transactions.mjs";
-import { getVault, vaultAbi } from "../lib/vault-contracts.mjs";
+import { getVault, tokenAbi, vaultAbi } from "../lib/vault-contracts.mjs";
 
 // No signing, RPC or real provider is used. Verify the unsigned call and the
 // asynchronous wallet/receipt boundary independently from chain-data loading.
@@ -479,6 +479,99 @@ await test("final transaction is checked even without replacement callback", asy
     h.execute(await h.prepare()),
     expectCode("TRANSACTION_MISMATCH"),
   );
+});
+// Wallet relays (MetaMask pays gas in USDC through its delegation manager) mine
+// the reviewed call inside their own transaction. Real case: TS-407, Base.
+const relayer = "0xb42f812a00000000000000000000000000000000";
+const delegationManager = "0xdb9b1e94b5b69df7e401ddbede43491141047db3";
+const vaultEvent = (eventName, args, assets, shares, address = vault.address) => ({
+  address,
+  topics: encodeEventTopics({ abi: vaultAbi, eventName, args }),
+  data: encodeAbiParameters(
+    [{ type: "uint256" }, { type: "uint256" }],
+    [assets, shares],
+  ),
+});
+const relayedThrough = (h, logs) => {
+  h.state.wait = async () => {
+    h.state.actual = {
+      ...h.state.sent,
+      from: relayer,
+      to: delegationManager,
+      input: "0xcef6d209" + "00".repeat(64),
+    };
+    return { status: "success", transactionHash: hash, logs };
+  };
+};
+await test("a relayed deposit is confirmed by the vault's own event", async () => {
+  const h = harness();
+  const p = await h.prepare();
+  relayedThrough(h, [
+    vaultEvent("Deposit", { sender: owner, owner }, p.rawAmount, 9_000_000n),
+  ]);
+  const result = await h.execute(p);
+  assert.equal(result.status, "success");
+  assert.equal(result.actualAmount, p.rawAmount);
+});
+await test("a relayed withdraw-all is confirmed by the burned shares", async () => {
+  const h = harness();
+  const p = await h.prepare({ kind: "withdraw", all: true });
+  relayedThrough(h, [
+    vaultEvent(
+      "Withdraw",
+      { sender: owner, receiver: owner, owner },
+      101_000_007n,
+      p.shares,
+    ),
+  ]);
+  const result = await h.execute(p);
+  assert.equal(result.actualAmount, 101_000_007n);
+});
+await test("a relayed approval is confirmed by the token's own event", async () => {
+  const h = harness({ position: { allowance: 0n } });
+  const p = await h.prepare();
+  relayedThrough(h, [
+    {
+      address: vault.asset,
+      topics: encodeEventTopics({
+        abi: tokenAbi,
+        eventName: "Approval",
+        args: { owner, spender: vault.address },
+      }),
+      data: encodeAbiParameters([{ type: "uint256" }], [p.rawAmount]),
+    },
+  ]);
+  const result = await h.execute(p, { action: "approve" });
+  assert.equal(result.status, "success");
+});
+await test("a relayed transaction without the reviewed effect stays a mismatch", async () => {
+  const cases = (rawAmount) => [
+    [],
+    // Different amount.
+    [vaultEvent("Deposit", { sender: owner, owner }, rawAmount - 1n, 9n)],
+    // Someone else's money.
+    [vaultEvent("Deposit", { sender: other, owner }, rawAmount, 9n)],
+    // Shares credited to another account.
+    [vaultEvent("Deposit", { sender: owner, owner: other }, rawAmount, 9n)],
+    // The same event from a different contract.
+    [vaultEvent("Deposit", { sender: owner, owner }, rawAmount, 9n, other)],
+    // The opposite action.
+    [
+      vaultEvent(
+        "Withdraw",
+        { sender: owner, receiver: owner, owner },
+        rawAmount,
+        9n,
+      ),
+    ],
+  ];
+  const count = cases(1n).length;
+  for (let index = 0; index < count; index++) {
+    const h = harness();
+    const p = await h.prepare();
+    relayedThrough(h, cases(p.rawAmount)[index]);
+    await assert.rejects(h.execute(p), expectCode("TRANSACTION_MISMATCH"));
+  }
 });
 await test("UI progress callback errors do not stop receipt tracking", async () => {
   const h = harness();

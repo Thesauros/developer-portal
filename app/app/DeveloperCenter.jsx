@@ -10,14 +10,30 @@ import {
   buildPartnerRequest,
   filterPartnerEndpoints,
 } from "../../lib/partner-api-catalog.mjs";
-import s from "./developer-center.module.css";
+import {
+  PARTNER_TERMS,
+  PLANNED_PERFORMANCE_FEE,
+} from "../../lib/vault-facts.mjs";
+import { crosschain } from "../../lib/crosschain-config.mjs";
+import { Section, Segmented, short } from "./book/parts";
+import b from "./book/book.module.css";
+
+// The calls an integration makes on the vault, as a wallet sees them.
+const VAULT_CALLS = `// USDC and the vault's shares both have 6 decimals. All on Base.
+usdc.approve(vault, assets)                    // exactly the amount
+vault.requestDeposit(assets, receiver)         // returns requestId
+vault.requestRedeem(shares, receiver, owner)   // returns requestId
+vault.getRequest(requestId)                    // state and amounts
+vault.claim(requestId)                         // after the batch settles
+vault.cancel(requestId)                        // while the request can still be cancelled
+vault.limits()                                 // minDeposit, maxEpochDeposits, ...`;
 
 const DeveloperTools = dynamic(() => import("./DeveloperTools"), {
   ssr: false,
   loading: () => (
-    <div className={s.loading} role="status">
+    <p className={b.quiet} role="status">
       Opening API Sandbox…
-    </div>
+    </p>
   ),
 });
 const sandboxViews = new Set([
@@ -96,8 +112,8 @@ function CopyRequest({ text }) {
     setMessage(copied ? "Request copied" : "Select and copy the request below");
   }
   return (
-    <div className={s.copyRow}>
-      <button type="button" className={s.smallButton} onClick={copy}>
+    <div className={b.copyRow}>
+      <button type="button" className={b.secondary} onClick={copy}>
         Copy request
       </button>
       <span role="status">{message}</span>
@@ -109,31 +125,28 @@ function Endpoint({ endpoint }) {
   const request = buildPartnerRequest(endpoint);
   const required = endpoint.inputs.filter((input) => input.required);
   return (
-    <details className={s.endpoint}>
+    <details className={b.endpoint}>
       <summary>
-        <span className={`${s.method} ${s[endpoint.method.toLowerCase()]}`}>
+        <span className={b.httpMethod} data-method={endpoint.method}>
           {endpoint.method}
         </span>
-        <span className={s.endpointIdentity}>
+        <span className={b.endpointIdentity}>
           <code>{endpoint.path}</code>
           <span>{endpoint.title}</span>
         </span>
-        <span className={s.access}>{endpoint.access}</span>
-        <span className={s.expand} aria-hidden="true">
-          +
-        </span>
+        <span className={b.tag}>{endpoint.access}</span>
       </summary>
-      <div className={s.endpointBody}>
-        <p className={s.description}>{endpoint.description}</p>
-        <dl className={s.authDetails}>
+      <div className={b.endpointBody}>
+        <p>{endpoint.description}</p>
+        <dl className={b.terms}>
           <div>
             <dt>Authorization</dt>
-            <dd>
+            <dd className={b.small}>
               {endpoint.access === "Public" ? (
-                "Public · no API key"
+                "Public, no API key"
               ) : (
                 <>
-                  Bearer key ·{" "}
+                  Bearer key with{" "}
                   {endpoint.scopes.map((scope, index) => (
                     <span key={scope}>
                       {index > 0 && " or "}
@@ -147,12 +160,14 @@ function Endpoint({ endpoint }) {
           {endpoint.requiresPartner && (
             <div>
               <dt>Account scope</dt>
-              <dd>The API key must be bound to your partner account.</dd>
+              <dd className={b.small}>
+                The API key must be bound to your partner account.
+              </dd>
             </div>
           )}
           <div>
             <dt>Required inputs</dt>
-            <dd>
+            <dd className={b.small}>
               {required.length
                 ? required
                     .map((input) => `${input.name} (${input.in})`)
@@ -162,18 +177,16 @@ function Endpoint({ endpoint }) {
           </div>
         </dl>
         {endpoint.inputs.length > 0 && (
-          <div className={s.inputs}>
-            <h4>Request inputs</h4>
-            <ul>
+          <div className={b.subBlock}>
+            <h3>Request inputs</h3>
+            <ul className={b.inputList}>
               {endpoint.inputs.map((input) => (
                 <li key={input.in + input.name}>
-                  <div>
-                    <code>{input.name}</code>
-                    <span>
-                      {input.in} · {input.type} ·{" "}
-                      {input.required ? "required" : "optional"}
-                    </span>
-                  </div>
+                  <code>{input.name}</code>
+                  <span className={b.quiet}>
+                    {input.in}, {input.type},{" "}
+                    {input.required ? "required" : "optional"}
+                  </span>
                   {input.description && <p>{input.description}</p>}
                   {input.values && <p>Values: {input.values.join(", ")}</p>}
                 </li>
@@ -181,32 +194,44 @@ function Endpoint({ endpoint }) {
             </ul>
           </div>
         )}
-        <div className={s.requestHeading}>
-          <h4>Example request</h4>
-          <span>
-            {endpoint.method === "GET" ? "Read" : "Changes API records"}
-          </span>
+        <div className={b.subBlock}>
+          <h3>Example request</h3>
+          <p className={b.footnote}>
+            {endpoint.method === "GET" ? "Reads records. " : "Changes API records. "}
+            Set the API origin and credential supplied for your integration and
+            replace example IDs with your own. This page does not run requests.
+          </p>
+          <CopyRequest text={request} />
+          <pre
+            className={b.codeBlock}
+            tabIndex={0}
+            aria-label={`Example ${endpoint.method} ${endpoint.path} request`}
+          >
+            <code>{request}</code>
+          </pre>
+          <a href={documentationHref(endpoint.docs)}>
+            Full reference and response models
+          </a>
         </div>
-        <p className={s.requestNote}>
-          Set the API origin and credential supplied for your integration.
-          Replace example IDs with your own. This page does not execute
-          requests.
-        </p>
-        <CopyRequest text={request} />
-        <pre
-          className={s.code}
-          tabIndex={0}
-          aria-label={`Example ${endpoint.method} ${endpoint.path} request`}
-        >
-          <code>{request}</code>
-        </pre>
-        <a className={s.textLink} href={documentationHref(endpoint.docs)}>
-          Full reference and response models
-        </a>
       </div>
     </details>
   );
 }
+
+const TOOLS = [
+  {
+    title: "Partner API",
+    note: "v1",
+    text: "Customer attribution, sample rate records, partner reporting and webhooks. It does not record the vault's requests and claims yet.",
+    action: "reference",
+  },
+  {
+    title: "API Sandbox",
+    note: "sample data",
+    text: "Try requests, sample customers and position activity. Nothing moves on chain. Its deposits and withdrawals are instant; the vault's are not.",
+    action: "sandbox",
+  },
+];
 
 export default function DeveloperCenter({ user, navigate }) {
   const [area, setArea] = useState("start");
@@ -230,314 +255,293 @@ export default function DeveloperCenter({ user, navigate }) {
     const next = route.replace(/^integrations\//, "");
     if (sandboxViews.has(next)) setSandboxView(next);
   }
+  const contact = marketingHref("/contact?usecase=integrate");
   return (
-    <div className={s.center}>
-      <header className={s.intro}>
+    <div className={b.page}>
+      <header className={b.pageHead}>
         <div>
-          <span className={s.eyebrow}>Developer resources</span>
-          <h2>Integrate Thesauros.</h2>
-          <p>API reference, SDKs and a sandbox for your integration.</p>
+          <h1 tabIndex={-1}>Developers</h1>
+          <p className={b.pageLede}>
+            Put the USDC Multichain vault in your own product. Your users
+            request deposits on Base from their own wallets in your app;
+            Thesauros runs the vault and shows the same figures you see here.
+          </p>
         </div>
-        <a
-          className={s.secondary}
-          href={documentationHref("/start/integration-paths/")}
-        >
-          Integration guide
-        </a>
-      </header>
-      <nav className={s.tabs} aria-label="Developer resources">
-        {areas.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            aria-current={area === item.id ? "page" : undefined}
-            onClick={() => setArea(item.id)}
+        <div className={b.headActions}>
+          <a
+            className={b.secondary}
+            href={documentationHref("/start/integration-paths/")}
           >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+            Integration guide
+          </a>
+          <a className={b.primary} href={contact}>
+            Plan an integration
+          </a>
+        </div>
+      </header>
+      <dl className={b.facts}>
+        <div>
+          <dt>Fee on yield</dt>
+          <dd>{PLANNED_PERFORMANCE_FEE}%</dd>
+          <small>Planned. The contracts charge 0% today.</small>
+        </div>
+        <div>
+          <dt>Your share of that fee</dt>
+          <dd>Up to {PARTNER_TERMS.preToken}%</dd>
+          <small>
+            Until 60 days after the token launches. Then {PARTNER_TERMS.base}%,
+            or up to {PARTNER_TERMS.bonded}% with bonded tokens.
+          </small>
+        </div>
+        <div>
+          <dt>Partner API</dt>
+          <dd>{PARTNER_API_CATALOG.length}</dd>
+          <small>documented operations</small>
+        </div>
+      </dl>
+      <div className={b.tabsRow}>
+        <Segmented
+          label="Developer resources"
+          value={area}
+          onChange={setArea}
+          options={areas.map((item) => ({ value: item.id, label: item.label }))}
+        />
+      </div>
 
       {area === "start" && (
-        <div className={s.stack}>
-          <section className={s.path} aria-labelledby="developer-path-title">
-            <div className={s.sectionHeading}>
-              <h3 id="developer-path-title">Integration steps.</h3>
-              <p>
-                Choose the wallet model with your team, then connect the records
-                that make Earn work inside your product.
-              </p>
-            </div>
-            <ol className={s.steps}>
+        <>
+          <Section
+            title="How an integration works"
+            lede="Choose the wallet model with your team, build the vault's request flow into your product, then connect your own records."
+          >
+            <ol className={b.steps}>
               <li>
-                <span className={s.stepNumber}>01</span>
-                <h4>Design the transaction</h4>
+                <h3>Design the transaction</h3>
                 <p>
-                  Your app handles consent, wallet signing and confirmations.
-                  Approval, deposit and withdrawal use the supported vault
-                  contracts.
+                  Your app handles consent, wallet signing and confirmations. A
+                  deposit is an approval, a request and a claim after the batch
+                  settles. A withdrawal is a request and a claim. Both are on
+                  the vault contract on Base.
                 </p>
-                <button
-                  type="button"
-                  className={s.textButton}
-                  onClick={() => navigate("earn")}
-                >
-                  Inspect the Earn flow
+                <button className={b.linkButton} onClick={() => navigate("earn")}>
+                  See the deposit flow
                 </button>
               </li>
               <li>
-                <span className={s.stepNumber}>02</span>
-                <h4>Connect customer records</h4>
+                <h3>Read the vault from the chain</h3>
+                <p>
+                  Requests, settlements and claims are on the vault contract.
+                  The Partner API does not record the vault yet: its positions,
+                  ledger and webhooks do not confirm vault activity.
+                </p>
+                <a className={b.linkButton} href={documentationHref("/build/vault/")}>
+                  Integrate the vault on chain
+                </a>
+              </li>
+              <li>
+                <h3>Connect customer records</h3>
                 <p>
                   Keep Partner API credentials on your backend. Link customer
                   identities and wallets to the partner account arranged with
-                  Thesauros.
+                  Thesauros, and treat chain data and API accounting as
+                  separate sources.
                 </p>
-                <button
-                  type="button"
-                  className={s.textButton}
-                  onClick={() => browse("Customers")}
-                >
-                  Explore customer endpoints
-                </button>
-              </li>
-              <li>
-                <span className={s.stepNumber}>03</span>
-                <h4>Operate the experience</h4>
-                <p>
-                  Bring recorded positions, delivery events and reconciliation
-                  into your services. Treat observed chain data and API
-                  accounting as separate sources.
-                </p>
-                <button
-                  type="button"
-                  className={s.textButton}
-                  onClick={() => browse("Reconciliation")}
-                >
-                  Explore reconciliation
+                <button className={b.linkButton} onClick={() => browse("Customers")}>
+                  Customer endpoints
                 </button>
               </li>
             </ol>
-          </section>
-          <div className={s.surfaceGrid}>
-            <section className={s.surface}>
-              <span className={s.eyebrow}>Partner API · v1</span>
-              <h3>Customer data and reporting.</h3>
-              <p>
-                Customer attribution, vault observations, partner reporting and
-                webhooks. Browse {PARTNER_API_CATALOG.length} documented
-                operations without a credential.
-              </p>
-              <div className={s.actions}>
-                <button
-                  type="button"
-                  className={s.primary}
-                  onClick={() => browse()}
-                >
-                  Explore Partner API
-                </button>
+          </Section>
+          <Section
+            id="vault-contract"
+            title="The vault contract"
+            lede="One contract on Base takes every deposit and withdrawal. Read limits and fees from it: they can change."
+          >
+            <dl className={b.terms}>
+              <div>
+                <dt>USDC Multichain vault</dt>
+                <dd>
+                  <a
+                    href={crosschain.explorer + "/address/" + crosschain.vault}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {short(crosschain.vault)} ↗
+                  </a>
+                </dd>
+                <small>Base, chain ID {crosschain.chainId}. Indexed from block {crosschain.startBlock}.</small>
+              </div>
+              <div>
+                <dt>Asset</dt>
+                <dd>
+                  <a
+                    href={crosschain.explorer + "/address/" + crosschain.asset}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    USDC {short(crosschain.asset)} ↗
+                  </a>
+                </dd>
+                <small>Native USDC on Base, 6 decimals.</small>
+              </div>
+              <div>
+                <dt>Valuations</dt>
+                <dd>
+                  <a
+                    href={crosschain.explorer + "/address/" + crosschain.accountant}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {short(crosschain.accountant)} ↗
+                  </a>
+                </dd>
+                <small>Each accepted valuation sets the share price a batch settles at.</small>
+              </div>
+            </dl>
+            <pre className={b.codeBlock} tabIndex={0} aria-label="The vault's calls">
+              <code>{VAULT_CALLS}</code>
+            </pre>
+            <p className={b.footnote}>
+              These contracts have had no external audit yet. Strategy contracts
+              on each network are internal and never receive user approvals.
+            </p>
+          </Section>
+          <Section title="Tools and clients">
+            <ul className={b.toolRows}>
+              {TOOLS.map((tool) => (
+                <li key={tool.title}>
+                  <div>
+                    <strong>{tool.title}</strong> <span className={b.tag}>{tool.note}</span>
+                    <p>{tool.text}</p>
+                  </div>
+                  <button
+                    className={b.secondary}
+                    onClick={() =>
+                      tool.action === "reference" ? browse() : setArea("sandbox")
+                    }
+                  >
+                    Open
+                  </button>
+                </li>
+              ))}
+              {resources.map((resource) => (
+                <li key={resource.href}>
+                  <div>
+                    <strong>{resource.title}</strong>{" "}
+                    <span className={b.tag}>{resource.label}</span>
+                    <p>{resource.description}</p>
+                  </div>
+                  <a className={b.secondary} href={documentationHref(resource.href)}>
+                    Read
+                  </a>
+                </li>
+              ))}
+              <li>
+                <div>
+                  <strong>OpenAPI</strong> <span className={b.tag}>JSON</span>
+                  <p>The Partner API schema, for code generation and review.</p>
+                </div>
                 <a
-                  className={s.textLink}
+                  className={b.secondary}
                   href={documentationHref("/openapi/partner-openapi.json")}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  OpenAPI JSON
+                  Download
                 </a>
-              </div>
-            </section>
-            <section className={s.surface}>
-              <span className={s.eyebrow}>API Sandbox · sample data</span>
-              <h3>Test your integration.</h3>
-              <p>
-                Try requests, inspect sample customers and model position
-                activity in the built-in API. Sample positions do not move
-                onchain funds.
-              </p>
-              <div className={s.actions}>
-                <button
-                  type="button"
-                  className={s.secondary}
-                  onClick={() => setArea("sandbox")}
-                >
-                  Open API Sandbox
-                </button>
-                <button
-                  type="button"
-                  className={s.textButton}
-                  onClick={() => navigate("test")}
-                >
-                  Try the customer demo
-                </button>
-              </div>
-            </section>
-          </div>
-          <section aria-labelledby="developer-sdk-title">
-            <div className={s.sectionHeading}>
-              <h3 id="developer-sdk-title">
-                Use the client that fits your stack.
-              </h3>
-              <p>
-                The Partner and Sandbox clients have separate contracts.
-                Packages are available as review downloads.
-              </p>
-            </div>
-            <div className={s.resourceGrid}>
-              {resources.map((resource) => (
-                <a
-                  key={resource.href}
-                  className={s.resource}
-                  href={documentationHref(resource.href)}
-                >
-                  <span>{resource.label}</span>
-                  <h4>{resource.title}</h4>
-                  <p>{resource.description}</p>
-                </a>
-              ))}
-            </div>
-          </section>
-          <section className={s.accessPanel}>
-            <div>
-              <h3>Ready to connect your organization?</h3>
-              <p>
-                Work with Thesauros on your signing model, supported networks
-                and Partner API access. A wallet connection does not issue an
-                organization credential.
-              </p>
-            </div>
-            <a
-              className={s.primary}
-              href={marketingHref("/contact?usecase=integration")}
-            >
-              Plan an integration
-            </a>
-          </section>
-        </div>
+              </li>
+            </ul>
+          </Section>
+          <Section
+            title="Connect your organization"
+            lede="Work with Thesauros on your signing model, wallet flow on Base and Partner API access. A wallet connection does not issue an organization credential."
+            aside={
+              <a className={b.primary} href={contact}>
+                Plan an integration
+              </a>
+            }
+          />
+        </>
       )}
 
       {area === "reference" && (
-        <section className={s.stack} aria-labelledby="partner-reference-title">
-          <div className={s.sectionHeading}>
-            <div>
-              <span className={s.eyebrow}>Partner API · v1</span>
-              <h3 id="partner-reference-title">
-                Find the request your product needs.
-              </h3>
-              <p>
-                Reference examples use your own API origin and server
-                credentials. Browse by capability or the access your key
-                requires.
-              </p>
-            </div>
+        <Section
+          title="Partner API reference"
+          lede="Find the request your product needs. Examples use your own API origin and server credentials. Partner endpoints read and manage attributed records; this API does not sign deposits or withdrawals for your customers, and it does not record the USDC Multichain vault yet."
+          aside={
             <a
-              className={s.secondary}
+              className={b.secondary}
               href={documentationHref("/openapi/partner-openapi.json")}
               target="_blank"
               rel="noreferrer"
             >
               OpenAPI JSON
             </a>
-          </div>
-          <div className={s.catalogNote}>
-            <strong>Access is arranged with Thesauros.</strong>
-            <span>
-              Partner endpoints read and manage attributed records. This API
-              does not sign deposits or withdrawals for your customers.
-            </span>
-          </div>
-          <div className={s.filters}>
-            <label className={s.search}>
-              <span>Search endpoints</span>
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Customer, webhook, vault, scope…"
-              />
+          }
+        >
+          <div className={b.filterRow}>
+            <label className={b.field}>
+              <span>Search</span>
+              <span className={b.amount}>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Customer, webhook, vault, scope"
+                />
+              </span>
             </label>
-            <label>
-              <span>Capability</span>
-              <select
-                value={group}
-                onChange={(event) => setGroup(event.target.value)}
-              >
-                <option>All</option>
-                {PARTNER_API_GROUPS.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Access</span>
-              <select
-                value={access}
-                onChange={(event) => setAccess(event.target.value)}
-              >
-                {["All", "Partner", "Protocol", "Administrative", "Public"].map(
-                  (item) => (
+            {[
+              ["Capability", group, setGroup, ["All", ...PARTNER_API_GROUPS]],
+              ["Access", access, setAccess, ["All", "Partner", "Protocol", "Administrative", "Public"]],
+              ["Method", method, setMethod, ["All", "GET", "POST", "PATCH", "DELETE"]],
+            ].map(([label, value, set, options]) => (
+              <label key={label} className={b.field}>
+                <span>{label}</span>
+                <select
+                  className={b.select}
+                  value={value}
+                  onChange={(event) => set(event.target.value)}
+                >
+                  {options.map((item) => (
                     <option key={item}>{item}</option>
-                  ),
-                )}
-              </select>
-            </label>
-            <label>
-              <span>Method</span>
-              <select
-                value={method}
-                onChange={(event) => setMethod(event.target.value)}
-              >
-                {["All", "GET", "POST", "PATCH", "DELETE"].map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
+                  ))}
+                </select>
+              </label>
+            ))}
           </div>
-          <div className={s.results}>
+          <p className={b.resultLine}>
             <span role="status">
-              {matches.length}{" "}
-              {matches.length === 1 ? "operation" : "operations"}
+              {matches.length} {matches.length === 1 ? "operation" : "operations"}
             </span>
-            <button
-              type="button"
-              className={s.textButton}
-              onClick={() => browse()}
-            >
+            <button className={b.linkButton} onClick={() => browse()}>
               Reset filters
             </button>
-          </div>
+          </p>
           {matches.length ? (
-            <div className={s.catalog}>
-              {PARTNER_API_GROUPS.filter((name) =>
-                matches.some((item) => item.group === name),
-              ).map((name) => (
-                <section key={name} className={s.endpointGroup}>
-                  <h4>{name}</h4>
-                  {matches
-                    .filter((item) => item.group === name)
-                    .map((endpoint) => (
-                      <Endpoint key={endpoint.id} endpoint={endpoint} />
-                    ))}
-                </section>
-              ))}
-            </div>
+            PARTNER_API_GROUPS.filter((name) =>
+              matches.some((item) => item.group === name),
+            ).map((name) => (
+              <div key={name} className={b.subBlock}>
+                <h3>{name}</h3>
+                {matches
+                  .filter((item) => item.group === name)
+                  .map((endpoint) => (
+                    <Endpoint key={endpoint.id} endpoint={endpoint} />
+                  ))}
+              </div>
+            ))
           ) : (
-            <div className={s.empty}>
-              <h4>No matching endpoints.</h4>
-              <p>
-                Try a capability such as “customers” or clear the filters to see
-                the full catalog.
-              </p>
-              <button
-                type="button"
-                className={s.secondary}
-                onClick={() => browse()}
-              >
-                Show all endpoints
+            <p className={b.quiet}>
+              No matching endpoints. Try a capability such as “customers” or{" "}
+              <button className={b.linkButton} onClick={() => browse()}>
+                show all
               </button>
-            </div>
+              .
+            </p>
           )}
-          <details className={s.contractNote}>
-            <summary>Response conventions and reference coverage</summary>
+          <div className={b.conventions}>
+            <h3>Response conventions</h3>
             <p>
               Single resources use <code>{"{ object, data }"}</code>.
               Collections use <code>{'{ object: "list", data, meta }'}</code>.
@@ -545,54 +549,35 @@ export default function DeveloperCenter({ user, navigate }) {
               response’s <code>meta.next_cursor</code> as <code>cursor</code>.
             </p>
             <p>
-              This integration catalog was checked against the Partner API
-              controllers and input validation on {PARTNER_API_REVIEWED}. It
-              omits legacy reward methods and deprecated aliases. The
-              downloadable schema is the existing official export; effective
-              partner binding and required inputs shown here also reflect
-              handler checks.
+              This catalog was checked against the Partner API controllers and
+              input validation on {PARTNER_API_REVIEWED}; the backend has
+              changed since, so confirm scopes and limits with the OpenAPI
+              file. It omits legacy reward methods and deprecated aliases.
             </p>
-            <a
-              className={s.textLink}
-              href={documentationHref("/api/partner-models/")}
-            >
+            <a href={documentationHref("/api/partner-models/")}>
               Read the response models
             </a>
-          </details>
-        </section>
+          </div>
+        </Section>
       )}
 
       {area === "sandbox" && (
-        <section className={s.stack} aria-labelledby="api-sandbox-title">
-          <div className={s.sectionHeading}>
-            <div>
-              <span className={s.eyebrow}>Shared sample environment</span>
-              <h3 id="api-sandbox-title">API Sandbox</h3>
-              <p>
-                Seven tools for testing request shapes and sample account
-                operations. Use sample customer data here; the environment is
-                shared.
-              </p>
-            </div>
+        <Section
+          title="API Sandbox"
+          lede="Tools for testing request shapes and sample account operations, on a shared environment with sample data. Creating a sample position does not send a blockchain transaction, and it is instant: the live vault's deposits and withdrawals are requests that settle in batches."
+          aside={
             <a
-              className={s.secondary}
+              className={b.secondary}
               href={documentationHref("/openapi/sandbox-openapi.json")}
               target="_blank"
               rel="noreferrer"
             >
               Sandbox OpenAPI
             </a>
-          </div>
-          <div className={s.catalogNote}>
-            <strong>Sample records, separate from your Earn wallet.</strong>
-            <span>
-              Creating a sample position does not submit a blockchain
-              transaction. Requests and changes run only when you use the
-              corresponding tool.
-            </span>
-          </div>
+          }
+        >
           {builtInSandbox ? (
-            <div className={s.sandbox}>
+            <div className={b.sandboxFrame}>
               <DeveloperTools
                 view={sandboxView}
                 userId={user?.id || user?.walletAddress || "workspace"}
@@ -600,24 +585,15 @@ export default function DeveloperCenter({ user, navigate }) {
               />
             </div>
           ) : (
-            <div className={s.empty}>
-              <h4>
-                The built-in API Sandbox is not configured for this deployment.
-              </h4>
-              <p>
-                The Partner API reference and SDK downloads remain available.
-                Your team can arrange the appropriate API environment with
-                Thesauros.
-              </p>
-              <a
-                className={s.secondary}
-                href={documentationHref("/api/sandbox/")}
-              >
-                Read Sandbox documentation
+            <p className={b.quiet}>
+              The built-in API Sandbox is not configured for this deployment.
+              The Partner API reference and SDK downloads remain available.{" "}
+              <a href={documentationHref("/api/sandbox/")}>
+                Read the Sandbox documentation
               </a>
-            </div>
+            </p>
           )}
-        </section>
+        </Section>
       )}
     </div>
   );

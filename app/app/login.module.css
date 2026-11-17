@@ -378,3 +378,38 @@
   color: #10243a;
   margin-bottom: 20px;
 }
+.altAccess {
+  margin-top: 22px;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #7b8898;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #d5dfe8;
+}
+.walletSecondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid #c7d3de;
+  border-radius: 8px;
+  background: #fff;
+  color: #10243a;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.walletSecondary:hover {
+  border-color: #196aff;
+}

@@ -79,6 +79,10 @@ function withErrors(responses, codes) {
 const AUTH = [{ bearerAuth: [] }];
 const PUBLIC = [];
 
+// The networks the Thesauros API lists vaults on, as the live API names them
+// (`mainnet` is Ethereum).
+const NETWORKS = ['arbitrum', 'base', 'mainnet', 'monad', 'plasma'];
+
 const q = (name, description, opts = {}) => ({
   name,
   in: 'query',
@@ -117,7 +121,7 @@ function buildDoc() {
       title: 'Thesauros Developer Platform API',
       version: '1.0.0',
       description:
-        'Enterprise yield-infrastructure sandbox API. Deterministic simulation of the Thesauros routing engine: vaults, aggregated yield, positions with live accrual, rebalances, webhooks and usage telemetry. All APY values are decimal fractions (0.052 = 5.2%).',
+        'Thesauros API sandbox. Sample data only: sample venues, rates, positions, rebalances, webhooks and usage. Deposits and withdrawals here are instant; the live USDC Multichain vault uses requests that settle in batches. All APY values are decimal fractions (0.052 = 5.2%).',
       contact: { name: 'Thesauros', url: 'https://developer.thesauros.io' },
     },
     servers: [{ url: '/api/v1', description: 'Earn sandbox' }],
@@ -239,7 +243,7 @@ function buildDoc() {
           summary: 'List vaults',
           parameters: [
             q('asset', 'Filter by asset', { enum: ['USDC', 'USDT'] }),
-            q('chain', 'Filter by chain', { enum: ['base', 'arbitrum'] }),
+            q('network', 'Filter to one network; `mainnet` is Ethereum. Omit for every network.', { enum: NETWORKS }),
             q('status', 'Filter by status', { enum: ['active', 'paused'] }),
             ...paginationParams(),
           ],
@@ -276,7 +280,7 @@ function buildDoc() {
           tags: ['positions'],
           summary: 'Open a position',
           description:
-            'Validates the wallet/asset/amount and routes to a vault. Settlement is synchronous: the position is active immediately.',
+            'Validates the wallet/asset/amount and creates a sample position. Settlement is synchronous in the sandbox: the position is active immediately. The live vault is not synchronous.',
           parameters: [idempotencyHeader()],
           requestBody: {
             required: true,
@@ -484,7 +488,7 @@ function buildDoc() {
           tags: ['lab'],
           summary: 'Strategy catalog',
           description:
-            'Policies, named presets, market regimes, comparable metrics and accepted parameter ranges — everything needed to construct a valid strategy object.',
+            'Policies, named presets, market regimes, comparable metrics and accepted parameter ranges: everything needed to construct a valid strategy object.',
           responses: withErrors({ 200: single('StrategyCatalog', 'Catalog') }, [401, 429, 500]),
         },
       },
@@ -493,7 +497,7 @@ function buildDoc() {
           tags: ['lab'],
           summary: 'Inspect rate paths',
           description:
-            'The daily APY series a backtest would run on, without running one. mode=synthetic returns a seeded simulation reproducible from (seed, regime); mode=historical returns real DeFiLlama pool history and may shorten the window to the days every venue covers.',
+            'The daily APY series a backtest would run on, without running one. mode=synthetic returns a seeded simulation reproducible from (seed, regime); mode=historical returns the real daily rate history of the markets Thesauros vaults may use, read by the Thesauros indexer, and may shorten the window to the days every venue covers.',
           parameters: [
             q('mode', 'Rate source', { enum: ['synthetic', 'historical'], default: 'synthetic' }),
             q('asset', 'Stablecoin asset', { enum: ['USDC', 'USDT'], default: 'USDC' }),
@@ -514,7 +518,7 @@ function buildDoc() {
           tags: ['lab'],
           summary: 'Backtest one strategy',
           description:
-            'Runs a strategy over one market window. Returns its equity curve, decision log and metrics next to four baselines: passive bluechip, route-once-and-hold, equal weight, and the ex-post best venue as an unattainable ceiling. Creates nothing — read scope is sufficient despite the POST.',
+            'Runs a strategy over one market window. Returns its equity curve, decision log and metrics next to four baselines: passive bluechip, route-once-and-hold, equal weight, and the ex-post best venue as an unattainable ceiling. Creates nothing: read scope is sufficient despite the POST.',
           requestBody: {
             required: false,
             content: { 'application/json': { schema: ref('BacktestRequest') } },
@@ -529,7 +533,7 @@ function buildDoc() {
           tags: ['lab'],
           summary: 'Compare variants and judge a hypothesis',
           description:
-            'Runs every variant against identical markets, repeatedly, and reports the paired difference per metric with a 95% interval, a win rate and a p-value. When a hypothesis is supplied the response carries a verdict: supported, refuted, negligible, underpowered or inconclusive. Creates nothing — read scope is sufficient despite the POST.',
+            'Runs every variant against identical markets, repeatedly, and reports the paired difference per metric with a 95% interval, a win rate and a p-value. When a hypothesis is supplied the response carries a verdict: supported, refuted, negligible, underpowered or inconclusive. Creates nothing: read scope is sufficient despite the POST.',
           requestBody: {
             required: true,
             content: { 'application/json': { schema: ref('ExperimentRequest') } },
@@ -634,7 +638,7 @@ function buildDoc() {
             },
             perf_fee_pct: {
               type: 'number', minimum: 0, maximum: 0.5, default: 0.25,
-              description: 'Protocol performance fee charged on positive yield.', example: 0.25,
+              description: 'Performance fee applied in the simulation. The default 0.25 is the planned fee; 0 is charged on chain today.', example: 0.25,
             },
             allowed_tiers: {
               type: 'array',
@@ -1024,7 +1028,7 @@ function buildDoc() {
             name: { type: 'string' },
             provider: { type: 'string', enum: ['aave', 'morpho', 'compound', 'dolomite', 'treasury'] },
             asset: { type: 'string', enum: ['USDC', 'USDT'] },
-            chain: { type: 'string', enum: ['base', 'arbitrum'] },
+            chain: { type: 'string', enum: NETWORKS, description: 'Network the vault runs on; `mainnet` is Ethereum.' },
             apy: { type: 'number', description: 'Decimal fraction (0.052 = 5.2%)' },
             apy_7d_avg: { type: 'number' },
             apy_30d_avg: { type: 'number' },
@@ -1092,7 +1096,7 @@ function buildDoc() {
             user_id: { type: ['string', 'null'], description: 'Owning end-user, if associated' },
             wallet: { type: 'string' },
             asset: { type: 'string', enum: ['USDC', 'USDT'] },
-            chain: { type: 'string', enum: ['base', 'arbitrum'] },
+            chain: { type: 'string', enum: NETWORKS, description: 'Network the vault runs on; `mainnet` is Ethereum.' },
             vault_id: { type: 'string' },
             strategy: { type: 'string' },
             principal: { type: 'number' },

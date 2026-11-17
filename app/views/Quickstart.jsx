@@ -79,7 +79,7 @@ export default function Quickstart({ go }) {
       <span className={s.kicker}>Quickstart</span>
       <h1 className={s.viewTitle}>Build your first Earn flow</h1>
       <p className={s.viewLead}>
-        Use the sandbox to create a customer position, read its activity and model a withdrawal. Download the local SDK release to run these examples from your backend.
+        Use the sandbox to create a sample customer position, read its activity and model a withdrawal. The sandbox is instant; the live vault uses requests that settle in batches, so plan for a request, a wait and a claim. Download the local SDK release to run these examples from your backend.
       </p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '22px 0 30px' }}>
@@ -131,8 +131,8 @@ export default function Quickstart({ go }) {
 
       <Step
         n="3"
-        title="Open a yield position"
-        desc="One call deposits from your user's wallet into the optimal venue. Non-custodial — the user signs, you never hold funds."
+        title="Create a sample position"
+        desc="One call creates a sample position. It is simulated: nothing is signed and no funds move. A real deposit is an approval, a request and a claim on Base."
         delay={140}
       >
         <CodeBlock {...QUICKSTART_DEPOSIT[lang]} />
@@ -141,7 +141,7 @@ export default function Quickstart({ go }) {
       <Step
         n="4"
         title="Monitor and rebalance"
-        desc="Value accrues continuously. The router rebalances automatically and you can observe every decision."
+        desc="The sample value grows at a fixed sample rate. Sample rebalances appear in the log."
         delay={190}
       >
         <CodeBlock {...QUICKSTART_MONITOR[lang]} />
@@ -150,11 +150,12 @@ export default function Quickstart({ go }) {
       <div className={`${s.card} ${s.cardPad} ${s.revealItem}`} style={{ marginBottom: 22 }}>
         <div className={s.h3} style={{ fontSize: 13.5 }}>Published terms</div>
         <p className={s.faint} style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>
-          Thesauros charges a 25% performance fee on the yield generated and nothing on the
-          principal — if a period earns nothing, no fee is charged. The standard partner share is
-          30% of that fee, or 7.5% of gross yield. A temporary pre-TGE incentive offers up to 50%
-          through 60 days after TGE. The planned post-TGE Yield Booster offers up to 80% through
-          token bonding. Existing signed agreements apply.{' '}
+          The planned fee is a 25% performance fee on the yield generated and nothing on the
+          principal: if a period earns nothing, no fee is charged. No fee is charged on chain
+          today. The standard partner share is 30% of that fee, or 7.5% of gross yield. A
+          temporary pre-TGE incentive offers up to 50% through 60 days after TGE. The planned
+          post-TGE Yield Booster offers up to 80% through token bonding. Existing signed
+          agreements apply.{' '}
           <a href="https://tokenomics.thesauros.io/#s3-3">Review the transition and bonding rules.</a>
         </p>
       </div>

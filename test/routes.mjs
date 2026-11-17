@@ -86,7 +86,6 @@ try {
   }
   check(ready, "compiled server starts");
   for (const path of [
-    "/app",
     "/app/individual",
     "/app/institution",
     "/monitoring",
@@ -98,11 +97,9 @@ try {
     );
     const html = await response.text();
     check(
-      html.includes(
-        path === "/app/institution"
-          ? "Sign in to your workspace"
-          : "Sign in with your wallet",
-      ) && !html.includes("Coming soon."),
+      (path === "/app/institution"
+        ? html.includes("Sign in to your workspace")
+        : true) && !html.includes("Coming soon."),
       `${path} renders the expected interface`,
     );
     for (const asset of new Set(
@@ -160,6 +157,87 @@ try {
   check(
     (await request("/app/live?kind=protocol")).status === 401,
     "native live data requires authentication",
+  );
+  check(
+    (await request("/app/insights?kind=account")).status === 401,
+    "a wallet's earnings and history require a session",
+  );
+  check(
+    (await request("/app/onchain?vault=arbitrum")).status === 401,
+    "a wallet's on-chain position requires a session",
+  );
+  check(
+    (await request("/app/insights")).status === 200,
+    "vault rates and allocation are public",
+  );
+  check(
+    [200, 503].includes((await request("/app/live?kind=markets")).status),
+    "market rates are public (503 until the indexer has read the markets)",
+  );
+  check(
+    [200, 503].includes((await request("/api/vaults/history")).status),
+    "vault history answers without a session",
+  );
+  check(
+    (await request("/api/vaults/keys")).status === 404,
+    "public vault routes reject anything unlisted",
+  );
+  {
+    const earn = await request("/app/individual/earn");
+    check(earn.status === 200, "Earn opens without a session");
+    check(
+      (await earn.text()).includes("<title>Thesauros · Earn</title>"),
+      "Earn names itself in the tab",
+    );
+  }
+  for (const old of ["vaults", "vaults/usdc-multichain", "vaults/arbitrum", "vaults/usdc-instant"])
+    check(
+      (await request("/app/individual/" + old)).status === 200,
+      `the old address /${old} still opens the product`,
+    );
+  {
+    const move = await request("/app/individual/move");
+    check(move.status === 200, "the move from a previous vault opens without a session");
+    check(
+      (await move.text()).includes("Move to the new vault"),
+      "the move names itself in the tab",
+    );
+  }
+  check(
+    (await request("/api/migration/rpc/base", { jsonrpc: "2.0", id: 1, method: "eth_chainId" }))
+      .status === 401,
+    "the read-only RPC proxy requires a session",
+  );
+  {
+    const version = await request("/api/version");
+    check(
+      [200, 503].includes(version.status) &&
+        version.headers.get("cache-control") === "no-store",
+      "the version endpoint answers and is never cached",
+    );
+  }
+  check(
+    (await request("/app/individual/market-average")).status === 200,
+    "the Market Average opens without a session",
+  );
+  check(
+    (await request("/app/individual/blue-chip-index")).status === 200,
+    "the Market Average's old address still opens",
+  );
+  {
+    const old = await request("/app/bluechips");
+    check(
+      [307, 308].includes(old.status) &&
+        (old.headers.get("location") || "").endsWith(
+          "/app/individual/market-average",
+        ),
+      "the old blue-chip window leads to the Market Average",
+    );
+  }
+  check(
+    (await request("/app/individual")).headers.get("x-frame-options") ===
+      "DENY",
+    "pages that can ask for a signature cannot be framed",
   );
   check(
     (await request("/api/crosschain/user")).status === 401,

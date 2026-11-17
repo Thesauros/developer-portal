@@ -6,10 +6,12 @@ import {
   readCrosschainVault,
   readCrosschainAllocation,
 } from "../lib/crosschain-reads.mjs";
+import { chainByChainId } from "../lib/chains.mjs";
+import { crosschain } from "../lib/crosschain-config.mjs";
 
 const results = await Promise.allSettled([
   (async () => {
-    const client = vaultClients.base;
+    const client = vaultClients[chainByChainId(crosschain.chainId).id];
     await verifyCrosschain(
       client,
       await client.getBlockNumber({ cacheTime: 0 }),

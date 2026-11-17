@@ -1,4 +1,12 @@
-# Cross-chain stand — delivery contract
+# Cross-chain stand: delivery contract
+
+Historical delivery record of 28 October 2026. The vault described here is now the live product, USDC Multichain.
+
+**One app.** The batch vault is the one live product in the app, for Individual and Institution alike. The vaults that came before it are previous vaults. See `docs/PRODUCT.md`.
+
+**Build flags.** Deposits follow the contract and are open unless the build sets `NEXT_PUBLIC_THESAUROS_DEPOSITS=closed`. With it, deposits are shown as closed while withdrawing, collecting and cancelling keep working. The old flags `NEXT_PUBLIC_THESAUROS_PRODUCT` and `NEXT_PUBLIC_THESAUROS_BATCH_DEPOSITS` no longer exist. The contracts have had no external audit yet; the app says so next to the deposit form.
+
+**History.** `scripts/index-crosschain.mjs` indexes valuations and also samples, once a day into the same SQLite file, each vault's share price, size and allocation (`vault_samples`) and every market a vault is approved to use (`market_samples`: size, interest index and quoted rate, found through each vault's `getProviders` and each provider's `getSource`). The Market Average is computed from `market_samples` (`lib/blue-chip-index.mjs`). It needs a persistent disk. Without it the pages stay up and show those figures as unavailable. A first run backfills 95 days a few days at a time; `THESAUROS_RPC_<NETWORK>` replaces the public endpoints in `lib/chains.mjs` with keyed ones.
 
 Change: `crosschain-stand-20261028`. Branch: `сcrosschain` (initial Cyrillic `с`).
 

@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { institutionSession, userSession } from "../../lib/auth.mjs";
+import { redirect } from "next/navigation";
 import InstitutionLogin from "./InstitutionLogin";
-import Login from "./Login";
 import EntryRedirect from "./EntryRedirect";
 export const metadata = {
   title: "Thesauros · Connect your wallet",
@@ -19,5 +19,6 @@ export default async function Page({ searchParams }) {
   }
   if (await userSession(requestHeaders))
     return <EntryRedirect mode={mode} destination="overview" next={next} />;
-  return <Login next={next} mode={mode} />;
+  // Anyone can read the app; connecting a wallet happens inside it.
+  redirect("/app/individual");
 }

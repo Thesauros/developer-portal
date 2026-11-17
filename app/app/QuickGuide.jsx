@@ -2,66 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import s from "./guide.module.css";
 
-const steps = [
-  {
-    short: "Choose",
-    title: "Give your USDC an Earn balance.",
-    body: "Choose a Thesauros vault on Arbitrum or Base. The vault puts deposited USDC to work through lending providers; you hold the shares that represent your position.",
-    detail:
-      "Review the allocation, variable rate and current minimum deposit. Keep ETH for network fees on the selected network.",
-    note: "One network, one vault, your position.",
-    visual: [
-      ["wallet", "Your USDC", "On Arbitrum or Base"],
-      ["vault", "Thesauros vault", "Your Earn position"],
-      ["market", "Lending providers", "View the allocation"],
-    ],
-    action: "Explore the vaults",
-    destination: "protocol",
-  },
-  {
-    short: "Deposit",
-    title: "Review the amount. Confirm in your wallet.",
-    body: "Enter your USDC amount in Earn. If an approval is needed, first approve that amount for the vault. Then confirm a separate deposit transaction.",
-    detail:
-      "Check the network, amount and contract in each wallet request. Approval alone does not create an Earn position. Both transactions require network fees.",
-    note: "Approve USDC, then confirm the deposit.",
-    visual: [
-      ["wallet", "Enter amount", "Choose how much USDC"],
-      ["vault", "Approve USDC", "If permission is needed"],
-      ["activity", "Confirm deposit", "A separate transaction"],
-    ],
-    action: "Open Earn",
-    destination: "overview",
-  },
-  {
-    short: "Track",
-    title: "Follow the transaction into your balance.",
-    body: "A submitted transaction stays pending until the network confirms it. Earn shows its status and a link to the transaction, then refreshes your position after confirmation.",
-    detail:
-      "Your Earn balance is the current USDC value of your vault shares. The rate can change; the allocation view shows where the vault is working.",
-    note: "Wallet request. Network confirmation. Updated position.",
-    visual: [
-      ["wallet", "Submitted", "Sent from your wallet"],
-      ["activity", "Confirmed", "A verifiable receipt"],
-      ["vault", "Your position", "Updated from the contract"],
-    ],
-    action: "View Earn",
-    destination: "overview",
-  },
-  {
-    short: "Withdraw",
-    title: "Bring USDC back to your wallet.",
-    body: "Open Withdraw in Earn. Choose a USDC amount or redeem your full position, review the transaction, then confirm it in your wallet.",
-    detail:
-      "Withdrawals depend on available liquidity and the contract’s current controls. Deposit and withdrawal availability can differ. We check availability again before requesting a transaction.",
-    note: "Review, confirm, and follow the receipt.",
-    visual: [
-      ["vault", "Your position", "Choose part or all"],
-      ["activity", "Withdrawal", "Confirm in your wallet"],
-      ["wallet", "Your USDC", "On the same network"],
-    ],
-  },
-];
+import { vaultGuide as defaultSteps } from "./vault-guide";
 
 const drawings = {
   app: (
@@ -124,6 +65,7 @@ function Icon({ name }) {
 }
 
 export default function QuickGuide({
+  steps = defaultSteps,
   open,
   onClose,
   navigate,
@@ -260,7 +202,7 @@ export default function QuickGuide({
         </nav>
         <div ref={content} className={s.content}>
           <div className={s.visual} aria-hidden="true">
-            <span className={s.visualLabel}>THESAUROS</span>
+            <span className={s.visualLabel}>How it works</span>
             <div className={s.diagram}>
               {current.visual.map(([icon, label, detail], index) => (
                 <div
@@ -274,9 +216,6 @@ export default function QuickGuide({
                     <strong>{label}</strong>
                     <span>{detail}</span>
                   </div>
-                  <span className={s.cardNumber}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
                 </div>
               ))}
             </div>
@@ -301,19 +240,14 @@ export default function QuickGuide({
             )}
             {step === steps.length - 1 && (
               <div className={s.finalActions}>
-                <button className={s.primary} onClick={() => visit("overview")}>
+                <button className={s.primary} onClick={() => visit("earn")}>
                   Open Earn
                 </button>
-                <button className={s.docsLink} onClick={() => visit("build")}>
+                <button className={s.docsLink} onClick={() => visit("developers")}>
                   Bring Earn into your app
                 </button>
               </div>
             )}
-            <div className={s.finalActions}>
-              <button className={s.docsLink} onClick={() => visit("test")}>
-                Prefer test funds? Open Sandbox
-              </button>
-            </div>
           </section>
         </div>
         <footer className={s.footer}>

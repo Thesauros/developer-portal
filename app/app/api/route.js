@@ -45,7 +45,7 @@ export async function POST(request) {
   const origin = request.headers.get("origin");
   if (
     origin &&
-    origin !== (process.env.BETTER_AUTH_URL || "http://80.241.220.22:8878")
+    origin !== (process.env.BETTER_AUTH_URL || "http://127.0.0.1:3000")
   )
     return Response.json(
       { error: "Invalid origin." },

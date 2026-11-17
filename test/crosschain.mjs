@@ -1,11 +1,32 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deriveEpochRequest } from "../lib/crosschain-reads.mjs";
+import {
+  encodeAbiParameters,
+  encodeEventTopics,
+  encodeFunctionData,
+  parseAbi,
+} from "viem";
+import {
+  allMarkets,
+  capitalMap,
+  rateOnAllCapital,
+  requestStage,
+  valuationState,
+} from "../lib/crosschain-feed.mjs";
+import {
+  deriveEpochRequest,
+  receiptRequestIds,
+  requestEvents,
+} from "../lib/crosschain-reads.mjs";
 import {
   CROSSCHAIN_API_ORIGIN,
   crosschain,
   assertCrosschainIdentity,
 } from "../lib/crosschain-config.mjs";
+import {
+  readCrosschainMoves,
+  readCrosschainRates,
+} from "../lib/crosschain-api.mjs";
 import {
   crosschainPath,
   readCrosschain,
@@ -17,7 +38,13 @@ import {
   verifyCrosschain,
   verifyCrosschainReceipt,
   executeCrosschain,
+  epochAbi,
+  receiptShowsCall,
 } from "../lib/crosschain-transactions.mjs";
+
+const requestEventsAbi = parseAbi([
+  "event DepositRequested(uint256 indexed requestId,uint64 indexed epoch,address indexed owner,address receiver,uint256 assets)",
+]);
 
 const owner = "0x1111111111111111111111111111111111111111";
 const other = "0x2222222222222222222222222222222222222222";
@@ -297,7 +324,7 @@ test("wrong RPC network and changed implementation stop before simulation", asyn
       },
       1n,
     ),
-    /implementation has changed/,
+    /contract code has changed/,
   );
 });
 test("a hash alone, reverted transaction or unrelated receipt is never success", () => {
@@ -322,6 +349,174 @@ test("a hash alone, reverted transaction or unrelated receipt is never success",
         crosschain.vault,
       ),
     );
+});
+test("a wallet relay is confirmed only by the vault's own matching event", () => {
+  const wallet = "0x" + "1".repeat(40);
+  const data = encodeFunctionData({
+    abi: epochAbi,
+    functionName: "requestDeposit",
+    args: [5_000_000n, wallet],
+  });
+  const log = (assets, logOwner = wallet, address = crosschain.vault) => ({
+    address,
+    topics: encodeEventTopics({
+      abi: requestEventsAbi,
+      eventName: "DepositRequested",
+      args: { requestId: 7n, epoch: 9n, owner: logOwner },
+    }),
+    data: encodeAbiParameters(
+      [{ type: "address" }, { type: "uint256" }],
+      [wallet, assets],
+    ),
+  });
+  const receipt = (logs, status = "success") => ({ status, logs });
+  assert.equal(
+    receiptShowsCall(
+      receipt([log(5_000_000n)]),
+      wallet,
+      crosschain.vault,
+      data,
+    ),
+    true,
+  );
+  for (const bad of [
+    receipt([]),
+    receipt([log(4_999_999n)]),
+    receipt([log(5_000_000n, "0x" + "2".repeat(40))]),
+    receipt([log(5_000_000n, wallet, "0x" + "3".repeat(40))]),
+    receipt([log(5_000_000n)], "reverted"),
+  ])
+    assert.equal(receiptShowsCall(bad, wallet, crosschain.vault, data), false);
+});
+test("a request's ID is read from its receipt", () => {
+  const owner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+  const encode = (eventName, ownerAddress, receiver) => ({
+    address: crosschain.vault,
+    topics: encodeEventTopics({
+      abi: requestEvents,
+      eventName,
+      args: { requestId: 42n, epoch: 7n, owner: ownerAddress },
+    }),
+    data: encodeAbiParameters(
+      [{ type: "address" }, { type: "uint256" }],
+      [receiver, 10000000n],
+    ),
+  });
+  assert.deepEqual(
+    receiptRequestIds(
+      { logs: [encode("DepositRequested", owner, owner)] },
+      owner,
+    ),
+    ["42"],
+  );
+  assert.deepEqual(
+    receiptRequestIds(
+      { logs: [encode("RedeemRequested", owner, owner)] },
+      owner,
+    ),
+    ["42"],
+  );
+  // Someone else's request and other contracts' logs are ignored.
+  const other = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+  assert.deepEqual(
+    receiptRequestIds(
+      { logs: [encode("DepositRequested", other, other)] },
+      owner,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    receiptRequestIds(
+      {
+        logs: [{ ...encode("DepositRequested", owner, owner), address: other }],
+      },
+      owner,
+    ),
+    [],
+  );
+});
+test("rates and moves are read from fixed sources and never invent points", async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    const body = String(url).includes("/v1/transfers")
+      ? [
+          {
+            id: "0x1",
+            src_chain: 8453,
+            dst_chain: 42161,
+            amount: "4000000",
+            sent_tx: "0x" + "a".repeat(64),
+            sent_at: 100,
+            received_at: 200,
+          },
+          { id: "0x2", src_chain: 1, dst_chain: 8453, amount: "1" },
+          {
+            id: "0x3",
+            src_chain: 8453,
+            dst_chain: 42161,
+            amount: "not a number",
+          },
+        ]
+      : [
+          { from: "2026-10-30T00:00:00Z", value: 6.5 },
+          { from: "2026-10-29T00:00:00Z", value: "5" },
+          { from: "not a date", value: 1 },
+          { from: "2026-10-28T00:00:00Z", value: null },
+        ];
+    return new Response(JSON.stringify(body), { status: 200 });
+  };
+  try {
+    const { moves } = await readCrosschainMoves();
+    assert.equal(moves.length, 1);
+    assert.equal(moves[0].from, "Base");
+    assert.equal(moves[0].to, "Arbitrum");
+    assert.equal(moves[0].sentAt, 100000);
+    assert.equal(moves[0].tx, "0x" + "a".repeat(64));
+    const rates = await readCrosschainRates("30d");
+    assert.equal(rates.networks.length, 2);
+    const [base] = rates.networks;
+    assert.equal(base.name, "Base");
+    assert.deepEqual(
+      base.vault.map((point) => point.v),
+      [5, 6.5],
+    );
+    assert.ok(calls.every((url) => /^https:\/\//.test(url)));
+    assert.ok(
+      calls.some((url) =>
+        url.includes("/lending/USDC/apr-ticks/30d?network=Base"),
+      ),
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+test("request stages follow the settlement order", () => {
+  assert.equal(requestStage({ kind: "deposit", state: "pending" }).step, 0);
+  assert.equal(requestStage({ kind: "redeem", state: "clearing" }).step, 1);
+  const waiting = requestStage({ kind: "redeem", state: "awaiting_liquidity" });
+  assert.equal(waiting.ready, undefined);
+  assert.equal(
+    requestStage({ kind: "redeem", state: "claimable" }).ready,
+    true,
+  );
+  assert.equal(requestStage({ kind: "deposit", state: "claimed" }).step, 3);
+  assert.equal(
+    requestStage({ kind: "deposit", state: "cancelled" }).cancelled,
+    true,
+  );
+  assert.equal(valuationState({ tick: { frozen: true } }).level, "frozen");
+  assert.equal(
+    valuationState({ tick: { ageSeconds: 9000 }, risk: { maxTickAge: 7200 } })
+      .level,
+    "stale",
+  );
+  assert.equal(
+    valuationState({ tick: { ageSeconds: 60 }, risk: { maxTickAge: 7200 } })
+      .level,
+    "ok",
+  );
 });
 test("wrong wallet and wrong wallet network cannot reach simulation or signing", async () => {
   const forbidden = () => {

@@ -1,6 +1,6 @@
 # Running the account application
 
-Next.js 16 / React 19 on Node.js 20.20 or newer. The application serves its own
+Next.js 16 / React 19 on Node.js 22. The application serves its own
 public routes; a standalone deployment on Vercel or `next start` needs no URL
 rewrites. The separate `Thesauros/developer.thesauros.io` repository contains
 the Partner API backend and SDKs.
@@ -52,7 +52,7 @@ Set `BETTER_AUTH_SECRET` to a unique secret of at least 32 characters,
 `BETTER_AUTH_URL` to the exact public origin, and `THESAUROS_AUTH_DB` to an
 absolute persistent path outside the checkout. Keep the environment file private.
 For Turso, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` instead of relying on
-local SQLite. Both authentication and simulated account balances use this storage.
+local SQLite. Authentication and account records use this storage.
 
 ```bash
 node --env-file=.env.local scripts/init-auth.mjs
@@ -71,16 +71,16 @@ The example origin is `http://localhost:8879`; open `/app/individual` or
 | --- | --- |
 | `/` | Redirect to `/app` |
 | `/app` | Wallet entry; accepts existing `mode` / `next` query parameters |
-| `/app/individual` | Wallet sign-in or authenticated Individual workspace |
-| `/app/institution` | Coming soon |
-| `/app/api` | Authenticated simulated account ledger |
+| `/app/individual` | Individual workspace. Readable without a wallet; sign in to see a balance or to act |
+| `/app/institution` | Institution sign-in or workspace |
+| `/app/api` | Authenticated account workspace endpoint |
 | `/app/live` | Authenticated market and protocol reads |
 | `/api/auth/*` | Wallet challenge, signature verification, session and logout |
 | `/api/v1/*` | Existing developer sandbox API |
-| `/monitoring` | Institution Coming soon |
+| `/monitoring` | Institution sign-in, then Transparency |
 | `/_next/*`, `/brand/*` | Next.js assets and application artwork |
 
-`app/app/[mode]/page.jsx` creates the account URL in Next.js itself.
+`app/app/[mode]/[[...view]]/page.jsx` creates the account URL in Next.js itself.
 `NEXT_PUBLIC_BASE_PATH` is no longer read. Remove it from deployment settings;
 even a stale `/developers` value no longer prefixes routes or API calls.
 
@@ -155,5 +155,5 @@ server, checks native pages/assets without a proxy, signs in with an ephemeral
 wallet and verifies session/logout protection. It uses a temporary database,
 sends no transactions and does not touch deployed accounts.
 
-Individual deposits remain simulated. Institution remains Coming soon. See
+Deposits are real: requests in USDC on Base. Institution accounts sign in with a wallet or email. See
 [account operation](ACCOUNT-WORKSPACES.md) for authentication and data boundaries.
