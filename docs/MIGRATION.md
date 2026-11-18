@@ -53,6 +53,15 @@ Arbitrum proceeds then require the user's independent transfer to the same walle
 in Base. The app checks actual Base native USDC balance, ETH, chain, contract
 identity and allowance before the next signature. Existing Base cash may fund
 the deposit: fungible tokens do not establish which external bridge supplied it.
+Any verified Base balance meeting the current minimum can continue the move,
+including a partial transfer or proceeds reduced by fees. The default deposit
+uses the smaller of the outstanding proceeds and available Base cash; the form
+also respects the open batch's room. An explicit amount remains unchanged and
+cannot be signed if it exceeds the fresh balance. With no depositable Base
+balance the screen gives manual transfer instructions and a balance check,
+rather than showing a transfer as if the app had started it. RPC errors remain
+unknown states, never zero balances. Balance reads do not credit a migration;
+only verified deposit requests do.
 
 Base operations are separate `approve(exactAmount)` → `requestDeposit` → epoch
 clearing → `claim`. An approved or queued deposit is never reported as completed

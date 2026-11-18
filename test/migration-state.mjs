@@ -220,11 +220,15 @@ test("withdrawal proceeds remain recoverable after legacy shares reach zero", ()
 });
 
 test("Base balance and allowance govern distinct funding, approve and deposit steps", () => {
-  const input = { position: ready(), withdrawals: withdrawn() };
+  const input = {
+    position: ready(),
+    withdrawals: withdrawn(),
+    minDeposit: 1000000n,
+  };
   const unavailable = deriveMigration(input);
   assert.equal(unavailable.canAct, false);
   assert.match(unavailable.error, /Base/);
-  const funding = deriveMigration({ ...input, cash: 2999999n, allowance: 0n });
+  const funding = deriveMigration({ ...input, cash: 0n, allowance: 0n });
   assert.equal(funding.stage, "base");
   assert.equal(funding.canAct, false);
   const approved = deriveMigration({
@@ -240,6 +244,134 @@ test("Base balance and allowance govern distinct funding, approve and deposit st
     allowance: 2999999n,
   });
   assert.equal(insufficientApproval.stage, "approve");
+});
+
+test("a verified partial Base balance advances without requiring the full Arbitrum withdrawal", () => {
+  const input = {
+    position: ready(),
+    withdrawals: withdrawn(2050335n),
+    cash: 1521770n,
+    allowance: 0n,
+    minDeposit: 1000000n,
+  };
+  const selected = deriveMigration(input);
+  assert.equal(selected.stage, "approve");
+  assert.equal(selected.canAct, true);
+  assert.equal(selected.amount, "2050335");
+  assert.equal(selected.selected, "1521770");
+  assert.equal(selected.migrationCredit, "1521770");
+  assert.equal(selected.additionalFunds, "0");
+  assert.equal(deriveMigration({ ...input, allowance: 1521769n }).stage, "approve");
+  assert.equal(deriveMigration({ ...input, allowance: 1521770n }).stage, "deposit");
+  for (const cash of [1000000n, 2050335n, 9000000n]) {
+    const expected = cash < 2050335n ? cash : 2050335n;
+    const state = deriveMigration({ ...input, cash, allowance: expected });
+    assert.equal(state.selected, expected.toString());
+    assert.equal(state.stage, "deposit");
+    assert.equal(state.canAct, true);
+  }
+  const pending = deriveMigration({
+    ...input,
+    cash: 0n,
+    requests: [{ id: "16", state: "pending", amount: "1521770" }],
+  });
+  assert.equal(pending.stage, "settlement");
+  assert.equal(pending.amount, "528565");
+  const claimed = deriveMigration({
+    ...input,
+    cash: 0n,
+    requests: [{ id: "16", state: "claimed", amount: "1521770" }],
+  });
+  assert.equal(claimed.stage, "complete");
+  assert.equal(claimed.amount, "0");
+  assert.equal(claimed.withdrawn, "2050335");
+  assert.equal(claimed.credited, "1521770");
+  assert.equal(claimed.left, "528565", "an undeposited remainder never receives fabricated credit");
+});
+
+test("zero, below-minimum and unknown Base funding never become a depositable partial amount", () => {
+  const input = {
+    position: ready(),
+    withdrawals: withdrawn(2050335n),
+    allowance: 9000000n,
+    minDeposit: 1000000n,
+  };
+  for (const cash of [0n, 999999n]) {
+    const state = deriveMigration({ ...input, cash });
+    assert.equal(state.stage, "base");
+    assert.equal(state.canAct, false);
+    assert.equal(state.selected, "2050335");
+    assert.match(state.error, /balance on Base/);
+  }
+  for (const cash of [null, undefined]) {
+    const state = deriveMigration({ ...input, cash });
+    assert.equal(state.stage, "check");
+    assert.equal(state.canAct, false);
+    assert.equal(state.amount, "2050335");
+    assert.equal(state.selected, undefined);
+    assert.match(state.error, /could not be verified/);
+  }
+  for (const minDeposit of [null, undefined]) {
+    const state = deriveMigration({ ...input, cash: 1521770n, minDeposit });
+    assert.equal(state.stage, "base");
+    assert.equal(state.canAct, false);
+    assert.equal(state.selected, "2050335", "unknown floors cannot authorize partial selection");
+  }
+  const invalid = deriveMigration({ ...input, cash: 1521770n, minDeposit: "unavailable" });
+  assert.equal(invalid.stage, "check");
+  assert.equal(invalid.canAct, false);
+  assert.match(invalid.error, /minimum deposit could not be verified/);
+});
+
+test("an explicit amount survives repeated derivation and overrides partial funding defaults", () => {
+  const input = {
+    position: ready(),
+    withdrawals: withdrawn(2050335n),
+    cash: 1521770n,
+    allowance: 1521770n,
+    minDeposit: 1000000n,
+    amountInput: "2.050335",
+  };
+  for (let reload = 0; reload < 2; reload++) {
+    const state = deriveMigration(structuredClone(input));
+    assert.equal(state.selected, "2050335");
+    assert.equal(state.stage, "base");
+    assert.equal(state.canAct, false);
+    assert.match(state.error, /balance on Base/);
+  }
+  const lowered = deriveMigration({ ...input, amountInput: "1.25" });
+  assert.equal(lowered.selected, "1250000");
+  assert.equal(lowered.stage, "deposit");
+  const invalid = deriveMigration({ ...input, amountInput: "not-an-amount" });
+  assert.equal(invalid.stage, "base");
+  assert.equal(invalid.canAct, false);
+  assert.ok(invalid.error);
+});
+
+test("partial funding credits only the claimed amount and keeps the next deposit obligation", () => {
+  const input = {
+    position: ready(5000000n),
+    withdrawals: withdrawn(10000000n),
+    cash: 3000000n,
+    allowance: 3000000n,
+    minDeposit: 1000000n,
+  };
+  const first = deriveMigration(input);
+  assert.equal(first.selected, "3000000");
+  assert.equal(first.amount, "10000000");
+  const next = deriveMigration({
+    ...input,
+    cash: 2000000n,
+    allowance: 2000000n,
+    requests: [{ id: "15", state: "claimed", amount: first.selected }],
+  });
+  assert.equal(next.credited, "3000000");
+  assert.equal(next.amount, "7000000");
+  assert.equal(next.selected, "2000000");
+  assert.equal(next.stage, "deposit");
+  const unavailable = deriveMigration({ ...input, cash: 3000000n, verificationError: "History RPC failed" });
+  assert.equal(unavailable.stage, "check");
+  assert.equal(unavailable.canAct, false);
 });
 
 test("pending signatures and broadcasts block duplicates across every stage", () => {

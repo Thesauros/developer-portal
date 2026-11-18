@@ -297,7 +297,7 @@ function Move({ product, model, vault, eth, batch }) {
         : "deposit"
       : // While the holder is typing an amount the form stays where it is,
         // whatever the amount means for the stage.
-        product.stage === "base" && typed
+        product.stage === "base" && (typed || !!product.amountInput)
         ? "deposit"
         : STEP_OF[product.stage] || "withdraw";
   const order = fromArbitrum
@@ -324,7 +324,8 @@ function Move({ product, model, vault, eth, batch }) {
   const selected = whole(product.selected) ?? remaining;
   const cash = whole(product.cash);
   const additional = whole(product.additionalFunds) ?? 0n;
-  const minimum = whole(product.minDeposit) ?? 0n;
+  const knownMinimum = whole(product.minDeposit);
+  const minimum = knownMinimum ?? 0n;
   const limit = vault.batchLimit == null ? null : BigInt(Math.round(vault.batchLimit * 1e6));
   const room = vault.batchRoom == null ? null : BigInt(Math.round(vault.batchRoom * 1e6));
   const closing = batchClosing(vault);
@@ -360,21 +361,25 @@ function Move({ product, model, vault, eth, batch }) {
   const need = selected > 0n ? selected : remaining;
   const onBase = cash ?? 0n;
   const fits = [remaining, onBase, ...(room != null ? [room] : [])].reduce((a, c) => (c < a ? c : a));
-  const short_ = cash != null && remaining > cash ? remaining - cash : 0n;
-  // A bridge keeps a fee, so a little less than was withdrawn arrives.
-  const nearly = cash != null && cash > 0n && short_ > 0n && short_ * 50n <= remaining;
-  const arrived = cash != null && cash >= remaining;
+  // A wallet balance proves what can be deposited, not which transfer funded
+  // it. Any verified amount meeting the minimum can continue this move.
+  const fundable = knownMinimum != null && cash != null && cash > 0n && cash >= minimum;
+  const topUp = cash != null && cash < minimum ? minimum - cash : 0n;
   const full = room != null && room < (minimum > 0n ? minimum : 1n);
   // The amount this screen filled in itself; it follows the room and the
   // balance as they change, until the holder types their own.
   const filled = useRef("");
+  useEffect(() => {
+    setTyped(false);
+    filled.current = "";
+  }, [model.owner, product.id]);
   useEffect(() => {
     if (!["base", "approve", "deposit"].includes(product.stage)) {
       if (typed) setTyped(false);
       filled.current = "";
       return;
     }
-    if (typed || full || !(arrived || nearly)) return;
+    if (typed || full || !fundable) return;
     if (product.amountInput && product.amountInput !== filled.current) return;
     const next = fits >= minimum && fits > 0n && fits !== remaining ? exact(fits) : "";
     if (next !== (product.amountInput || "")) {
@@ -382,22 +387,16 @@ function Move({ product, model, vault, eth, batch }) {
       product.setAmountInput(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.stage, typed, product.amountInput, full, arrived, nearly, fits, remaining]);
+  }, [product.stage, typed, product.amountInput, full, fundable, fits, remaining, minimum]);
   const left = whole(product.left) ?? 0n;
   const keptBack = left > 0n && left >= minimum;
   const overRoom = room != null && selected > room;
   const later = remaining > selected ? remaining - selected : 0n;
-  // What of the withdrawn money is really in the wallet. When slightly less
-  // than was withdrawn sits on Base, the difference was the bridge's fee, and
-  // the figures on screen follow the wallet.
-  // The same holds for a remainder too small to deposit: it is in the wallet
-  // only as far as the wallet has it.
+  // Show the depositable part on Base without inferring a bridge fee from the
+  // difference. The remaining migration credit still follows confirmed receipts.
   const held =
-    cash != null && cash < remaining && (nearly || remaining < minimum) ? cash : remaining;
+    cash != null && cash < remaining && (fundable || remaining < minimum) ? cash : remaining;
   const rest = held > selected ? held - selected : 0n;
-  // Some is on Base, clearly not all of it: the holder may go on with that.
-  const partly =
-    product.stage === "base" && cash != null && cash >= minimum && cash > 0n && !nearly && !arrived;
 
   // Stopping: the rest stays in the wallet. Asked twice, undone from the page.
   const canStop =
@@ -614,7 +613,7 @@ function Move({ product, model, vault, eth, batch }) {
             title="Send your USDC to Base"
             summary={
               stateOf("bring") === "done"
-                ? "Your USDC is on Base."
+                ? "USDC is available in your Base wallet."
                 : "The new vault takes deposits on Base, so the USDC from Arbitrum goes there first."
             }
           >
@@ -623,10 +622,10 @@ function Move({ product, model, vault, eth, batch }) {
             ) : (
               <>
                 <p>
-                  Your <strong>{usdc(remaining)} USDC</strong> is in your wallet
-                  on Arbitrum. The new vault takes deposits on Base, so it has
-                  to go there first. The app does not do this for you: it is a
-                  transfer you make yourself, to your own address.
+                  Your withdrawal was confirmed on Arbitrum. To continue,
+                  transfer USDC to your own wallet on Base. The app does not
+                  make this transfer for you. You can deposit the amount that
+                  arrives, even if it is less than you withdrew.
                 </p>
                 <ol className={m.how}>
                   <li>
@@ -656,48 +655,35 @@ function Move({ product, model, vault, eth, batch }) {
                   <dl>
                     <div>
                       <dt>USDC on Base now</dt>
-                      <dd>{cash == null ? "—" : usdc(cash)}</dd>
+                      <dd>{cash == null ? "—" : precise(cash)}</dd>
                     </div>
                     <div>
-                      <dt>To send from {product.name}</dt>
-                      <dd>{usdc(remaining)}</dd>
+                      <dt>Withdrawn and not deposited yet</dt>
+                      <dd>{precise(remaining)}</dd>
                     </div>
                   </dl>
-                  {cash != null && cash > 0n && !nearly && !arrived && (
+                  {topUp > 0n && (
                     <p className={m.bridgeNote}>
-                      The {usdc(cash)} USDC already on Base is separate from
-                      what you withdrew: send the whole {usdc(remaining)} USDC.
+                      The minimum deposit is {precise(minimum)} USDC. Add at
+                      least {precise(topUp)} USDC to your Base wallet to continue.
                     </p>
                   )}
                 </div>
                 <p className={m.waitLine} role="status">
-                  <i className={m.spinner} aria-hidden="true" />
-                  Watching your Base balance. This step finishes by itself when
-                  the USDC arrives.
+                  Transfer USDC to Base to continue. Your balance refreshes
+                  every 15 seconds and when you return to this page.
                 </p>
                 <div className={m.actions}>
                   <button className={m.ghost} onClick={model.refresh} disabled={model.loading || acting}>
-                    {model.loading ? "Checking…" : "Check now"}
+                    {model.loading ? "Checking…" : "Check Base balance"}
                   </button>
-                  {partly && (
-                    <button
-                      className={m.ghost}
-                      onClick={() => {
-                        setTyped(true);
-                        product.setAmountInput(exact(cash < remaining ? cash : remaining));
-                      }}
-                      disabled={acting}
-                    >
-                      Deposit the {usdc(cash)} USDC already on Base
-                    </button>
-                  )}
                 </div>
                 <p className={m.note}>
                   {noGas
                     ? "You have no ETH on Base yet. The deposit needs a little for network fees: send some along."
                     : "The deposit on Base needs a little ETH there for network fees."}{" "}
-                  A bridge keeps a small fee, so slightly less arrives than you
-                  sent; the next step goes on with what arrived.
+                  Fees may reduce the amount received. The deposit uses your
+                  verified native USDC balance on Base.
                 </p>
               </>
             )}
@@ -736,7 +722,7 @@ function Move({ product, model, vault, eth, batch }) {
             </>
           ) : (
             <>
-              {product.stage === "base" && (!fromArbitrum || typed) && (
+              {product.stage === "base" && (!fromArbitrum || typed || !!product.amountInput) && (
                 <p className={m.alert} role="alert">
                   {error ||
                     "Your wallet on Base holds less USDC than this move needs. Add USDC or lower the amount."}
@@ -788,9 +774,8 @@ function Move({ product, model, vault, eth, batch }) {
                 </p>
               ) : later > 0n && cash != null && selected >= cash ? (
                 <p className={m.note}>
-                  {usdc(later, later < 10000n ? 6 : 2)} USDC less than you
-                  withdrew is on Base. If the rest was the bridge’s fee, the
-                  move goes on without it.
+                  Deposit the available USDC now, or send more to Base.{" "}
+                  {precise(later)} USDC of this move remains outside this deposit.
                 </p>
               ) : rest > 0n ? (
                 <p className={m.note}>
@@ -912,10 +897,9 @@ function Move({ product, model, vault, eth, batch }) {
         (stopping ? (
           <div className={m.stop} role="group" aria-label="Stop the move">
             <p>
-              Keep <strong>{usdc(held, held < 10000n ? 6 : 2)} USDC</strong>{" "}
-              in your wallet and stop asking for it here? It stays yours and is
-              not deposited. You can bring it back from this page, or deposit
-              it any time from Earn.
+              Leave the remaining <strong>{precise(remaining)} USDC</strong>{" "}
+              outside this move? This does not transfer or deposit any funds.
+              You can resume from this page or deposit from Earn later.
             </p>
             <div className={m.actions}>
               <button
@@ -925,7 +909,7 @@ function Move({ product, model, vault, eth, batch }) {
                   setStopping(false);
                 }}
               >
-                Keep it in my wallet
+                Keep the rest outside this move
               </button>
               <button className={m.textLink} onClick={() => setStopping(false)}>
                 Go back
@@ -936,7 +920,7 @@ function Move({ product, model, vault, eth, batch }) {
           <p className={m.finish}>
             Not depositing the rest?{" "}
             <button className={m.textLink} onClick={() => setStopping(true)}>
-              Keep {usdc(held, held < 10000n ? 6 : 2)} USDC in my wallet
+              Keep the rest outside this move
             </button>
           </p>
         ))}
