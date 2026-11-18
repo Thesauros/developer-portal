@@ -156,7 +156,7 @@ function Unresolved({ product, model }) {
           Paste the hash of the transaction your wallet shows now. It is checked
           against this wallet and this step before anything continues.
           {typeof product.retry === "function" &&
-            " Reopening the request sends the same one again with the same number, so it can only ever run once."}
+            " The app checks whether the saved request can be safely reopened before asking your wallet."}
         </p>
         <div className={m.hashRow}>
           <input

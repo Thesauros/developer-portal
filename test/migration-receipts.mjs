@@ -167,6 +167,7 @@ test("rejects incorrect RPC or transaction chain, owner, target, receipt and blo
     (f) => {
       f.transaction.to = other;
       f.receipt.to = other;
+      f.requested.address = other;
     },
     (f) => {
       f.receipt.to = other;
@@ -204,6 +205,230 @@ test("rejects incorrect RPC or transaction chain, owner, target, receipt and blo
       owner,
       hash,
     ),
+  );
+});
+
+function relayed(kind = "deposit") {
+  const f = fixture(kind);
+  f.intent = { ...f.intent, hash, chainId: 8453 };
+  f.transaction = {
+    ...f.transaction,
+    from: other,
+    to: other,
+    input: "0x12345678",
+    nonce: 303672,
+  };
+  f.receipt = { ...f.receipt, from: other, to: other };
+  f.client.getTransaction = async () => f.transaction;
+  f.client.getTransactionReceipt = async () => f.receipt;
+  return f;
+}
+
+test("relayed deposits confirm the saved operation and survive hash-only history reload", async () => {
+  const f = relayed();
+  const expected = { kind: "deposit", hash, requestId: "17", amount };
+  assert.deepEqual(
+    await confirmMigrationOperation(
+      f.client,
+      destination,
+      owner,
+      hash,
+      f.intent,
+    ),
+    expected,
+  );
+  assert.deepEqual(
+    await confirmMigrationOperation(f.client, destination, owner, hash),
+    expected,
+  );
+  // A batch sent by the owner to its own delegated account has the same effects.
+  f.transaction.from = owner;
+  f.transaction.to = owner;
+  f.receipt.from = owner;
+  f.receipt.to = owner;
+  assert.deepEqual(
+    await confirmMigrationOperation(
+      f.client,
+      destination,
+      owner,
+      hash,
+      f.intent,
+    ),
+    expected,
+  );
+});
+
+test("relayed approvals and claims require the configured contract's exact owner effects", async () => {
+  const approvalAbi = parseAbi([
+    "event Approval(address indexed owner,address indexed spender,uint256 value)",
+  ]);
+  const approval = relayed("approve");
+  const log = {
+    address: destination.asset,
+    transactionHash: hash,
+    topics: encodeEventTopics({
+      abi: approvalAbi,
+      eventName: "Approval",
+      args: { owner, spender: destination.address },
+    }),
+    data: encodeAbiParameters([{ type: "uint256" }], [amount]),
+  };
+  approval.receipt.logs = [log];
+  assert.deepEqual(
+    await confirmMigrationOperation(
+      approval.client,
+      destination,
+      owner,
+      hash,
+      approval.intent,
+    ),
+    { kind: "approve", hash, amount },
+  );
+  for (const change of [
+    (l) => {
+      l.address = other;
+    },
+    (l) => {
+      l.removed = true;
+    },
+    (l) => {
+      l.transactionHash = otherHash;
+    },
+    (l) => {
+      l.data = encodeAbiParameters([{ type: "uint256" }], [amount - 1n]);
+    },
+    (l) => {
+      l.topics = encodeEventTopics({
+        abi: approvalAbi,
+        eventName: "Approval",
+        args: { owner: other, spender: destination.address },
+      });
+    },
+    (l) => {
+      l.topics = encodeEventTopics({
+        abi: approvalAbi,
+        eventName: "Approval",
+        args: { owner, spender: other },
+      });
+    },
+  ]) {
+    const altered = structuredClone(log);
+    change(altered);
+    approval.receipt.logs = [altered];
+    await assert.rejects(
+      confirmMigrationOperation(
+        approval.client,
+        destination,
+        owner,
+        hash,
+        approval.intent,
+      ),
+    );
+  }
+  const claim = relayed("claim");
+  const claimAbi = parseAbi([
+    "event DepositClaimed(uint256 indexed requestId,address indexed receiver,uint256 shares)",
+  ]);
+  claim.receipt.logs = [
+    {
+      address: destination.address,
+      transactionHash: hash,
+      topics: encodeEventTopics({
+        abi: claimAbi,
+        eventName: "DepositClaimed",
+        args: { requestId: 17n, receiver: owner },
+      }),
+      data: encodeAbiParameters([{ type: "uint256" }], [100n]),
+    },
+  ];
+  assert.deepEqual(
+    await confirmMigrationOperation(
+      claim.client,
+      destination,
+      owner,
+      hash,
+      claim.intent,
+    ),
+    { kind: "claim", hash, requestId: "17" },
+  );
+  claim.receipt.logs[0].topics = encodeEventTopics({
+    abi: claimAbi,
+    eventName: "DepositClaimed",
+    args: { requestId: 18n, receiver: owner },
+  });
+  await assert.rejects(
+    confirmMigrationOperation(
+      claim.client,
+      destination,
+      owner,
+      hash,
+      claim.intent,
+    ),
+  );
+});
+
+test("a historical or ambiguous relay cannot clear a saved operation or invent deposit funding", async () => {
+  for (const change of [
+    (f) => {
+      f.intent.hash = otherHash;
+    },
+    (f) => {
+      delete f.intent.hash;
+    },
+    (f) => {
+      f.receipt.logs = [f.requested];
+    },
+    (f) => {
+      f.receipt.logs = [f.transfer];
+    },
+    (f) => {
+      f.receipt.logs.push(f.requested);
+    },
+    (f) => {
+      f.receipt.logs.push(f.transfer);
+    },
+    (f) => {
+      f.transfer.removed = true;
+    },
+    (f) => {
+      f.requested.transactionHash = otherHash;
+    },
+    (f) => {
+      f.transfer.data = encodeAbiParameters(
+        [{ type: "uint256" }],
+        [amount - 1n],
+      );
+    },
+    (f) => {
+      f.intent.data = encodeFunctionData({
+        abi: epochAbi,
+        functionName: "requestDeposit",
+        args: [amount, other],
+      });
+    },
+    (f) => {
+      f.intent.address = other;
+    },
+    (f) => {
+      f.receipt.from = owner;
+    },
+    (f) => {
+      f.receipt.blockHash = otherHash;
+    },
+    (f) => {
+      f.client.getChainId = async () => 42161;
+    },
+  ]) {
+    const f = relayed();
+    change(f);
+    await assert.rejects(
+      confirmMigrationOperation(f.client, destination, owner, hash, f.intent),
+    );
+  }
+  const f = relayed();
+  f.transfer.removed = true;
+  await assert.rejects(
+    confirmMigrationOperation(f.client, destination, owner, hash),
   );
 });
 
@@ -342,6 +567,25 @@ test("same-nonce cancellation is recoverable but another nonce cannot clear pend
       owner,
       hash,
       cancelled.intent,
+    ),
+    { cancelled: true, hash },
+  );
+  const replaced = fixture();
+  replaced.transaction.to = destination.asset;
+  replaced.receipt.to = destination.asset;
+  replaced.transaction.input = encodeFunctionData({
+    abi: tokenAbi,
+    functionName: "approve",
+    args: [destination.address, amount],
+  });
+  replaced.receipt.logs = [];
+  assert.deepEqual(
+    await confirmMigrationOperation(
+      replaced.client,
+      destination,
+      owner,
+      hash,
+      replaced.intent,
     ),
     { cancelled: true, hash },
   );

@@ -89,9 +89,17 @@ Every signing request has a persisted reserved nonce and runs under a wallet-wid
 lock (`lib/wallet-lock.mjs`): a Web Lock where the browser offers one, and a
 renewed lease in browser storage where it does not (Web Locks exist only on a
 secure origin, so a preview served over plain HTTP uses the lease). A reload
-during signing can retry exactly the same operation with that nonce, after fresh
-checks. Confirmed same-nonce replacements/cancellations can be recovered by
-hash. Unknown results never trigger a new nonce automatically. Durable browser
+during signing can reopen a direct EOA operation with its saved nonce only after
+fresh checks prove that this is safe. A known receipt is reconciled before any
+wallet prompt. Smart/delegated wallets can submit through a relay whose nonce
+belongs to another sender; these operations are checked by their saved hash and
+exact vault/token events, and are never blindly resent. A unique withdrawal and
+matching USDC transfer also reconstruct an imported or reloaded move without
+requiring the relay envelope to name the owner. Relayed deposits must additionally
+prove the exact new-vault request and USDC funding. A pending relay must match
+its original wallet-returned hash; an older unrelated receipt cannot clear it.
+Confirmed direct replacements/cancellations retain exact original EOA nonce
+checks. Unknown results never trigger a new nonce automatically. Durable browser
 storage is required to sign safely.
 Clearing browser storage or moving to another browser does not preserve local
 signing intents; retain explorer links. No funds are stored by the app.

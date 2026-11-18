@@ -22,6 +22,9 @@ const hash = "0x" + "ab".repeat(32);
 
 function newOperation(kind = "deposit") {
   const f = workflowFixture();
+  const readCode = f.client.getBytecode;
+  f.client.getBytecode = async (args) =>
+    args.address.toLowerCase() === owner.toLowerCase() ? "0x" : readCode(args);
   f.state.allowance = 2000000n;
   f.state.shares = 2000000n;
   f.state.request = {
@@ -85,7 +88,8 @@ function oldOperation(vaultId = "base", functionName = "redeem") {
     },
     getBlockNumber: async () => 100n,
     getStorageAt: async () => "0x" + "0".repeat(24) + other.slice(2),
-    getBytecode: async () => legacyCode,
+    getBytecode: async ({ address }) =>
+      address.toLowerCase() === owner.toLowerCase() ? "0x" : legacyCode,
     readContract: async ({ address, functionName, args }) => {
       switch (functionName) {
         case "asset":
@@ -387,4 +391,326 @@ test("hash persistence failure preserves the sent hash for recovery", async () =
       error.code === "HASH_NOT_SAVED" && /^0x[\da-f]{64}$/.test(error.hash),
   );
   assert.equal(f.state.writes.length, 1);
+});
+
+const blockHash = "0x" + "cd".repeat(32);
+const notFound = (receipt = false) =>
+  Object.assign(new Error("Not found"), {
+    name: receipt
+      ? "TransactionReceiptNotFoundError"
+      : "TransactionNotFoundError",
+  });
+function knownOperation(f, transaction = {}, receipt = null) {
+  f.pending.hash = hash;
+  f.client.getTransaction = async ({ hash: requested }) => {
+    assert.equal(requested, hash);
+    return {
+      hash,
+      from: owner,
+      to: f.pending.address,
+      input: f.pending.data,
+      nonce: f.pending.nonce,
+      chainId: f.pending.chainId,
+      value: 0n,
+      blockNumber: null,
+      blockHash: null,
+      ...transaction,
+    };
+  };
+  f.client.getTransactionReceipt = async ({ hash: requested }) => {
+    assert.equal(requested, hash);
+    if (receipt) return receipt;
+    throw notFound(true);
+  };
+  return f;
+}
+async function blockedBeforeWallet(f, code, vaultId) {
+  let walletReads = 0,
+    readiness = 0,
+    simulations = 0;
+  const original = JSON.stringify(f.pending);
+  f.wallet.getAddresses = f.wallet.getChainId = async () => {
+    walletReads++;
+    assert.fail(
+      "Original transaction must be checked before opening the wallet",
+    );
+  };
+  f.client.simulateContract = async () => {
+    simulations++;
+    assert.fail("No simulation before reconciliation");
+  };
+  await assert.rejects(
+    retryMigrationIntent({
+      publicClient: f.client,
+      walletClient: f.wallet,
+      owner,
+      vaultId,
+      pending: f.pending,
+      beforeRetry: () => {
+        readiness++;
+      },
+    }),
+    (error) => error.code === code && error.userFacing === true,
+  );
+  assert.equal(walletReads, 0);
+  assert.equal(readiness, 0);
+  assert.equal(simulations, 0);
+  assert.equal((f.writes || f.state.writes).length, 0);
+  assert.equal(JSON.stringify(f.pending), original);
+}
+
+test("confirmed direct and relayed transactions stop before any wallet access", async () => {
+  for (const from of [owner, other]) {
+    for (const status of ["success", "reverted"]) {
+      const f = knownOperation(
+        newOperation(),
+        {
+          from,
+          nonce: from === owner ? 7 : 303672,
+          blockNumber: 100n,
+          blockHash,
+        },
+        { transactionHash: hash, status, blockNumber: 100n, blockHash },
+      );
+      await blockedBeforeWallet(f, "TRANSACTION_CONFIRMED");
+    }
+  }
+  for (const vaultId of ["base", "arbitrum"]) {
+    const f = knownOperation(
+      oldOperation(vaultId),
+      {
+        from: other,
+        to: owner,
+        input: "0x1234",
+        nonce: 303672,
+        blockNumber: 100n,
+        blockHash,
+      },
+      {
+        transactionHash: hash,
+        status: "success",
+        blockNumber: 100n,
+        blockHash,
+      },
+    );
+    await blockedBeforeWallet(f, "TRANSACTION_CONFIRMED", vaultId);
+  }
+});
+
+test("a pending outer sender, target or calldata mismatch is never retried", async () => {
+  for (const patch of [
+    { from: other, nonce: 303672 },
+    { to: owner },
+    { input: "0x1234" },
+  ]) {
+    const f = knownOperation(newOperation(), patch);
+    await blockedBeforeWallet(f, "RELAY_PENDING");
+  }
+});
+
+test("RPC errors and missing original transactions fail closed instead of implying a direct send", async () => {
+  for (const scenario of [
+    "chain",
+    "transaction",
+    "receipt",
+    "both missing",
+    "wrapped RPC",
+    "synchronous RPC",
+  ]) {
+    const f = knownOperation(newOperation());
+    const offline = () => {
+      throw new Error("RPC unavailable");
+    };
+    if (scenario === "chain") f.client.getChainId = offline;
+    if (scenario === "transaction")
+      f.client.getTransaction = async () => offline();
+    if (scenario === "receipt")
+      f.client.getTransactionReceipt = async () => offline();
+    if (scenario === "both missing")
+      f.client.getTransaction = async () => {
+        throw notFound();
+      };
+    if (scenario === "wrapped RPC")
+      f.client.getTransaction = async () => {
+        throw Object.assign(new Error("Read failed"), {
+          cause: new Error("RPC rate limited"),
+        });
+      };
+    if (scenario === "synchronous RPC") f.client.getTransaction = offline;
+    await blockedBeforeWallet(f, "TRANSACTION_STATUS_UNAVAILABLE");
+  }
+});
+
+test("original hash, chain, nonce and block evidence are bound without nonce adoption", async () => {
+  for (const patch of [
+    { hash: "0x" + "11".repeat(32) },
+    { chainId: 42161 },
+    { nonce: 303672 },
+    { value: 1n },
+    { blockNumber: 100n, blockHash },
+  ]) {
+    await blockedBeforeWallet(
+      knownOperation(newOperation(), patch),
+      "TRANSACTION_STATUS_UNAVAILABLE",
+    );
+  }
+  for (const patch of [
+    { transactionHash: "0x" + "11".repeat(32) },
+    { chainId: 42161 },
+    { blockNumber: 101n },
+    { blockHash: "0x" + "11".repeat(32) },
+    { status: "pending" },
+    { blockHash: undefined },
+  ]) {
+    await blockedBeforeWallet(
+      knownOperation(
+        newOperation(),
+        { blockNumber: 100n, blockHash },
+        {
+          transactionHash: hash,
+          status: "success",
+          blockNumber: 100n,
+          blockHash,
+          ...patch,
+        },
+      ),
+      "TRANSACTION_STATUS_UNAVAILABLE",
+    );
+  }
+  const wrongNetwork = knownOperation(newOperation());
+  wrongNetwork.client.getChainId = async () => 42161;
+  await blockedBeforeWallet(wrongNetwork, "CHAIN_MISMATCH");
+});
+
+test("positively verified direct pending transactions retain their exact saved nonce", async () => {
+  const f = knownOperation(newOperation());
+  await retryMigrationIntent({
+    publicClient: f.client,
+    walletClient: f.wallet,
+    owner,
+    pending: f.pending,
+  });
+  assert.equal(f.state.writes.length, 1);
+  assert.equal(f.state.writes[0].nonce, 7);
+  assert.equal(encodeFunctionData(f.state.writes[0]), f.pending.data);
+});
+
+test("confirmation or a relay appearing during preflight stops the final send", async () => {
+  for (const outcome of ["confirmed", "relay", "RPC error"]) {
+    const f = knownOperation(newOperation());
+    let walletChecks = 0;
+    const readWallet = f.wallet.getAddresses;
+    f.wallet.getAddresses = async () => {
+      walletChecks++;
+      return readWallet();
+    };
+    await assert.rejects(
+      retryMigrationIntent({
+        publicClient: f.client,
+        walletClient: f.wallet,
+        owner,
+        pending: f.pending,
+        beforeRetry: () => {
+          if (outcome === "confirmed")
+            knownOperation(
+              f,
+              { blockNumber: 100n, blockHash },
+              {
+                transactionHash: hash,
+                status: "success",
+                blockNumber: 100n,
+                blockHash,
+              },
+            );
+          if (outcome === "relay")
+            knownOperation(f, { from: other, nonce: 303672 });
+          if (outcome === "RPC error")
+            f.client.getTransactionReceipt = async () => {
+              throw new Error("RPC unavailable");
+            };
+        },
+      }),
+      {
+        code:
+          outcome === "confirmed"
+            ? "TRANSACTION_CONFIRMED"
+            : outcome === "relay"
+              ? "RELAY_PENDING"
+              : "TRANSACTION_STATUS_UNAVAILABLE",
+      },
+    );
+    assert.equal(f.state.writes.length, 0);
+    assert.equal(
+      walletChecks,
+      1,
+      "final wallet prompt must not occur after unsafe original evidence",
+    );
+  }
+});
+
+test("delegated and contract wallets cannot retry with an EOA nonce, even without a hash", async () => {
+  for (const code of ["0xef0100" + other.slice(2), "0x60006000f3"]) {
+    for (const knownDirect of [false, true]) {
+      const f = knownDirect ? knownOperation(newOperation()) : newOperation();
+      f.client.getBytecode = async ({ address }) => {
+        assert.equal(address, owner);
+        return code;
+      };
+      await blockedBeforeWallet(f, "RELAY_PENDING");
+    }
+  }
+});
+
+test("wallet bytecode RPC errors and malformed responses block before wallet access", async () => {
+  for (const code of [null, "", "0xinvalid", false]) {
+    const f = newOperation();
+    f.client.getBytecode = async () => code;
+    await blockedBeforeWallet(f, "TRANSACTION_STATUS_UNAVAILABLE");
+  }
+  const f = newOperation();
+  f.client.getBytecode = async () => {
+    throw new Error("RPC unavailable");
+  };
+  await blockedBeforeWallet(f, "TRANSACTION_STATUS_UNAVAILABLE");
+});
+
+test("undefined and empty owner bytecode retain the exact-nonce EOA retry path", async () => {
+  for (const code of [undefined, "0x"]) {
+    const f = newOperation();
+    const readCode = f.client.getBytecode;
+    f.client.getBytecode = async (args) =>
+      args.address.toLowerCase() === owner.toLowerCase()
+        ? code
+        : readCode(args);
+    await retryMigrationIntent({
+      publicClient: f.client,
+      walletClient: f.wallet,
+      owner,
+      pending: f.pending,
+    });
+    assert.equal(f.state.writes.length, 1);
+    assert.equal(f.state.writes[0].nonce, f.pending.nonce);
+    assert.equal(encodeFunctionData(f.state.writes[0]), f.pending.data);
+  }
+});
+
+test("delegation appearing during preflight blocks the final send", async () => {
+  const f = newOperation();
+  await assert.rejects(
+    retryMigrationIntent({
+      publicClient: f.client,
+      walletClient: f.wallet,
+      owner,
+      pending: f.pending,
+      beforeRetry: () => {
+        const readCode = f.client.getBytecode;
+        f.client.getBytecode = async (args) =>
+          args.address.toLowerCase() === owner.toLowerCase()
+            ? "0xef0100" + other.slice(2)
+            : readCode(args);
+      },
+    }),
+    { code: "RELAY_PENDING", userFacing: true },
+  );
+  assert.equal(f.state.writes.length, 0);
 });

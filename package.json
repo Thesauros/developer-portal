@@ -15,7 +15,7 @@
     "index:crosschain": "node scripts/index-crosschain.mjs",
     "check:crosschain": "node scripts/check-crosschain.mjs",
     "crosschain:local": "node scripts/start-crosschain.mjs",
-    "test:migration": "node --test test/migration-legacy.mjs test/migration-state.mjs test/migration-receipts.mjs test/migration-rpc.mjs test/deploy-migration.mjs test/migration-workflow.mjs test/migration-retry.mjs test/wallet-lock.mjs",
+    "test:migration": "node --test test/migration-legacy.mjs test/migration-state.mjs test/migration-receipts.mjs test/migration-step.mjs test/migration-rpc.mjs test/deploy-migration.mjs test/migration-workflow.mjs test/migration-retry.mjs test/wallet-lock.mjs",
     "check:migration": "node scripts/check-migration.mjs"
   },
   "dependencies": {
