@@ -52,7 +52,11 @@ export default function InstitutionLogin() {
       setBusy(false);
     }
   }
-  const enter = () => location.assign("/app/institution");
+  const enter = () => {
+    // Refresh the server session without dropping the requested workspace tab.
+    if (location.pathname === "/app/institution") location.reload();
+    else location.assign("/app/institution");
+  };
 
   if (recoveryKey)
     return (
